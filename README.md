@@ -21,12 +21,27 @@ conectado por USB, usa `adb reverse tcp:9099 tcp:9099`,
 `adb reverse tcp:8080 tcp:8080` y `adb reverse tcp:9199 tcp:9199`, y añade
 `--dart-define=FIREBASE_EMULATOR_HOST=127.0.0.1` al comando de Flutter.
 
-Completa el ingreso de demostración y abre **+ → Emergencia**. Si concedes el
-permiso, verás las coordenadas mientras se busca la calle. El botón **Publicar**
-solicita una sesión anónima cuando el formulario es válido. Puedes comprobar el
-usuario en [Authentication del emulador](http://127.0.0.1:4000/auth).
-En esta fase la publicación se registra en consola y los adjuntos permanecen
-en el dispositivo. Las reglas de acceso de la app se incorporarán en la fase 3.
+Completa el ingreso de demostración y prueba estas dos publicaciones:
+
+1. **+ → Emergencia**. Concede el permiso de ubicación o escribe la calle.
+   Puedes publicar en cuanto la calle tenga un valor, incluso mientras se
+   resuelve el nombre de la dirección. Si adjuntas una foto, el documento
+   aparece primero en `posts` con `mediaStatus: uploading`. La foto se sube
+   después y el estado cambia a `ready` o `failed`.
+2. **+ → Ayuda**. Completa la descripción y adjunta una foto. La ubicación
+   se busca aunque no abras **Detalles**. La foto se sube antes de crear
+   el documento. Si cancelas durante la subida o falla la escritura en
+   Firestore, la app intenta eliminar los archivos de ese intento.
+
+El botón **Publicar** solicita una sesión anónima cuando el formulario es
+válido. Comprueba el usuario en [Authentication](http://127.0.0.1:4000/auth),
+el documento en [Firestore](http://127.0.0.1:4000/firestore) y la imagen en
+[Storage](http://127.0.0.1:4000/storage). En Servicios y Noticias la persistencia
+se incorporará en sus fases de integración.
+
+Los adjuntos de estos flujos deben ser JPG y pesar menos de 5 MB. La foto de
+Emergencia puede seguir subiendo al salir del formulario mientras la aplicación
+permanezca en ejecución. Si se cierra el proceso, puede quedar en `uploading`.
 
 Para probar Auth contra `hackaton-hello-world`, habilita **Authentication →
 Método de acceso → Anónimo** en la consola de Firebase y ejecuta Flutter sin
@@ -49,4 +64,21 @@ para permitir únicamente el acceso del usuario a su propio perfil.
 flutter analyze
 flutter test
 flutter build apk --debug
+```
+
+Para verificar las reglas de acceso en el proyecto de demostración:
+
+```powershell
+npx.cmd --yes firebase-tools emulators:exec --only auth,firestore,storage --project demo-hackaton-hello-world "node test/firebase_rules_test.mjs"
+```
+
+Antes de usar el proyecto remoto, revisa las reglas que tenga desplegadas y
+confirma que estén habilitados Auth anónimo, Firestore y el bucket de Storage.
+Si ya hay reglas para otros módulos, integra los bloques de publicaciones con
+esas reglas antes de desplegar.
+Una vez revisados esos cambios, el despliegue de reglas e índices se hace desde
+la raíz del proyecto:
+
+```powershell
+npx.cmd --yes firebase-tools deploy --project hackaton-hello-world --only firestore:rules,firestore:indexes,storage
 ```
