@@ -109,15 +109,11 @@ class _EntradaState extends State<_Entrada> {
   final _form = GlobalKey<FormState>();
   _DatosBarrio? _datos;
   int _paso = 0;
-  bool _cargando = true;
+  bool _cargando = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _cargar();
-  }
-
-  Future<void> _cargar() async {
+  Future<void> _entrar() async {
+    if (_cargando) return;
+    setState(() => _cargando = true);
     _DatosBarrio? datos;
     try {
       final d = await _prefs.getString('vecino_distrito');
@@ -136,11 +132,15 @@ class _EntradaState extends State<_Entrada> {
     } catch (e) {
       debugPrint('No se pudo cargar el perfil: $e');
     }
-    if (mounted)
-      setState(() {
-        _datos = datos;
-        _cargando = false;
-      });
+    if (!mounted) {
+      datos?.dispose();
+      return;
+    }
+    setState(() {
+      _datos = datos;
+      _paso = 3;
+      _cargando = false;
+    });
   }
 
   @override
@@ -184,7 +184,7 @@ class _EntradaState extends State<_Entrada> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (_datos case final datos?) return Inicio(datos: datos);
     const titulos = [
-      '¡Hola, vecino!',
+      'Inicia sesión en Mi Barrio',
       'Ingresa tu celular',
       'Revisa tus mensajes',
       '¿Dónde está tu barrio?',
@@ -216,7 +216,7 @@ class _EntradaState extends State<_Entrada> {
           ),
           _accion('Continuar con celular', () => _ir(1)),
           OutlinedButton(
-            onPressed: () => _ir(3),
+            onPressed: _entrar,
             child: const Text('Continuar con Google · demo'),
           ),
         ],
@@ -253,7 +253,7 @@ class _EntradaState extends State<_Entrada> {
             esperado: '123456',
           ),
           _accion('Verificar y continuar', () {
-            if (_form.currentState!.validate()) _ir(3);
+            if (_form.currentState!.validate()) _entrar();
           }),
         ],
       3 => <Widget>[
