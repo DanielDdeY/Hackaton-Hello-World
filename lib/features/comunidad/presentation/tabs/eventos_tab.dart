@@ -88,20 +88,47 @@ class _TarjetaEvento extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2F1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          evento.tipo.etiqueta,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF006D77),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2F1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              evento.tipo.etiqueta,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF006D77),
+                              ),
+                            ),
                           ),
-                        ),
+                          PopupMenuButton<String>(
+                            tooltip: 'Opciones',
+                            padding: EdgeInsets.zero,
+                            iconSize: 20,
+                            onSelected: (val) {
+                              if (val == 'reportar') {
+                                _mostrarDialogoReporteEvento(context, evento.id);
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'reportar',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.flag_outlined, size: 16, color: Colors.red),
+                                    SizedBox(width: 8),
+                                    Text('Reportar', style: TextStyle(color: Colors.red)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -223,5 +250,74 @@ class _EstadoVacioEventos extends StatelessWidget {
       ),
     );
   }
+}
+
+void _mostrarDialogoReporteEvento(BuildContext context, String eventoId) {
+  String motivo = 'Información no verídica o suspendida';
+  final motivos = [
+    'Información no verídica o suspendida',
+    'Convocatoria no autorizada',
+    'Contenido ofensivo o spam',
+  ];
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogCtx) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Reportar evento'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'El reporte será revisado por los delegados de la junta vecinal.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: motivo,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo del reporte',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: motivos
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 13))))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => motivo = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD62828)),
+                onPressed: () async {
+                  final controller = dialogCtx.read<ComunidadController>();
+                  await controller.repository.reportarContenido('evento', eventoId, motivo);
+                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Evento enviado a revisión.'),
+                        backgroundColor: Color(0xFFD62828),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Enviar reporte'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }
 

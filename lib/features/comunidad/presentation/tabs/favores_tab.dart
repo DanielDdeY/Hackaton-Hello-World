@@ -172,6 +172,28 @@ class _TarjetaFavor extends StatelessWidget {
                     monedas: favor.monedasRecompensa,
                     xp: favor.xpRecompensa,
                   ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Opciones',
+                    padding: EdgeInsets.zero,
+                    iconSize: 20,
+                    onSelected: (val) {
+                      if (val == 'reportar') {
+                        _mostrarDialogoReporte(context, 'favor', favor.id);
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'reportar',
+                        child: Row(
+                          children: [
+                            Icon(Icons.flag_outlined, size: 16, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Reportar', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -545,5 +567,75 @@ class _FilaInfo extends StatelessWidget {
       ],
     );
   }
+}
+
+void _mostrarDialogoReporte(BuildContext context, String tipo, String id) {
+  String motivoSeleccionado = 'Información falsa o engañosa';
+  final motivos = [
+    'Información falsa o engañosa',
+    'Contenido inapropiado u ofensivo',
+    'Incumplimiento de acuerdo vecinal',
+    'Sospecha de estafa o lucro',
+  ];
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogCtx) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Reportar publicación'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'El reporte retendrá recompensas asociadas y enviará el caso a moderación vecinal.',
+                  style: TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: motivoSeleccionado,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo del reporte',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: motivos
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 13))))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => motivoSeleccionado = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD62828)),
+                onPressed: () async {
+                  final controller = dialogCtx.read<ComunidadController>();
+                  await controller.repository.reportarContenido(tipo, id, motivoSeleccionado);
+                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Publicación enviada a revisión.'),
+                        backgroundColor: Color(0xFFD62828),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Enviar reporte'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }
 
