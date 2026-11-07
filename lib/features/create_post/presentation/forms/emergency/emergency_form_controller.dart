@@ -26,12 +26,16 @@ class EmergencyFormController extends ChangeNotifier {
   bool _messageExpanded = false;
   bool _addressEdited = false;
   bool _disposed = false;
+  bool _isLastKnown = false;
+  LocationUnavailableReason? _locationFailure;
   String? _photoPath;
 
   EmergencyLocationStatus get locationStatus => _locationStatus;
   EmergencyType get type => _type;
   bool get messageExpanded => _messageExpanded;
   String? get photoPath => _photoPath;
+  bool get isLastKnown => _isLastKnown;
+  LocationUnavailableReason? get locationFailure => _locationFailure;
 
   void selectType(EmergencyType type) {
     if (_type == type) return;
@@ -64,13 +68,32 @@ class EmergencyFormController extends ChangeNotifier {
   }
 
   Future<void> _loadAddress() async {
-    String address;
+    final provider = _locationProvider;
     try {
-      address = (await _locationProvider.getCurrentAddress()).trim();
-    } on LocationUnavailableException {
-      address = '';
-    }
+      if (provider is DetailedLocationProvider) {
+        final location = await provider.getCurrentLocation();
+        if (_disposed) return;
+        _isLastKnown = location.isLastKnown;
+        _applyAddress(location.coordinateLabel);
+        if (_addressEdited) return;
 
+        final address = await provider.resolveAddress(location);
+        if (!_disposed &&
+            !_addressEdited &&
+            streetAddressController.text != address) {
+          streetAddressController.text = address;
+        }
+      } else {
+        _applyAddress((await provider.getCurrentAddress()).trim());
+      }
+    } on LocationUnavailableException catch (error) {
+      if (_disposed) return;
+      _locationFailure = error.reason;
+      _applyAddress('');
+    }
+  }
+
+  void _applyAddress(String address) {
     if (_disposed) return;
     _locationStatus = address.isEmpty
         ? EmergencyLocationStatus.unavailable

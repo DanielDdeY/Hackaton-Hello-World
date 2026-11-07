@@ -1,1 +1,45 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"hackaton-hello-world","appId":"1:823030453446:android:4423d852b6f7f9b42ab3c7","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"hackaton-hello-world","configurations":{"android":"1:823030453446:android:4423d852b6f7f9b42ab3c7","ios":"1:823030453446:ios:c23834ad91faf8c62ab3c7","macos":"1:823030453446:ios:c23834ad91faf8c62ab3c7","web":"1:823030453446:web:bcd103bbfc078bc62ab3c7","windows":"1:823030453446:web:ebfa3bda66c1e3b62ab3c7"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "hackaton-hello-world",
+          "appId": "1:823030453446:android:4423d852b6f7f9b42ab3c7",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "hackaton-hello-world",
+          "configurations": {
+            "android": "1:823030453446:android:4423d852b6f7f9b42ab3c7",
+            "ios": "1:823030453446:ios:c23834ad91faf8c62ab3c7",
+            "macos": "1:823030453446:ios:c23834ad91faf8c62ab3c7",
+            "web": "1:823030453446:web:bcd103bbfc078bc62ab3c7",
+            "windows": "1:823030453446:web:ebfa3bda66c1e3b62ab3c7"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000,
+      "host": "127.0.0.1"
+    },
+    "singleProjectMode": true
+  }
+}

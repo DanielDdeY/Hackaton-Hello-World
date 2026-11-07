@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
 import '../../../../../core/widgets/form_footer_buttons.dart';
 import '../../../../../core/widgets/optional_photo_picker.dart';
 import '../../../domain/services/photo_picker.dart';
 import 'help_details_section.dart';
+import '../../auth/ensure_post_author.dart';
 import 'help_form_controller.dart';
 
 class HelpForm extends StatelessWidget {
@@ -34,11 +36,12 @@ class _HelpFormView extends StatefulWidget {
 class _HelpFormViewState extends State<_HelpFormView> {
   final _formKey = GlobalKey<FormState>();
 
-  void _publish() {
+  Future<void> _publish() async {
     if (!_formKey.currentState!.validate()) return;
+    final data = context.read<HelpFormController>().data;
+    if (!await ensurePostAuthor(context) || !mounted) return;
 
     if (kDebugMode) {
-      final data = context.read<HelpFormController>().data;
       final payload = {
         'description': data.description,
         'neededBy': data.neededBy?.toIso8601String().split('T').first,
@@ -122,8 +125,10 @@ class _HelpFormViewState extends State<_HelpFormView> {
                     const SizedBox(height: 12),
                     OptionalPhotoPicker(
                       label: 'Agregar foto',
-                      photoPath: controller.photoPath,
-                      onChanged: controller.setPhotoPath,
+                      photoPaths: [?controller.photoPath],
+                      onChanged: (paths) =>
+                          controller.setPhotoPath(paths.firstOrNull),
+                      maxPhotos: helpPhotoLimit,
                       pickFromCamera: controller.takePhoto,
                       pickFromGallery: controller.choosePhoto,
                     ),
