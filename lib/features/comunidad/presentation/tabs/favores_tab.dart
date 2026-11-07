@@ -514,6 +514,36 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                   ],
                 ),
               ),
+            ] else if (favor.estado == EstadoFavor.esperandoConfirmacion) ...[
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2A9D8F)),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _mostrarDialogoCalificar(context, controller, favor);
+                },
+                icon: const Icon(Icons.star_rate_rounded),
+                label: const Text('Confirmar favor y calificar'),
+              ),
+            ] else if (favor.estado == EstadoFavor.completado) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.verified, color: Color(0xFF2E7D32)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Favor completado y confirmado por ambas partes.',
+                        style: TextStyle(color: Color(0xFF1B5E20), fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
 
             // Botón de WhatsApp solo visible si ya aceptó (RN-07 / RF-07)
@@ -630,6 +660,77 @@ void _mostrarDialogoReporte(BuildContext context, String tipo, String id) {
                   }
                 },
                 child: const Text('Enviar reporte'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+void _mostrarDialogoCalificar(
+  BuildContext context,
+  ComunidadController controller,
+  Favor favor,
+) {
+  int estrellas = 5;
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogCtx) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Confirmar ayuda recibida'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Califica la ayuda brindada por tu vecino para validar su reputación comunitaria:',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    final valor = index + 1;
+                    return IconButton(
+                      icon: Icon(
+                        valor <= estrellas ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: const Color(0xFFFFB703),
+                        size: 36,
+                      ),
+                      onPressed: () => setState(() => estrellas = valor),
+                    );
+                  }),
+                ),
+                Text(
+                  '$estrellas de 5 estrellas',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2A9D8F)),
+                onPressed: () async {
+                  await controller.confirmarYCalificar(favor.id, estrellas.toDouble());
+                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('¡Favor confirmado y calificado! Recompensa liberada al ayudante.'),
+                        backgroundColor: Color(0xFF2A9D8F),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Confirmar y calificar'),
               ),
             ],
           );
