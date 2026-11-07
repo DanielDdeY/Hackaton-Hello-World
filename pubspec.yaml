@@ -44,6 +44,9 @@ dependencies:
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: ^14.1.2
+  http: ^1.6.0
+  url_launcher: ^6.3.3
+  youtube_player_iframe: ^6.0.2
   # Para persistir la última ubicación conocida entre reinicios.
   shared_preferences: ^2.5.6
   flutter_svg: ^2.0.17

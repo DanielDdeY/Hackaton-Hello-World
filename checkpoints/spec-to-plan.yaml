@@ -1,0 +1,59 @@
+metadata:
+  generated: "2026-11-07"
+  source_spec: "Solicitud del usuario"
+  target_plan: "plan.md"
+
+summary:
+  total_requirements: 3
+  covered_requirements: 3
+  missing_requirements: 0
+  coverage_percentage: 100.0
+
+requirements:
+  - req_id: "REQ-001"
+    req_description: "Ampliar los productos de la mochila y conservar checklist y persistencia."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 1"
+      phase_name: "Ampliar la mochila"
+      items:
+        - item_id: "1.1"
+          description: "Ampliar los elementos y mejorar la lectura del checklist."
+        - item_id: "3.1"
+          description: "Cubrir la nueva experiencia con pruebas."
+    notes: ""
+  - req_id: "REQ-002"
+    req_description: "Añadir un botón relacionado con prepararse para simulacros debajo de la mochila."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 2"
+      phase_name: "Prepararse para simulacros"
+      items:
+        - item_id: "2.1"
+          description: "Añadir la llamada a la acción bajo la mochila."
+        - item_id: "3.1"
+          description: "Cubrir la nueva experiencia con pruebas."
+    notes: ""
+  - req_id: "REQ-003"
+    req_description: "Abrir el video especificado dentro de la aplicación."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 2"
+      phase_name: "Prepararse para simulacros"
+      items:
+        - item_id: "2.1"
+          description: "Añadir la llamada a la acción bajo la mochila."
+        - item_id: "2.2"
+          description: "Implementar la pantalla interna del video."
+        - item_id: "3.1"
+          description: "Cubrir la nueva experiencia con pruebas."
+    notes: ""
+
+missing_requirements: []
+orphan_plan_items: []
+
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "No se encontró una especificación formal ni una constitución en el repositorio; los requisitos se derivan de la solicitud del usuario."

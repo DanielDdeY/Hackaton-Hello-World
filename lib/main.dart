@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'core/firebase/configure_firebase_emulators.dart';
 import 'core/theme/app_theme.dart';
+import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
 import 'features/create_post/data/services/device_location_provider.dart';
@@ -172,7 +173,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
               ? const MapScreen()
               : _PlaceholderPage(description: _Destination.map.description),
           _PlaceholderPage(description: _Destination.community.description),
-          _PlaceholderPage(description: _Destination.help.description),
+          const AyudaPrevencionPage(),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
