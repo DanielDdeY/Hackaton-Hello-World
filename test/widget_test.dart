@@ -13,7 +13,7 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp());
 
     final bar = find.byType(BottomAppBar);
     expect(find.text('Resumen de tu barrio'), findsOneWidget);
@@ -27,15 +27,20 @@ void main() {
     expect(find.byType(LocationPermissionView), findsOneWidget);
     expect(find.byType(FlutterMap), findsNothing);
 
-    for (final (label, description) in [
-      ('Comunidad', 'Conecta con tus vecinos'),
-      ('Inicio', 'Resumen de tu barrio'),
-      ('Ayuda', 'Encuentra orientación y apoyo'),
-    ]) {
-      await tester.tap(find.descendant(of: bar, matching: find.text(label)));
-      await tester.pumpAndSettle();
-      expect(find.text(description), findsOneWidget);
-    }
+    // Verifica la pestaña de Comunidad
+    await tester.tap(find.descendant(of: bar, matching: find.text('Comunidad')));
+    await tester.pumpAndSettle();
+    expect(find.text('Favores'), findsOneWidget);
+
+    // Verifica la pestaña de Inicio
+    await tester.tap(find.descendant(of: bar, matching: find.text('Inicio')));
+    await tester.pumpAndSettle();
+    expect(find.text('Resumen de tu barrio'), findsOneWidget);
+
+    // Verifica la pestaña de Ayuda
+    await tester.tap(find.descendant(of: bar, matching: find.text('Ayuda')));
+    await tester.pumpAndSettle();
+    expect(find.text('Encuentra orientación y apoyo'), findsOneWidget);
 
     expect(find.byType(CategoryCard), findsNothing);
     await tester.tap(find.byTooltip('Publicar'));
@@ -75,7 +80,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp());
     await tester.tap(find.byTooltip('Publicar'));
     await tester.pumpAndSettle();
 
