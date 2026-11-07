@@ -126,12 +126,58 @@ class _EntradaState extends State<_Entrada> {
     _cargar();
   }
 
+  bool _tieneUbicacion(UserProfile profile) =>
+      profile.department.isNotEmpty &&
+      profile.province.isNotEmpty &&
+      profile.district.isNotEmpty;
+
+  Future<void> _guardarPerfilLocal(UserProfile profile) async {
+    await _prefs.setString('vecino_departamento', profile.department);
+    await _prefs.setString('vecino_provincia', profile.province);
+    await _prefs.setString('vecino_distrito', profile.district);
+    await _prefs.setString('vecino_nombre', profile.name);
+    await _prefs.setString('vecino_telefono', profile.phoneNumber);
+  }
+
   Future<void> _cargar() async {
     _DatosBarrio? datos;
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
     try {
       _prefs = await SharedPreferences.getInstance();
+      final telefono = _prefs.getString('vecino_telefono') ?? '';
+      UserProfile? perfilRemoto;
+      if (store != null) {
+        try {
+          if (auth != null) await auth.ensureSignedIn();
+          perfilRemoto = telefono.isNotEmpty
+              ? await store.loadByPhone(
+                  telefono,
+                  fallbackName: 'Vecino',
+                  fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+                  fallbackDepartment: '',
+                  fallbackProvince: '',
+                  fallbackDistrict: '',
+                )
+              : auth?.currentUid == null
+              ? null
+              : await store.load(
+                  auth!.currentUid!,
+                  fallbackName: 'Vecino',
+                  fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+                  fallbackDepartment: '',
+                  fallbackProvince: '',
+                  fallbackDistrict: '',
+                );
+        } catch (error) {
+          debugPrint('No se pudo cargar el perfil remoto: $error');
+        }
+      }
+      if (perfilRemoto != null && _tieneUbicacion(perfilRemoto)) {
+        datos = _DatosBarrio(_prefs, perfilRemoto);
+      }
       final d = _prefs.getString('vecino_distrito');
-      if (d != null) {
+      if (datos == null && d != null) {
         datos = _DatosBarrio(
           _prefs,
           UserProfile(
@@ -153,6 +199,7 @@ class _EntradaState extends State<_Entrada> {
     } catch (e) {
       debugPrint('No se pudo cargar el perfil: $e');
     }
+
     if (mounted)
       setState(() {
         _datos = datos;
@@ -255,6 +302,14 @@ class _EntradaState extends State<_Entrada> {
           if (profile != null) {
             _perfilExistente = profile;
             _nombreAutenticado = profile.name;
+            if (_tieneUbicacion(profile)) {
+              await _guardarPerfilLocal(profile);
+              if (mounted) {
+                setState(() => _datos = _DatosBarrio(_prefs, profile));
+                widget.onAuthenticated?.call();
+              }
+              return;
+            }
           }
         }
       } else {
