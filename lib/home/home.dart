@@ -1,10 +1,17 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:math' as math;
+import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'peru_locations.dart';
 
 part 'tutorial.dart';
 part 'login.dart';

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,5 +49,36 @@ void main() {
     expect(find.text('Mochila de Emergencia'), findsOneWidget);
     expect(find.text('Prepárate para un simulacro'), findsOneWidget);
     expect(find.text('Encuentra orientación y apoyo'), findsNothing);
+  });
+
+  testWidgets('permite buscar ubicaciones y limpia niveles dependientes', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Continuar con Google · demo'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Seleccionar').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'lima');
+    await tester.tap(find.byType(ListTile).first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Seleccionar').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'lima');
+    await tester.tap(find.byType(ListTile).first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Seleccionar').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'miraflores');
+    await tester.tap(find.byType(ListTile).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seleccionar'), findsNothing);
   });
 }
