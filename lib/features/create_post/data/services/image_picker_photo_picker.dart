@@ -16,6 +16,9 @@ final class ImagePickerPhotoPicker implements PhotoPicker {
   @override
   Future<String?> pickFromGallery() => _pick(ImageSource.gallery);
 
+  @override
+  Future<Uint8List> readPhoto(String path) => XFile(path).readAsBytes();
+
   Future<String?> _pick(ImageSource source) async {
     try {
       final photo = await _picker.pickImage(

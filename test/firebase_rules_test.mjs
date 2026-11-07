@@ -89,6 +89,24 @@ function storageAuth(session) {
   return session ? { Authorization: 'Firebase ' + session.token } : {};
 }
 
+async function writeDocument(collection, id, fields, session, { transforms = [] } = {}) {
+  await request(firestore + '/v1/' + documents + ':commit', {
+    method: 'POST',
+    headers: firestoreAuth(session),
+    json: {
+      writes: [{
+        update: { name: documents + '/' + collection + '/' + id, fields },
+        currentDocument: { exists: false },
+        ...(transforms.length === 0 ? {} : {
+          updateTransforms: transforms.map((fieldPath) => ({
+            fieldPath, setToServerValue: 'REQUEST_TIME',
+          })),
+        }),
+      }],
+    },
+  });
+}
+
 async function upload(path, session, {
   contentType = 'image/jpeg',
   body = Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
@@ -111,6 +129,28 @@ const docUrl = (id) => firestore + '/v1/' + documents + '/posts/' + id;
 const photoPath = (uid, id) => ['posts', uid, id, '0_1000.jpg'].join('/');
 const photoUrl = (path) => photosRoot + '/' + encodeURIComponent(path);
 const metadata = (path) => ({ storagePath: path, downloadUrl: photoUrl(path) + '?alt=media' });
+
+const alertUrl = (id) => firestore + '/v1/' + documents + '/emergency_alerts/' + id;
+const missingAlertId = 'sos-' + randomUUID();
+await request(alertUrl(missingAlertId), {
+  headers: firestoreAuth(owner),
+  status: 404,
+});
+await writeDocument('users', owner.uid, {
+  communityId: { stringValue: 'test-district' },
+}, owner);
+await writeDocument('emergency_alerts', missingAlertId, {
+  reporterUid: { stringValue: owner.uid },
+  location: { geoPointValue: { latitude: -12.0464, longitude: -77.0428 } },
+  communityId: { stringValue: 'test-district' },
+  radiusMeters: { integerValue: '500' },
+  status: { stringValue: 'active' },
+}, owner, { transforms: ['createdAt', 'updatedAt'] });
+await request(alertUrl(missingAlertId), { headers: firestoreAuth(owner) });
+await request(alertUrl(missingAlertId), {
+  headers: firestoreAuth(stranger),
+  status: 403,
+});
 
 const emergency = {
   id: emergencyId, category: 'emergency', authorId: owner.uid,

@@ -4,11 +4,21 @@ import 'post_category.dart';
 import 'post_form_data.dart';
 import 'post_location.dart';
 
-enum EmergencyType { robbery, accident, tragedy, health }
+enum EmergencyType {
+  robbery,
+  accident,
+  tragedy,
+  health,
+  fire,
+  flood,
+  missingPerson,
+  other,
+}
 
 final class EmergencyPostData implements PostFormData {
   const EmergencyPostData({
     required this.streetAddress,
+    this.title,
     this.type = EmergencyType.robbery,
     this.message,
     this.photoPath,
@@ -17,6 +27,7 @@ final class EmergencyPostData implements PostFormData {
   });
 
   final String streetAddress;
+  final String? title;
   final EmergencyType type;
   final String? message;
   final String? photoPath;
@@ -42,6 +53,7 @@ final class EmergencyPostData implements PostFormData {
   @override
   Map<String, Object?> toMap() => {
     'type': type.name,
+    if (title != null) 'title': title,
     if (message != null) 'message': message,
   };
 }

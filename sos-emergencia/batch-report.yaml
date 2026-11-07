@@ -1,0 +1,205 @@
+batch_id: "SOS-B01"
+completed_tasks:
+  - T001
+  - T002
+  - T003
+  - T004
+  - T005
+  - T007
+  - T008
+  - T009
+  - T010
+  - T011
+  - T012
+  - T013
+  - T014
+  - T015
+blocked_tasks: []
+files_changed:
+  T001:
+    - file: "pubspec.yaml"
+      change_type: "modified"
+      description: "Añade Auth, Messaging, Storage e image_picker."
+    - file: "lib/main.dart"
+      change_type: "modified"
+      description: "Inicia sesión anónima y enruta notificaciones hacia el mapa."
+  T002:
+    - file: "functions/package.json"
+      change_type: "created"
+      description: "Define Functions TypeScript, compilación y pruebas."
+    - file: "functions/src/index.ts"
+      change_type: "created"
+      description: "Implementa selección geográfica, FCM y actualización de alertas."
+    - file: "firebase.json"
+      change_type: "modified"
+      description: "Registra Functions, reglas e índices."
+  T003:
+    - file: "firestore.rules"
+      change_type: "created"
+      description: "Restringe alertas, perfiles y feed por UID/comunidad."
+    - file: "storage.rules"
+      change_type: "created"
+      description: "Limita carga/lectura de fotos por propietario, distrito, MIME y tamaño."
+  T004:
+    - file: "lib/features/emergency/domain/emergency_alert.dart"
+      change_type: "created"
+      description: "Modela alertas, estado, ubicación y radio."
+  T005:
+    - file: "lib/features/emergency/data/firebase_emergency_alert_repository.dart"
+      change_type: "created"
+      description: "Persiste, evita duplicados por ID y cierra alertas."
+  T006:
+    - file: "lib/home/home.dart"
+      change_type: "modified"
+      description: "Activa SOS sin confirmación y mantiene ID reintentable; falta número de emergencia alternativo."
+  T007:
+    - file: "lib/features/community/presentation/community_feed_page.dart"
+      change_type: "created"
+      description: "Solicita consentimiento, registra token y refresca ubicación al reanudar."
+  T008:
+    - file: "functions/src/index.ts"
+      change_type: "created"
+      description: "Filtra con geohash y distancia geodésica exacta; crea proyecciones por UID."
+  T009:
+    - file: "functions/src/index.ts"
+      change_type: "created"
+      description: "Envía FCM sin coordenadas en el contenido y propaga cierre."
+  T010:
+    - file: "lib/features/create_post/presentation/forms/emergency/emergency_form.dart"
+      change_type: "modified"
+      description: "Agrega título, descripción y ocho categorías."
+  T011:
+    - file: "lib/features/emergency/data/firebase_emergency_post_repository.dart"
+      change_type: "created"
+      description: "Sube fotos opcionales de hasta 5 MB y guarda solo la ruta privada."
+  T012:
+    - file: "lib/features/community/presentation/community_feed_page.dart"
+      change_type: "created"
+      description: "Conecta feed Firestore filtrado por distrito."
+  T013:
+    - file: "lib/screens/map/data/firebase_emergency_map_repository.dart"
+      change_type: "created"
+      description: "Observa proyecciones privadas de alertas activas."
+  T014:
+    - file: "lib/screens/map/map_screen.dart"
+      change_type: "modified"
+      description: "Dibuja círculo rojo, marcador de peligro y detalle."
+  T015:
+    - file: "functions/src/index.ts"
+      change_type: "created"
+      description: "Retira proyecciones al cancelar o resolver."
+upstream_artifacts_consumed:
+  T001:
+    - artifact: "sos-emergencia/plan.md"
+      used_for: "Firebase Auth, Messaging, Storage y sincronización de perfil."
+  T006:
+    - artifact: "sos-emergencia/spec.md"
+      used_for: "Activación inmediata, reintento, cancelación y errores."
+  T012:
+    - artifact: "sos-emergencia/spec.md"
+      used_for: "Publicación prioritaria y limitada a la comunidad local."
+  T014:
+    - artifact: "sos-emergencia/plan.md"
+      used_for: "Mapa con círculo rojo y marcador seleccionable."
+evidence_mapping:
+  T008:
+    - upstream: "sos-emergencia/spec.md#REQ-003"
+      output: "functions/src/index.ts"
+      evidence: "functions/test/geo.test.js verifica 499 m y 501 m."
+  T012:
+    - upstream: "sos-emergencia/spec.md#REQ-006"
+      output: "lib/features/community/presentation/community_feed_page.dart"
+      evidence: "El feed consulta por communityId y prioriza emergencias."
+  T014:
+    - upstream: "sos-emergencia/spec.md#REQ-007"
+      output: "lib/screens/map/map_screen.dart"
+      evidence: "test/map_screen_test.dart verifica círculo, marcador y detalle."
+traceability:
+  - requirement: "REQ-001"
+    plan_item: "2.1, 2.2"
+    task: "T004, T005, T006"
+    files: ["lib/home/home.dart", "lib/features/emergency/"]
+    status: "partial"
+  - requirement: "REQ-002"
+    plan_item: "2.1, 2.2"
+    task: "T005, T006"
+    files: ["lib/home/home.dart", "lib/features/emergency/data/firebase_emergency_alert_repository.dart"]
+    status: "partial"
+  - requirement: "REQ-003"
+    plan_item: "3.2, 5.2"
+    task: "T008, T014"
+    files: ["functions/src/index.ts", "lib/screens/map/map_screen.dart"]
+    status: "partial"
+  - requirement: "REQ-004"
+    plan_item: "3.1, 3.2"
+    task: "T007, T008, T009"
+    files: ["lib/features/community/presentation/community_feed_page.dart", "functions/src/index.ts"]
+    status: "partial"
+  - requirement: "REQ-005"
+    plan_item: "4.1, 4.2"
+    task: "T010, T011"
+    files: ["lib/features/create_post/", "lib/features/emergency/data/firebase_emergency_post_repository.dart"]
+    status: "partial"
+  - requirement: "REQ-006"
+    plan_item: "4.2"
+    task: "T012"
+    files: ["lib/features/community/presentation/community_feed_page.dart"]
+    status: "partial"
+  - requirement: "REQ-007"
+    plan_item: "5.1, 5.2"
+    task: "T013, T014, T015"
+    files: ["lib/screens/map/", "functions/src/index.ts"]
+    status: "partial"
+  - requirement: "REQ-008"
+    plan_item: "1.1, 2.1, 4.2"
+    task: "T001, T003, T005, T011, T012"
+    files: ["firestore.rules", "storage.rules", "lib/features/emergency/"]
+    status: "partial"
+  - requirement: "REQ-009"
+    plan_item: "1.1, 3.1, 3.2"
+    task: "T001, T007, T008, T009"
+    files: ["functions/src/index.ts", "lib/features/community/presentation/community_feed_page.dart"]
+    status: "partial"
+  - requirement: "REQ-010"
+    plan_item: "1.1, 2.1, 3.1, 4.2"
+    task: "T001, T003, T007, T011"
+    files: ["firestore.rules", "storage.rules", "functions/src/index.ts"]
+    status: "partial"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: HIGH
+    message: "Firestore rules and indexes were deployed. Cloud Functions deployment is blocked because the project must upgrade to Blaze; Firebase Storage is not initialized."
+  - severity: MEDIUM
+    message: "Firebase Emulator Suite was attempted, but the Firestore emulator download stalled; no rules validation was completed."
+  - severity: MEDIUM
+    message: "T006 still needs an approved local emergency number for GPS/network failure."
+  - severity: MEDIUM
+    message: "District membership is self-declared; production requires verification and App Check/rate limiting."
+  - severity: MEDIUM
+    message: "APNs and web VAPID/service-worker setup and two-device push/photo verification remain pending."
+deployment:
+  project: "hackaton-hello-world"
+  firestore_rules: "deployed"
+  firestore_indexes: "deployed"
+  storage_rules: "not_deployed_storage_not_initialized"
+  cloud_functions: "blocked_requires_blaze_plan"
+test_results:
+  Dart:
+    command: "dart analyze lib test"
+    passed: 0
+    failed: 0
+    skipped: 0
+    failures: []
+  Flutter:
+    command: "VS Code runTests (all Flutter tests)"
+    passed: 26
+    failed: 0
+    skipped: 0
+    failures: []
+  CloudFunctions:
+    command: "cd functions && npm test"
+    passed: 2
+    failed: 0
+    skipped: 0
+    failures: []
