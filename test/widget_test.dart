@@ -1,30 +1,40 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hackaton_hello_world/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  testWidgets('Switches destinations and opens the publish sheet', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const MyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final bar = find.byType(BottomAppBar);
+    expect(find.text('Resumen de tu barrio'), findsOneWidget);
+    for (final (label, description) in [
+      ('Mapa', 'Explora tu zona'),
+      ('Comunidad', 'Conecta con tus vecinos'),
+      ('Ayuda', 'Encuentra orientación y apoyo'),
+      ('Inicio', 'Resumen de tu barrio'),
+    ]) {
+      await tester.tap(find.descendant(of: bar, matching: find.text(label)));
+      await tester.pumpAndSettle();
+      expect(find.text(description), findsOneWidget);
+    }
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.tap(find.byTooltip('Publicar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Publicación rápida'), findsOneWidget);
+    expect(find.text('Pedir ayuda'), findsOneWidget);
+    expect(find.text('Ofrecer un favor'), findsOneWidget);
+    expect(find.text('Compartir un aviso'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.tap(find.text('Ofrecer un favor'));
+    await tester.pumpAndSettle();
+    expect(find.text('Publicación rápida'), findsNothing);
+    expect(find.text('Elegiste: Ofrecer un favor'), findsOneWidget);
+    expect(find.text('Resumen de tu barrio'), findsOneWidget);
   });
 }
