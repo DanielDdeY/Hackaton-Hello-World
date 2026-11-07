@@ -10,23 +10,52 @@ class _LocationLoginException implements Exception {
 }
 
 class _DatosBarrio extends ChangeNotifier {
-  _DatosBarrio(
-    this.preferencias,
-    this.departamento,
-    this.provincia,
-    this.distrito,
-    this.nombre,
-    this.bio,
-    this.foto,
-  );
+  _DatosBarrio(this.preferencias, UserProfile profile)
+    : departamento = profile.department,
+      provincia = profile.province,
+      distrito = profile.district,
+      nombre = profile.name,
+      rol = profile.role,
+      bio = profile.bio,
+      xp = profile.xp,
+      stars = profile.stars,
+      favores = profile.favors,
+      herramientas = profile.tools,
+      hambre = profile.petHunger;
 
   final SharedPreferences preferencias;
-  final String departamento, provincia, distrito;
-  String nombre, bio;
-  bool foto;
-  int favores = 4;
-  int puntos = 1250;
-  String get zona => [distrito, provincia, departamento].toSet().join(', ');
+  String departamento;
+  String provincia;
+  String distrito;
+  String nombre;
+  String rol;
+  String bio;
+  int xp;
+  int stars;
+  int favores;
+  int herramientas;
+  double hambre;
+  bool get mascotaDesbloqueada => nivel >= 25;
+  int get nivel => xp ~/ 100;
+  UserProfile toProfile() => UserProfile(
+    name: nombre,
+    role: rol,
+    bio: bio,
+    department: departamento,
+    province: provincia,
+    district: distrito,
+    xp: xp,
+    stars: stars,
+    favors: favores,
+    tools: herramientas,
+    petHunger: hambre,
+  );
+  bool foto = false;
+  String get zona => [
+    distrito,
+    provincia,
+    departamento,
+  ].toSet().where((e) => e.isNotEmpty).join(', ');
   String get iniciales => nombre
       .trim()
       .split(RegExp(r'\s+'))
@@ -77,6 +106,8 @@ class _EntradaState extends State<_Entrada> {
   int _paso = 0;
   bool _cargando = true;
   bool _obteniendoUbicacion = false;
+  bool _iniciandoGoogle = false;
+  String _nombreAutenticado = 'Carlos Mendoza';
   String? _errorUbicacion;
   VoidCallback? _accionAjustesUbicacion;
 
@@ -94,12 +125,19 @@ class _EntradaState extends State<_Entrada> {
       if (d != null) {
         datos = _DatosBarrio(
           _prefs,
-          _prefs.getString('vecino_departamento') ?? '',
-          _prefs.getString('vecino_provincia') ?? '',
-          d,
-          _prefs.getString('vecino_nombre') ?? 'Carlos Mendoza',
-          _prefs.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-          _prefs.getBool('vecino_foto_demo') ?? false,
+          UserProfile(
+            department: _prefs.getString('vecino_departamento') ?? '',
+            province: _prefs.getString('vecino_provincia') ?? '',
+            district: d,
+            name: _prefs.getString('vecino_nombre') ?? 'Carlos Mendoza',
+            role: _prefs.getString('vecino_rol') ?? 'Vecino',
+            bio: _prefs.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+            xp: _prefs.getInt('vecino_xp') ?? 0,
+            stars: _prefs.getInt('vecino_stars') ?? 0,
+            favors: _prefs.getInt('vecino_favores') ?? 0,
+            tools: _prefs.getInt('vecino_herramientas') ?? 0,
+            petHunger: _prefs.getDouble('vecino_hambre') ?? 0,
+          ),
         );
       }
     } catch (e) {
@@ -123,6 +161,37 @@ class _EntradaState extends State<_Entrada> {
   }
 
   void _ir(int paso) => setState(() => _paso = paso);
+
+  Future<void> _continuarConGoogle() async {
+    if (_iniciandoGoogle) return;
+    setState(() => _iniciandoGoogle = true);
+    try {
+      final gateway = context.read<AuthGateway?>();
+      if (gateway == null) {
+        throw const AuthFailure(AuthFailureReason.unavailable);
+      }
+      await gateway.signInWithGoogle();
+      final nombre = gateway.currentDisplayName?.trim();
+      if (nombre != null && nombre.isNotEmpty) {
+        _nombreAutenticado = nombre;
+      }
+      if (mounted) _ir(3);
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      final mensaje = switch (error.reason) {
+        AuthFailureReason.noConnection =>
+          'Sin conexión. Conéctate y vuelve a intentarlo.',
+        AuthFailureReason.cancelled => 'Inicio de sesión cancelado.',
+        AuthFailureReason.anonymousDisabled || AuthFailureReason.unavailable =>
+          'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
+      };
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(mensaje)));
+    } finally {
+      if (mounted) setState(() => _iniciandoGoogle = false);
+    }
+  }
 
   Future<void> _usarUbicacion() async {
     if (_obteniendoUbicacion) return;
@@ -342,21 +411,35 @@ class _EntradaState extends State<_Entrada> {
     final dep = _departamento.text.trim();
     final prov = _provincia.text.trim();
     final dist = _distrito.text.trim();
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
+    final uid = auth?.currentUid;
     setState(
       () => _datos = _DatosBarrio(
         _prefs,
-        dep,
-        prov,
-        dist,
-        'Carlos Mendoza',
-        'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-        false,
+        UserProfile(
+          department: dep,
+          province: prov,
+          district: dist,
+          name: _nombreAutenticado,
+          role: 'Vecino',
+          bio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+          xp: 0,
+          stars: 0,
+          favors: 0,
+          tools: 0,
+          petHunger: 0,
+        ),
       ),
     );
     try {
       await _prefs.setString('vecino_departamento', dep);
       await _prefs.setString('vecino_provincia', prov);
       await _prefs.setString('vecino_distrito', dist);
+      await _prefs.setString('vecino_nombre', _nombreAutenticado);
+      if (store != null && uid != null) {
+        await store.save(uid, _datos!.toProfile());
+      }
     } catch (e) {
       debugPrint('No se pudo guardar el distrito: $e');
     }
@@ -399,9 +482,20 @@ class _EntradaState extends State<_Entrada> {
           ),
         ),
         _accion('Continuar con celular', () => _ir(1)),
-        OutlinedButton(
-          onPressed: () => _ir(3),
-          child: const Text('Continuar con Google · demo'),
+        OutlinedButton.icon(
+          onPressed: _iniciandoGoogle ? null : _continuarConGoogle,
+          icon: _iniciandoGoogle
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.account_circle_outlined),
+          label: Text(
+            _iniciandoGoogle
+                ? 'Conectando con Google...'
+                : 'Continuar con Google',
+          ),
         ),
       ],
       1 => <Widget>[

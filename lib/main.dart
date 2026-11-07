@@ -25,6 +25,7 @@ import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/domain/services/post_repository.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
 import 'home/home.dart';
+import 'home/user_profile.dart';
 
 import 'firebase_options.dart';
 import 'screens/map/data/map_location_provider.dart'
@@ -40,6 +41,9 @@ void main() async {
     MyApp(
       authGateway: FirebaseAuthGateway(
         FirebaseAuth.instanceFor(app: firebaseApp),
+      ),
+      profileStore: FirestoreUserProfileStore(
+        FirebaseFirestore.instanceFor(app: firebaseApp),
       ),
       postRepository: FirestorePostRepository(
         documents: FirebasePostDocumentStore(
@@ -71,12 +75,14 @@ class MyApp extends StatelessWidget {
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
     this.authGateway,
+    this.profileStore,
     this.postRepository,
   });
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
   final AuthGateway? authGateway;
+  final UserProfileStore? profileStore;
   final PostRepository? postRepository;
 
   @override
@@ -84,6 +90,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<AuthGateway?>.value(value: authGateway),
+        Provider<UserProfileStore?>.value(value: profileStore),
         Provider<PostRepository?>.value(value: postRepository),
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
