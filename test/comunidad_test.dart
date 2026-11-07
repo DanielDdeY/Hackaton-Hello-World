@@ -41,6 +41,40 @@ void main() {
       final actualizado = eventosActualizados.firstWhere((e) => e.id == evento.id);
       expect(actualizado.miRespuesta, equals(RespuestaEvento.voy));
     });
+
+    test('agregarFavor inserta un nuevo favor en el repositorio', () async {
+      final nuevoFavor = Favor(
+        id: 'fav_nuevo_test',
+        titulo: 'Ayuda con víveres',
+        descripcion: 'Traslado de bolsas del mercado',
+        categoria: CategoriaFavor.compras,
+        tamano: TamanoFavor.medio,
+        estado: EstadoFavor.abierto,
+        cuposTotales: 2,
+        cuposTomados: 0,
+        solicitanteId: 'usr_actual',
+        solicitanteNombre: 'Tú',
+        solicitanteTelefono: '999888777',
+        cuadraNombre: 'Cdra 3',
+        ubicacionAproximada: 'A 50 metros',
+        creadoEn: DateTime.now(),
+        venceEn: DateTime.now().add(const Duration(days: 1)),
+        monedasRecompensa: 15,
+        xpRecompensa: 30,
+      );
+
+      await repo.agregarFavor(nuevoFavor);
+      final favorObtenido = await repo.obtenerFavorPorId('fav_nuevo_test');
+      expect(favorObtenido.id, equals('fav_nuevo_test'));
+      expect(favorObtenido.titulo, equals('Ayuda con víveres'));
+    });
+
+    test('reportarContenido se ejecuta sin excepciones', () async {
+      expect(
+        () => repo.reportarContenido('favor', 'fav_01', 'Información falsa'),
+        returnsNormally,
+      );
+    });
   });
 
   group('Módulo de Comunidad - Pruebas de Interfaz UI', () {
@@ -64,3 +98,4 @@ void main() {
     });
   });
 }
+
