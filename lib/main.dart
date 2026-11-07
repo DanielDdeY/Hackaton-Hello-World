@@ -1,5 +1,14 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
+
+import 'core/theme/app_theme.dart';
+import 'features/create_post/data/mocks/mock_location_provider.dart';
+import 'features/create_post/data/mocks/mock_photo_picker.dart';
+import 'features/create_post/domain/services/location_provider.dart';
+import 'features/create_post/domain/services/photo_picker.dart';
+import 'features/create_post/presentation/pages/category_selector_page.dart';
 
 import 'firebase_options.dart';
 import 'screens/map/map_screen.dart';
@@ -25,24 +34,29 @@ const _navigationLabel = TextStyle(
 );
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({
+    super.key,
+    this.locationProvider = const MockLocationProvider(),
+    this.photoPicker = const MockPhotoPicker(),
+  });
+
+  final LocationProvider locationProvider;
+  final PhotoPicker photoPicker;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Seguridad Vecinal',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: _background,
-        colorScheme: const ColorScheme.light(
-          primary: _primary,
-          surface: _surface,
-          onSurface: _text,
-          onSurfaceVariant: _secondaryText,
-        ),
-        appBarTheme: const AppBarThemeData(backgroundColor: _background),
+    return MultiProvider(
+      providers: [
+        Provider<LocationProvider>.value(value: locationProvider),
+        Provider<PhotoPicker>.value(value: photoPicker),
+      ],
+      child: MaterialApp(
+        title: 'VeciApp',
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [Locale('es', 'PE')],
+        theme: createAppTheme(),
+        home: const _NeighborhoodShell(),
       ),
       home: const _NeighborhoodShell(),
       routes: {'/map': (_) => const MapScreen()},
@@ -89,31 +103,32 @@ class _NeighborhoodShell extends StatefulWidget {
 class _NeighborhoodShellState extends State<_NeighborhoodShell> {
   _Destination _selected = _Destination.home;
 
-  Future<void> _showPublishOptions() async {
-    final option = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: _surface,
-      barrierLabel: 'Cerrar opciones de publicación',
-      showDragHandle: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => const _PublishSheet(),
+  void _openCategorySelector() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const CategorySelectorPage()),
     );
-    if (!mounted || option == null) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('Elegiste: $option')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle = Theme.of(context).textTheme.titleLarge
-        ?.copyWith(fontWeight: FontWeight.w600);
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     // En la pestaña Mapa se oculta el AppBar del shell: la pantalla de mapa
     // trae el suyo (con la acción para ver la lista de sitios).
     return Scaffold(
+      appBar: AppBar(title: Text(_selected.label)),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              _selected.description,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ),
+        ),
       appBar: _selected == _Destination.map
           ? null
           : AppBar(title: Text(_selected.label, style: titleStyle)),
@@ -130,16 +145,14 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
-        onPressed: _showPublishOptions,
+        onPressed: _openCategorySelector,
         tooltip: 'Publicar',
-        backgroundColor: _primary,
-        foregroundColor: _surface,
+        backgroundColor: colors.primary,
+        foregroundColor: colors.onPrimary,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, size: 28),
       ),
       bottomNavigationBar: BottomAppBar(
-        color: _surface,
-        surfaceTintColor: Colors.transparent,
         shape: const CircularNotchedRectangle(),
         notchMargin: 6,
         padding: EdgeInsets.zero,
@@ -174,6 +187,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
 
   Widget _navigationItem(_Destination destination) {
     final selected = _selected == destination;
+    final colors = Theme.of(context).colorScheme;
     return Expanded(
       child: Semantics(
         selected: selected,
@@ -186,7 +200,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
               children: [
                 Icon(
                   selected ? destination.selectedIcon : destination.icon,
-                  color: selected ? _primary : _secondaryText,
+                  color: selected ? colors.primary : colors.onSurfaceVariant,
                 ),
                 const SizedBox(height: 4),
                 Text(
