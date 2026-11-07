@@ -16,6 +16,10 @@ Future<bool> ensurePostAuthor(BuildContext context) async {
           'Sin conexión. Conéctate y vuelve a tocar Publicar.',
         AuthFailureReason.anonymousDisabled =>
           'El acceso anónimo no está habilitado. Intenta publicar más tarde.',
+        AuthFailureReason.cancelled => 'Inicio de sesión cancelado.',
+        AuthFailureReason.invalidCode ||
+        AuthFailureReason.tooManyRequests =>
+          'No se pudo iniciar sesión. Vuelve a tocar Publicar.',
         AuthFailureReason.unavailable =>
           'No se pudo iniciar sesión. Vuelve a tocar Publicar.',
       };

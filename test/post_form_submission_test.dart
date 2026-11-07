@@ -24,10 +24,22 @@ class _Auth implements AuthGateway {
   String get currentUid => 'owner';
 
   @override
+  String? get currentDisplayName => 'Test User';
+
+  @override
   Future<String> ensureSignedIn() async {
     requests++;
     return currentUid;
   }
+
+  @override
+  Future<String> signInWithGoogle() async => currentUid;
+
+  @override
+  Future<void> sendPhoneCode(String phoneNumber) async {}
+
+  @override
+  Future<String> signInWithPhoneCode(String code) async => currentUid;
 }
 
 class _Location implements DetailedLocationProvider {
