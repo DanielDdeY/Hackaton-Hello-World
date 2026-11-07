@@ -1,4 +1,4 @@
-part of 'mi_barrio.dart';
+part of 'home.dart';
 
 const _pasos = [
   (
@@ -31,7 +31,7 @@ const _pasos = [
   ),
   (
     'Muévete por la app',
-    'Vuelve a Inicio cuando quieras. Explora Mapa, crea un aviso en Publicar, coordina en Mensajes o consulta Mi barrio.',
+    'Usa la barra inferior para explorar Mapa, Comunidad, Ayuda y Publicar.',
   ),
 ];
 

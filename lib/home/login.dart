@@ -1,6 +1,6 @@
 // ignore_for_file: curly_braces_in_flow_control_structures, prefer_collection_literals
 
-part of 'mi_barrio.dart';
+part of 'home.dart';
 
 class _DatosBarrio extends ChangeNotifier {
   _DatosBarrio(
@@ -19,33 +19,6 @@ class _DatosBarrio extends ChangeNotifier {
   bool foto;
   int favores = 4;
   int puntos = 1250;
-  final publicaciones = <_Publicacion>[
-    _Publicacion(
-      'Negocio',
-      'Reparaciones del barrio',
-      'Gasfitería y reparaciones domésticas.',
-      'Publicado',
-    ),
-    _Publicacion(
-      'Misión',
-      'Valida tu mochila de emergencia',
-      'Revisa los suministros de tu hogar.',
-      '2 de 3 pasos',
-    ),
-    _Publicacion(
-      'Ayuda',
-      'Préstamo de una escalera',
-      'Coordina el préstamo con el vecino.',
-      'En coordinación',
-    ),
-    _Publicacion(
-      'Anuncio',
-      'Pichanga del condominio',
-      'Sábado, 4:00 p. m. · Canchita del condominio\nFaltan 4 jugadores',
-      'Inscripciones abiertas',
-    ),
-  ];
-
   String get zona => [distrito, provincia, departamento].toSet().join(', ');
   String get iniciales => nombre
       .trim()
@@ -72,30 +45,12 @@ class _DatosBarrio extends ChangeNotifier {
     }
   }
 
-  void publicar(_Publicacion publicacion) {
-    publicaciones.insert(0, publicacion);
-    notifyListeners();
-  }
-
-  void actualizar(_Publicacion publicacion, String estado) {
-    if (publicacion.estado == estado) return;
-    publicacion.estado = estado;
-    if (publicacion.tipo == 'Ayuda' && estado == 'Completada') {
-      favores++;
-      puntos += 25;
-    }
-    notifyListeners();
-  }
-}
-
-class _Publicacion {
-  _Publicacion(this.tipo, this.titulo, this.descripcion, this.estado);
-  final String tipo, titulo, descripcion;
-  String estado;
 }
 
 class _Entrada extends StatefulWidget {
-  const _Entrada();
+  const _Entrada({this.onAuthenticated});
+
+  final VoidCallback? onAuthenticated;
 
   @override
   State<_Entrada> createState() => _EntradaState();
@@ -144,6 +99,7 @@ class _EntradaState extends State<_Entrada> {
         _datos = datos;
         _cargando = false;
       });
+    if (mounted && datos != null) widget.onAuthenticated?.call();
   }
 
   @override
@@ -179,6 +135,7 @@ class _EntradaState extends State<_Entrada> {
     } catch (e) {
       debugPrint('No se pudo guardar el distrito: $e');
     }
+    if (mounted) widget.onAuthenticated?.call();
   }
 
   @override
