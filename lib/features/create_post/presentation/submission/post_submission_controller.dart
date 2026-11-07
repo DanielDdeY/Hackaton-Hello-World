@@ -86,6 +86,7 @@ final class PostSubmissionController extends ChangeNotifier {
         AuthFailureReason.noConnection => PostFailureReason.offline,
         AuthFailureReason.anonymousDisabled =>
           PostFailureReason.anonymousDisabled,
+        AuthFailureReason.cancelled => PostFailureReason.cancelled,
         AuthFailureReason.unavailable => PostFailureReason.noSession,
       });
     } on PostFailure catch (error) {
