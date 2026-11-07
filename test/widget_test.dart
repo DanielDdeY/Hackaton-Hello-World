@@ -30,4 +30,23 @@ void main() {
     expect(find.text('Carlos Mendoza'), findsOneWidget);
     expect(find.text('Servicios\nde oficios'), findsOneWidget);
   });
+
+  testWidgets('la pestaña Ayuda abre la feature Ayuda y Prevención', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'vecino_departamento': 'Lima',
+      'vecino_provincia': 'Lima',
+      'vecino_distrito': 'Miraflores',
+    });
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ayuda').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mochila de Emergencia'), findsOneWidget);
+    expect(find.text('Prepárate para un simulacro'), findsOneWidget);
+    expect(find.text('Encuentra orientación y apoyo'), findsNothing);
+  });
 }

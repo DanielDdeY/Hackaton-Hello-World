@@ -1,0 +1,77 @@
+metadata:
+  generated: "2026-11-07"
+  source_plan: "plan.md"
+  target_tasks: "plan.md (desglose de tareas embebido)"
+
+summary:
+  total_plan_items: 4
+  covered_plan_items: 4
+  missing_plan_items: 0
+  coverage_percentage: 100.0
+  total_tasks_generated: 6
+  orphan_tasks: 0
+
+phases:
+  - phase_id: "Fase 1"
+    phase_name: "Ampliar la mochila"
+    items:
+      - item_id: "1.1"
+        description: "Ampliar los elementos y mejorar la lectura del checklist."
+        tasks:
+          - task_id: "T001"
+            description: "Ampliar los elementos predeterminados conservando los nombres actuales."
+          - task_id: "T002"
+            description: "Actualizar la presentación adaptable y el progreso."
+        notes: ""
+  - phase_id: "Fase 2"
+    phase_name: "Prepararse para simulacros"
+    items:
+      - item_id: "2.1"
+        description: "Añadir la llamada a la acción bajo la mochila."
+        tasks:
+          - task_id: "T003"
+            description: "Añadir el botón y la navegación dentro de la app."
+        notes: ""
+      - item_id: "2.2"
+        description: "Implementar la pantalla interna del video."
+        tasks:
+          - task_id: "T004"
+            description: "Crear el reproductor integrado con manejo de errores."
+        notes: ""
+  - phase_id: "Fase 3"
+    phase_name: "Verificación"
+    items:
+      - item_id: "3.1"
+        description: "Cubrir la nueva experiencia con pruebas."
+        tasks:
+          - task_id: "T005"
+            description: "Actualizar pruebas de widgets y navegación."
+          - task_id: "T006"
+            description: "Ejecutar análisis y validar el reproductor en un target soportado."
+        notes: ""
+
+missing_plan_items: []
+orphan_tasks: []
+
+upstream_trace:
+  - plan_item: "1.1"
+    source_requirements: ["REQ-001"]
+    tasks: ["T001", "T002"]
+    full_trace: "REQ-001 → 1.1 → T001,T002"
+  - plan_item: "2.1"
+    source_requirements: ["REQ-002", "REQ-003"]
+    tasks: ["T003"]
+    full_trace: "REQ-002,REQ-003 → 2.1 → T003"
+  - plan_item: "2.2"
+    source_requirements: ["REQ-003"]
+    tasks: ["T004"]
+    full_trace: "REQ-003 → 2.2 → T004"
+  - plan_item: "3.1"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-003"]
+    tasks: ["T005", "T006"]
+    full_trace: "REQ-001,REQ-002,REQ-003 → 3.1 → T005,T006"
+
+validation:
+  passed: true
+  errors: []
+  warnings: []

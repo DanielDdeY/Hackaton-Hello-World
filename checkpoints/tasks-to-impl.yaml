@@ -1,0 +1,182 @@
+metadata:
+  generated: "2026-11-07"
+  source_tasks: "plan.md"
+  last_updated: "2026-11-07"
+
+summary:
+  total_tasks: 6
+  completed_tasks: 5
+  in_progress_tasks: 1
+  pending_tasks: 0
+  completion_percentage: 83.3
+
+tasks:
+  - task_id: "T001"
+    description: "Ampliar la lista por defecto preservando los cuatro productos existentes y la persistencia."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/ayuda_prevencion/services/backpack_checklist_store.dart"
+          changes:
+            - change_type: "modified"
+              description: "Añadidos seis productos a los cuatro elementos existentes."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test"
+        passed: 7
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "La carga existente selecciona por nombre; los nuevos productos comienzan desmarcados."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-001"]
+      full_trace: "REQ-001 → 1.1 → T001 → backpack_checklist_store.dart"
+  - task_id: "T002"
+    description: "Verificar que el checklist y el progreso admiten la lista ampliada."
+    status: "completed"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test"
+        passed: 7
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "El Wrap y el contador dinámico de MochilaEmergenciaCard ya se basaban en las claves del checklist; se mantuvieron sin cambios."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-001"]
+      full_trace: "REQ-001 → 1.1 → T002 → existing Wrap/progress behavior"
+  - task_id: "T003"
+    description: "Añadir el botón y la navegación al video dentro de la aplicación."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/ayuda_prevencion/ayuda_prevencion_page.dart"
+          changes:
+            - change_type: "modified"
+              description: "Añadido botón de simulacro bajo la mochila y navegación interna."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test"
+        passed: 7
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "La prueba confirma que el botón abre la ruta interna."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-002", "REQ-003"]
+      full_trace: "REQ-002,REQ-003 → 2.1 → T003 → ayuda_prevencion_page.dart"
+  - task_id: "T004"
+    description: "Crear el reproductor integrado con manejo de errores."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/ayuda_prevencion/widgets/simulacro_video_page.dart"
+          changes:
+            - change_type: "created"
+              description: "Pantalla interna con video YouTube, controles, regreso por navegación y acción para reintentar."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter analyze"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "El análisis estático pasa. La reproducción real del iframe requiere confirmación manual."
+    upstream_trace:
+      plan_item: "2.2"
+      requirements: ["REQ-003"]
+      full_trace: "REQ-003 → 2.2 → T004 → simulacro_video_page.dart"
+  - task_id: "T005"
+    description: "Actualizar y ejecutar pruebas de checklist, navegación y secciones."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "test/features/ayuda_prevencion/ayuda_prevencion_page_test.dart"
+          changes:
+            - change_type: "modified"
+              description: "Prueba de productos, persistencia previa y navegación interna."
+        - file: "test/widget_test.dart"
+          changes:
+            - change_type: "modified"
+              description: "La prueba desplaza la lista para encontrar el tutorial después de ampliar la mochila."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test"
+        passed: 7
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: ""
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003"]
+      full_trace: "REQ-001,REQ-002,REQ-003 → 3.1 → T005 → widget tests"
+  - task_id: "T006"
+    description: "Ejecutar análisis y confirmar la experiencia en un target soportado."
+    status: "in-progress"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter analyze; Flutter web launch; hot reload"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "flutter analyze pasó; la app web respondió HTTP 200 y se aplicó hot reload. No fue posible inspeccionar el reproductor visualmente porque el navegador Playwright configurado no tiene el binario requerido."
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-003"]
+      full_trace: "REQ-003 → 3.1 → T006 → manual iframe playback check pending"
+
+pending_tasks: []
+
+untracked_changes: []
+
+traceability_chain:
+  - chain_id: "TRACE-001"
+    requirement: "REQ-001"
+    plan_phase: "Fase 1"
+    plan_item: "1.1"
+    tasks: ["T001", "T002", "T005"]
+    files:
+      - "lib/features/ayuda_prevencion/services/backpack_checklist_store.dart"
+      - "test/features/ayuda_prevencion/ayuda_prevencion_page_test.dart"
+    status: "complete"
+  - chain_id: "TRACE-002"
+    requirement: "REQ-002"
+    plan_phase: "Fase 2"
+    plan_item: "2.1"
+    tasks: ["T003", "T005"]
+    files:
+      - "lib/features/ayuda_prevencion/ayuda_prevencion_page.dart"
+      - "test/features/ayuda_prevencion/ayuda_prevencion_page_test.dart"
+    status: "complete"
+  - chain_id: "TRACE-003"
+    requirement: "REQ-003"
+    plan_phase: "Fase 2"
+    plan_item: "2.2"
+    tasks: ["T003", "T004", "T005", "T006"]
+    files:
+      - "lib/features/ayuda_prevencion/ayuda_prevencion_page.dart"
+      - "lib/features/ayuda_prevencion/widgets/simulacro_video_page.dart"
+      - "test/features/ayuda_prevencion/ayuda_prevencion_page_test.dart"
+    status: "partial"
+
+validation:
+  passed: false
+  errors: []
+  warnings:
+    - "La reproducción real del video y el regreso desde el reproductor todavía requieren una comprobación manual en navegador/dispositivo."
+  blocking_issues: []
