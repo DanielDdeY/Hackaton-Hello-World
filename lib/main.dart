@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'screens/map/map_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,6 +11,7 @@ void main() async {
   );
   runApp(const MyApp());
 }
+
 //colorcitos//
 const _background = Color(0xFFFAFAFA);
 const _surface = Color(0xFFFFFFFF);
@@ -43,6 +45,7 @@ class MyApp extends StatelessWidget {
         appBarTheme: const AppBarThemeData(backgroundColor: _background),
       ),
       home: const _NeighborhoodShell(),
+      routes: {'/map': (_) => const MapScreen()},
     );
   }
 }
@@ -108,19 +111,22 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final titleStyle = Theme.of(context).textTheme.titleLarge
         ?.copyWith(fontWeight: FontWeight.w600);
 
+    // En la pestaña Mapa se oculta el AppBar del shell: la pantalla de mapa
+    // trae el suyo (con la acción para ver la lista de sitios).
     return Scaffold(
-      appBar: AppBar(title: Text(_selected.label, style: titleStyle)),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              _selected.description,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ),
-        ),
+      appBar: _selected == _Destination.map
+          ? null
+          : AppBar(title: Text(_selected.label, style: titleStyle)),
+      // IndexedStack conserva el estado del mapa (cámara, filtros, búsqueda)
+      // al cambiar de pestaña y volver a Mapa.
+      body: IndexedStack(
+        index: _selected.index,
+        children: [
+          _PlaceholderPage(description: _Destination.home.description),
+          const MapScreen(),
+          _PlaceholderPage(description: _Destination.community.description),
+          _PlaceholderPage(description: _Destination.help.description),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
@@ -192,6 +198,28 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceholderPage extends StatelessWidget {
+  const _PlaceholderPage({required this.description});
+
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            description,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
         ),
       ),
