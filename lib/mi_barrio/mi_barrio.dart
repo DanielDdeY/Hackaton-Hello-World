@@ -1,0 +1,626 @@
+// ignore_for_file: library_private_types_in_public_api
+
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../screens/map/map_screen.dart';
+
+part 'tutorial_inicio.dart';
+part 'entrada.dart';
+part 'modulos.dart';
+
+const cream = Color(0xfffaf3e5);
+const paper = Color(0xfffffcf7);
+const ink = Color(0xff292017);
+const muted = Color(0xff695848);
+const line = Color(0xffe4d6c2);
+const orange = Color(0xffb74316);
+
+class MiBarrioHome extends StatelessWidget {
+  const MiBarrioHome({super.key});
+
+  @override
+  Widget build(BuildContext context) => const _Entrada();
+}
+
+class Inicio extends StatefulWidget {
+  const Inicio({super.key, required this.datos});
+  final _DatosBarrio datos;
+
+  @override
+  State<Inicio> createState() => _InicioState();
+}
+
+class _InicioState extends State<Inicio> {
+  double hambre = 151 / 222;
+
+  static const _claveTutorial = 'tutorial_inicio_v1_visto';
+  final _inicio = GlobalKey();
+  final _perfilTutorial = GlobalKey();
+  final _sosTutorial = GlobalKey();
+  final _campanaTutorial = GlobalKey();
+  final _wrappedTutorial = GlobalKey();
+  final _mascotaTutorial = GlobalKey();
+  final _filasTutorial = List.generate(3, (_) => GlobalKey());
+  final _navTutorial = GlobalKey();
+  int? _pasoTutorial;
+  List<Rect> _zonasTutorial = [];
+  int _solicitudTutorial = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _abrirSiEsNuevo());
+  }
+
+  Future<void> _abrirSiEsNuevo() async {
+    var visto = false;
+    try {
+      final preferencias = await SharedPreferences.getInstance();
+      visto = preferencias.getBool(_claveTutorial) ?? false;
+    } catch (error) {
+      debugPrint('No se pudo leer la preferencia del tutorial: $error');
+    }
+    if (mounted && !visto && _solicitudTutorial == 0) {
+      await _mostrarPaso(0);
+    }
+  }
+
+  Future<void> _mostrarPaso(int paso) async {
+    final destinos = [
+      [_perfilTutorial],
+      [_campanaTutorial, _sosTutorial],
+      [_wrappedTutorial],
+      [_mascotaTutorial],
+      [_filasTutorial[0]],
+      [_filasTutorial[1]],
+      [_filasTutorial[2]],
+      [_navTutorial],
+    ][paso];
+    final solicitud = ++_solicitudTutorial;
+    final destino = destinos.first.currentContext;
+    if (destino != null && paso != _pasos.length - 1) {
+      await Scrollable.ensureVisible(destino, alignment: paso < 2 ? 0 : .35);
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || solicitud != _solicitudTutorial) return;
+
+    final raiz = _inicio.currentContext?.findRenderObject();
+    if (raiz is! RenderBox || !raiz.hasSize) return;
+    final zonas = <Rect>[];
+    for (final key in destinos) {
+      final caja = key.currentContext?.findRenderObject();
+      if (caja is RenderBox && caja.hasSize) {
+        final origen = caja.localToGlobal(Offset.zero, ancestor: raiz);
+        final rect =
+            (origen & caja.size).inflate(5).intersect(Offset.zero & raiz.size);
+        if (!rect.isEmpty) zonas.add(rect);
+      }
+    }
+    setState(() {
+      _pasoTutorial = paso;
+      _zonasTutorial = zonas;
+    });
+  }
+
+  Future<void> _cerrarTutorial() async {
+    _solicitudTutorial++;
+    setState(() => _pasoTutorial = null);
+    try {
+      final preferencias = await SharedPreferences.getInstance();
+      preferencias.setBool(_claveTutorial, true);
+    } catch (error) {
+      debugPrint('No se pudo guardar la preferencia del tutorial: $error');
+    }
+  }
+
+  static const accesos = [
+    (
+      'Servicios\nde oficios',
+      'ServiciosDeOficios',
+      Color(0xfffbe5cf),
+      'Gasfitería, electricidad y otros oficios recomendados por tus vecinos.',
+    ),
+    (
+      'Muro de\nfavores',
+      'MuroDeFavores',
+      Color(0xfffce4df),
+      'Pide una herramienta prestada u ofrece ayuda a un vecino.',
+    ),
+    (
+      'Eventos\ndel barrio',
+      'EventosDelBarrio',
+      Color(0xffe4e9d5),
+      'Consulta reuniones, simulacros y actividades comunitarias.',
+    ),
+    (
+      'Misiones\ny grupos',
+      'MisionesYGrupos',
+      Color(0xffe5e2f5),
+      'Completa acciones de ayuda para sumar Aura.',
+    ),
+    (
+      'Mochila de\nemergencia',
+      'MochilaDeEmergencia',
+      Color(0xfff5e2cd),
+      'Revisa los suministros de tu vivienda.',
+    ),
+    (
+      'Noticias\ny alertas',
+      'NoticiasYAlertas',
+      Color(0xffffe5ad),
+      'Consulta los avisos de tu grupo barrial.',
+    ),
+  ];
+
+  void _abrir(Widget pantalla) {
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => pantalla));
+  }
+
+  void _verPerfil() =>
+      _abrir(_PerfilVecino(widget.datos, () => _mostrarPaso(0)));
+
+  void detalle(String titulo, String mensaje) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: paper,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              label(titulo, 21, bold: true),
+              const SizedBox(height: 10),
+              label(mensaje, 15, color: muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> confirmarSos() async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Simular alerta SOS'),
+        content: const Text(
+          'Esta es una demostración del flujo de emergencia.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Simular'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado == true && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Alerta SOS simulada')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final paso = _pasoTutorial;
+    return PopScope(
+      canPop: paso == null,
+      onPopInvokedWithResult: (salio, resultado) {
+        if (!salio && paso != null) {
+          paso == 0 ? _cerrarTutorial() : _mostrarPaso(paso - 1);
+        }
+      },
+      child: Stack(
+        key: _inicio,
+        fit: StackFit.expand,
+        children: [
+          ExcludeSemantics(
+            excluding: paso != null,
+            child: AnimatedBuilder(
+              animation: widget.datos,
+              builder: (context, child) => _pantallaInicio(),
+            ),
+          ),
+          if (paso != null)
+            _TutorialInicio(
+              paso: paso,
+              zonas: _zonasTutorial,
+              siguiente: () => _mostrarPaso(paso + 1),
+              atras: () => _mostrarPaso(paso - 1),
+              cerrar: _cerrarTutorial,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pantallaInicio() => Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _encabezado(),
+                    const SizedBox(height: 12),
+                    _perfil(),
+                    const SizedBox(height: 12),
+                    _wrapped(),
+                    const SizedBox(height: 12),
+                    _mascota(),
+                    const SizedBox(height: 12),
+                    for (var index = 0; index < accesos.length; index += 2) ...[
+                      if (index > 0) const SizedBox(height: 10),
+                      Row(
+                        key: _filasTutorial[index ~/ 2],
+                        children: [
+                          Expanded(child: _acceso(index)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _acceso(index + 1)),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        bottomNavigationBar: _navegacion(),
+      );
+
+  Widget _encabezado() => SizedBox(
+        height: 28,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            label('MI BARRIO', 13, bold: true, color: orange),
+            InkWell(
+              key: _campanaTutorial,
+              onTap: () => detalle(
+                'Notificaciones',
+                'Aquí aparecerán los avisos de tu grupo.',
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: icono('Notificaciones', 22),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _perfil() => SizedBox(
+        height: 91,
+        child: Row(
+          children: [
+            InkWell(
+              onTap: _verPerfil,
+              borderRadius: BorderRadius.circular(29),
+              child:
+                  _avatarVecino(widget.datos.iniciales, widget.datos.foto, 29),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                key: _perfilTutorial,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  label(widget.datos.nombre, 19, bold: true),
+                  const SizedBox(height: 5),
+                  label('Jefe de grupo', 12, color: muted),
+                  const SizedBox(height: 5),
+                  label(
+                    '★ Nivel 25   ·   Star: ${widget.datos.puntos}',
+                    12,
+                    bold: true,
+                    color: orange,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            tarjeta(
+              color: const Color(0xffb72f29),
+              radius: 15,
+              onTap: confirmarSos,
+              child: SizedBox(
+                key: _sosTutorial,
+                width: 82,
+                height: 66,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      label('¡SOS!', 21, bold: true, color: Colors.white),
+                      const SizedBox(height: 3),
+                      label('EMERGENCIA', 9, bold: true, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _wrapped() => tarjeta(
+        color: const Color(0xfff6dfec),
+        radius: 18,
+        onTap: () => detalle(
+          'Tu Wrapped del mes',
+          'Este mes completaste 4 favores y prestaste 2 herramientas.',
+        ),
+        child: SizedBox(
+          key: _wrappedTutorial,
+          height: 79,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                icono('Regalo', 36),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        label('Tu Wrapped del mes', 17, bold: true),
+                        const SizedBox(height: 5),
+                        label('Descubre tu impacto en el barrio', 12,
+                            color: muted),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _mascota() => tarjeta(
+        radius: 18,
+        border: true,
+        child: SizedBox(
+          key: _mascotaTutorial,
+          height: 139,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 78,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: const Color(0xfffbe8d1),
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                  alignment: Alignment.center,
+                  child: icono('Firulais', 61),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      label('Firulais', 17, bold: true),
+                      const SizedBox(height: 7),
+                      label('Mascota comunitaria · Hambre', 11, color: muted),
+                      const SizedBox(height: 7),
+                      LinearProgressIndicator(
+                        value: hambre,
+                        minHeight: 8,
+                        borderRadius: BorderRadius.circular(4),
+                        backgroundColor: const Color(0xffefdfca),
+                        color: const Color(0xffc96631),
+                      ),
+                      const SizedBox(height: 7),
+                      tarjeta(
+                        color: const Color(0xfffbe1c4),
+                        radius: 12,
+                        onTap: hambre == 0
+                            ? null
+                            : () => setState(
+                                  () => hambre =
+                                      (hambre - .20).clamp(0.0, 1.0).toDouble(),
+                                ),
+                        child: SizedBox(
+                          width: 186,
+                          height: 33,
+                          child: Center(
+                            child: label(
+                              hambre == 0
+                                  ? 'Firulais está satisfecho'
+                                  : 'Alimentar · Nivel 25+',
+                              12,
+                              bold: true,
+                              color: orange,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _acceso(int index) {
+    final (titulo, asset, tono, _) = accesos[index];
+    return tarjeta(
+      color: index == 5 ? const Color(0xfffff1d0) : paper,
+      radius: 16,
+      border: true,
+      onTap: () => _abrir(_ModuloBarrio(widget.datos, index)),
+      child: SizedBox(
+        height: 78,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: tono,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: icono(asset, 24),
+              ),
+              const SizedBox(width: 9),
+              Expanded(child: label(titulo, 13, bold: true)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navegacion() {
+    const items = [
+      ('Inicio', 'Inicio', ''),
+      (
+        'Mapa',
+        'Mapa',
+        'Explora los servicios y las solicitudes de ayuda del barrio.',
+      ),
+      (
+        'Publicar',
+        'Publicar',
+        'Elige entre publicar un oficio o pedir un favor.',
+      ),
+      ('Mensajes', 'Mensajes', 'Aquí podrás coordinar con otros vecinos.'),
+      (
+        'Mi barrio',
+        'MiBarrio',
+        'Consulta tu grupo vecinal y tus puntos de Aura.',
+      ),
+    ];
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: paper,
+        border: Border(top: BorderSide(color: line)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: SizedBox(
+              key: _navTutorial,
+              height: 90,
+              child: Row(
+                children: [
+                  for (final (titulo, asset, _) in items)
+                    Expanded(
+                      child: InkWell(
+                        onTap: switch (titulo) {
+                          'Mapa' => () => _abrir(
+                                _ModuloBarrio(widget.datos, 6),
+                              ),
+                          'Publicar' => () => _abrir(_Publicar(widget.datos)),
+                          'Mensajes' => () => _abrir(
+                                _ModuloBarrio(widget.datos, 7),
+                              ),
+                          'Mi barrio' => _verPerfil,
+                          _ => null,
+                        },
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: titulo == 'Publicar' ? 38 : 31,
+                              height: titulo == 'Publicar' ? 38 : 31,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: titulo == 'Publicar'
+                                    ? orange
+                                    : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: icono(asset, 22),
+                            ),
+                            const SizedBox(height: 5),
+                            label(
+                              titulo,
+                              10,
+                              bold: true,
+                              color: titulo == 'Inicio' ? orange : muted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Widget label(
+  String value,
+  double size, {
+  bool bold = false,
+  Color color = ink,
+}) =>
+    Text(
+      value,
+      style: TextStyle(
+        fontSize: size,
+        fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+        color: color,
+      ),
+    );
+
+Widget icono(String asset, double size) => SvgPicture.asset(
+      'assets/$asset.svg',
+      width: size,
+      height: size,
+      excludeFromSemantics: true,
+    );
+
+Widget tarjeta({
+  required Widget child,
+  required double radius,
+  Color color = paper,
+  bool border = false,
+  VoidCallback? onTap,
+}) =>
+    Material(
+      color: color,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: border ? const BorderSide(color: line) : BorderSide.none,
+      ),
+      child: InkWell(onTap: onTap, child: child),
+    );

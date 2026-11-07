@@ -9,6 +9,7 @@ import 'features/create_post/data/mocks/mock_photo_picker.dart';
 import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
+import 'mi_barrio/mi_barrio.dart';
 
 import 'firebase_options.dart';
 import 'screens/map/map_screen.dart';
@@ -51,7 +52,7 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         supportedLocales: const [Locale('es', 'PE')],
         theme: createAppTheme(),
-        home: const _NeighborhoodShell(),
+        home: const MiBarrioHome(),
         routes: {'/map': (_) => const MapScreen()},
       ),
     );
