@@ -317,6 +317,13 @@ class MockComunidadRepository implements ComunidadRepository {
   }
 
   @override
+  Future<Favor> agregarFavor(Favor favor) async {
+    // Inserta al inicio para que aparezca primero en el feed
+    _favores.insert(0, favor);
+    return favor;
+  }
+
+  @override
   Future<Favor> obtenerFavorPorId(String id) async {
     return _favores.firstWhere((f) => f.id == id);
   }

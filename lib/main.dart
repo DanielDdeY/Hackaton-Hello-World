@@ -4,6 +4,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/comunidad/data/mocks/mock_comunidad_repository.dart';
+import 'features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'features/comunidad/presentation/pages/comunidad_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
@@ -19,7 +21,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 const _text = Color(0xFF1A1A1A);
@@ -30,14 +32,16 @@ const _navigationLabel = TextStyle(
 );
 
 class MyApp extends StatelessWidget {
-  const MyApp({
+  MyApp({
     super.key,
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
-  });
+    ComunidadRepository? comunidadRepository,
+  }) : comunidadRepository = comunidadRepository ?? MockComunidadRepository();
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
+  final ComunidadRepository comunidadRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +49,7 @@ class MyApp extends StatelessWidget {
       providers: [
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
+        Provider<ComunidadRepository>.value(value: comunidadRepository),
       ],
       child: MaterialApp(
         title: 'VeciApp',

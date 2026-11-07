@@ -14,6 +14,9 @@ abstract class ComunidadRepository {
 
   Future<Favor> obtenerFavorPorId(String id);
 
+  /// Registra un nuevo favor solicitado por un vecino
+  Future<Favor> agregarFavor(Favor favor);
+
   /// Acepta un favor respetando el cupo disponible
   Future<void> aceptarFavor(String favorId);
 
