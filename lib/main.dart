@@ -21,12 +21,7 @@ void main() async {
   runApp(const MyApp());
 }
 
-//colorcitos//
-const _background = Color(0xFFFAFAFA);
-const _surface = Color(0xFFFFFFFF);
-const _primary = Color(0xFF006D77);
 const _text = Color(0xFF1A1A1A);
-const _secondaryText = Color(0xFF5C5C5C);
 const _navigationLabel = TextStyle(
   color: _text,
   fontSize: 11,
@@ -57,9 +52,8 @@ class MyApp extends StatelessWidget {
         supportedLocales: const [Locale('es', 'PE')],
         theme: createAppTheme(),
         home: const _NeighborhoodShell(),
+        routes: {'/map': (_) => const MapScreen()},
       ),
-      home: const _NeighborhoodShell(),
-      routes: {'/map': (_) => const MapScreen()},
     );
   }
 }
@@ -102,6 +96,7 @@ class _NeighborhoodShell extends StatefulWidget {
 
 class _NeighborhoodShellState extends State<_NeighborhoodShell> {
   _Destination _selected = _Destination.home;
+  bool _mapVisited = false;
 
   void _openCategorySelector() {
     Navigator.of(context).push<void>(
@@ -117,28 +112,23 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     // En la pestaña Mapa se oculta el AppBar del shell: la pantalla de mapa
     // trae el suyo (con la acción para ver la lista de sitios).
     return Scaffold(
-      appBar: AppBar(title: Text(_selected.label)),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              _selected.description,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge,
-            ),
-          ),
-        ),
       appBar: _selected == _Destination.map
           ? null
-          : AppBar(title: Text(_selected.label, style: titleStyle)),
+          : AppBar(
+              title: Text(
+                _selected.label,
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
       // IndexedStack conserva el estado del mapa (cámara, filtros, búsqueda)
       // al cambiar de pestaña y volver a Mapa.
       body: IndexedStack(
         index: _selected.index,
         children: [
           _PlaceholderPage(description: _Destination.home.description),
-          const MapScreen(),
+          _mapVisited
+              ? const MapScreen()
+              : _PlaceholderPage(description: _Destination.map.description),
           _PlaceholderPage(description: _Destination.community.description),
           _PlaceholderPage(description: _Destination.help.description),
         ],
@@ -193,7 +183,12 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
         selected: selected,
         button: true,
         child: InkWell(
-          onTap: () => setState(() => _selected = destination),
+          onTap: () => setState(() {
+            _selected = destination;
+            if (destination == _Destination.map) {
+              _mapVisited = true;
+            }
+          }),
           child: Padding(
             padding: const EdgeInsets.only(top: 10, left: 2, right: 2),
             child: Column(
@@ -235,52 +230,6 @@ class _PlaceholderPage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PublishSheet extends StatelessWidget {
-  const _PublishSheet();
-
-  static const _options = [
-    ('Pedir ayuda', Icons.front_hand_outlined),
-    ('Ofrecer un favor', Icons.volunteer_activism_outlined),
-    ('Compartir un aviso', Icons.campaign_outlined),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                'Publicación rápida',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-            for (final (label, icon) in _options)
-              ListTile(
-                leading: Icon(icon, color: _primary),
-                title: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                onTap: () => Navigator.pop(context, label),
-              ),
-          ],
         ),
       ),
     );
