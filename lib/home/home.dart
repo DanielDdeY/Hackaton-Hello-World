@@ -4,19 +4,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
-import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import '../features/create_post/domain/services/auth_gateway.dart';
 import '../features/create_post/domain/services/photo_picker.dart';
+import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import '../features/emergency/data/firebase_emergency_alert_repository.dart';
 import '../features/emergency/data/firebase_emergency_post_repository.dart';
 import '../features/emergency/domain/emergency_alert.dart';
@@ -33,21 +33,145 @@ const muted = Color(0xff5c5c5c);
 const line = Color(0xffd9d9d9);
 const orange = Color(0xff006d77);
 
+class _EditarInformacionPage extends StatefulWidget {
+  const _EditarInformacionPage({required this.datos});
+
+  final _DatosBarrio datos;
+
+  @override
+  State<_EditarInformacionPage> createState() => _EditarInformacionPageState();
+}
+
+class _EditarInformacionPageState extends State<_EditarInformacionPage> {
+  late final TextEditingController _nombre;
+  late final TextEditingController _bio;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombre = TextEditingController(text: widget.datos.nombre);
+    _bio = TextEditingController(text: widget.datos.bio);
+  }
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    _bio.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final nombre = _nombre.text.trim();
+    if (nombre.isEmpty || _guardando) return;
+
+    setState(() => _guardando = true);
+    try {
+      await widget.datos.guardarPerfil(
+        nombre,
+        _bio.text.trim(),
+        widget.datos.foto,
+      );
+      final auth = context.read<AuthGateway?>();
+      final store = context.read<UserProfileStore?>();
+      final uid = auth?.currentUid;
+      if (store != null && uid != null) {
+        await store.save(uid, widget.datos.toProfile());
+      }
+      if (mounted) Navigator.pop(context, true);
+    } on FirebaseException catch (error) {
+      debugPrint('No se pudo actualizar el perfil: ${error.code}');
+      _mostrarError();
+    } catch (error) {
+      debugPrint('No se pudo actualizar el perfil: $error');
+      _mostrarError();
+    }
+  }
+
+  void _mostrarError() {
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo actualizar la información.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Editar información'),
+      actions: [
+        TextButton(
+          onPressed: _guardando ? null : _guardar,
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          'Actualiza la información que verán tus vecinos.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _nombre,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nombre completo',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _bio,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Biografía',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: _guardando ? null : _guardar,
+          icon: _guardando
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_guardando ? 'Guardando...' : 'Guardar cambios'),
+        ),
+      ],
+    ),
+  );
+}
+
 class MiBarrioHome extends StatelessWidget {
-  const MiBarrioHome({super.key, this.homeOnly = false, this.onAuthenticated});
+  const MiBarrioHome({
+    super.key,
+    this.homeOnly = false,
+    this.onAuthenticated,
+    this.onSignedOut,
+  });
 
   final bool homeOnly;
   final VoidCallback? onAuthenticated;
+  final VoidCallback? onSignedOut;
 
   @override
   Widget build(BuildContext context) {
-    if (homeOnly) return const _InicioLoader();
+    if (homeOnly) return _InicioLoader(onSignedOut: onSignedOut);
     return _Entrada(onAuthenticated: onAuthenticated);
   }
 }
 
 class _InicioLoader extends StatefulWidget {
-  const _InicioLoader();
+  const _InicioLoader({this.onSignedOut});
+
+  final VoidCallback? onSignedOut;
 
   @override
   State<_InicioLoader> createState() => _InicioLoaderState();
@@ -65,15 +189,16 @@ class _InicioLoaderState extends State<_InicioLoader> {
       if (preferences == null) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
-      return _InicioProfileLoader(preferences);
+      return _InicioProfileLoader(preferences, onSignedOut: widget.onSignedOut);
     },
   );
 }
 
 class _InicioProfileLoader extends StatelessWidget {
-  const _InicioProfileLoader(this.preferences);
+  const _InicioProfileLoader(this.preferences, {this.onSignedOut});
 
   final SharedPreferences preferences;
+  final VoidCallback? onSignedOut;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +219,10 @@ class _InicioProfileLoader extends StatelessWidget {
       petHunger: preferences.getDouble('vecino_hambre') ?? 0,
     );
     if (store == null || auth?.currentUid == null) {
-      return Inicio(datos: _DatosBarrio(preferences, fallback));
+      return Inicio(
+        datos: _DatosBarrio(preferences, fallback),
+        onSignedOut: onSignedOut,
+      );
     }
     return FutureBuilder<UserProfile?>(
       future: store.load(
@@ -117,15 +245,19 @@ class _InicioProfileLoader extends StatelessWidget {
             'No se pudo cargar el perfil de Firestore: ${snapshot.error}',
           );
         }
-        return Inicio(datos: _DatosBarrio(preferences, profile));
+        return Inicio(
+          datos: _DatosBarrio(preferences, profile),
+          onSignedOut: onSignedOut,
+        );
       },
     );
   }
 }
 
 class Inicio extends StatefulWidget {
-  const Inicio({super.key, required this.datos});
+  const Inicio({super.key, required this.datos, this.onSignedOut});
   final _DatosBarrio datos;
+  final VoidCallback? onSignedOut;
 
   @override
   State<Inicio> createState() => _InicioState();
@@ -276,6 +408,87 @@ class _InicioState extends State<Inicio> {
       ),
     );
   }
+
+  Future<void> _editarInformacion() async {
+    Navigator.pop(context);
+    final actualizada = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _EditarInformacionPage(datos: widget.datos),
+      ),
+    );
+    if (mounted && actualizada == true) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tu información se actualizó.')),
+      );
+    }
+  }
+
+  Future<void> _cerrarSesion() async {
+    final auth = context.read<AuthGateway?>();
+    try {
+      await auth?.signOut();
+      final preferences = widget.datos.preferencias;
+      for (final key in [
+        'vecino_departamento',
+        'vecino_provincia',
+        'vecino_distrito',
+        'vecino_nombre',
+        'vecino_telefono',
+        'vecino_bio',
+        'vecino_rol',
+        'vecino_xp',
+        'vecino_stars',
+        'vecino_favores',
+        'vecino_herramientas',
+        'vecino_hambre',
+      ]) {
+        await preferences.remove(key);
+      }
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        widget.onSignedOut?.call();
+      }
+    } catch (error) {
+      debugPrint('No se pudo cerrar sesión: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo cerrar sesión.')),
+        );
+      }
+    }
+  }
+
+  Widget _drawer() => Drawer(
+    child: SafeArea(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(widget.datos.nombre),
+            accountEmail: Text(widget.datos.rol),
+            currentAccountPicture: _avatarVecino(
+              widget.datos.iniciales,
+              widget.datos.foto,
+              25,
+            ),
+            decoration: const BoxDecoration(color: orange),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Editar información'),
+            onTap: _editarInformacion,
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Cerrar sesión'),
+            onTap: _cerrarSesion,
+          ),
+        ],
+      ),
+    ),
+  );
 
   Future<void> confirmarSos() async {
     if (_sosSending) return;
@@ -452,6 +665,7 @@ class _InicioState extends State<Inicio> {
   }
 
   Widget _pantallaInicio() => Scaffold(
+    drawer: _drawer(),
     body: SafeArea(
       bottom: false,
       child: Center(
@@ -494,6 +708,13 @@ class _InicioState extends State<Inicio> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        Builder(
+          builder: (context) => IconButton(
+            tooltip: 'Abrir menú',
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         label('MI BARRIO', 13, bold: true, color: orange),
         InkWell(
           key: _campanaTutorial,
