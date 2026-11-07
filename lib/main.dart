@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:image_picker/image_picker.dart';
@@ -18,6 +19,7 @@ import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
 import 'home/home.dart';
+import 'home/user_profile.dart';
 
 import 'firebase_options.dart';
 import 'screens/map/data/map_location_provider.dart'
@@ -33,6 +35,9 @@ void main() async {
     MyApp(
       authGateway: FirebaseAuthGateway(
         FirebaseAuth.instanceFor(app: firebaseApp),
+      ),
+      profileStore: FirestoreUserProfileStore(
+        FirebaseFirestore.instanceFor(app: firebaseApp),
       ),
       locationProvider: DeviceLocationProvider(
         mapProvider: GeolocatorLocationProvider(),
@@ -56,17 +61,20 @@ class MyApp extends StatelessWidget {
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
     this.authGateway,
+    this.profileStore,
   });
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
   final AuthGateway? authGateway;
+  final UserProfileStore? profileStore;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         Provider<AuthGateway?>.value(value: authGateway),
+        Provider<UserProfileStore?>.value(value: profileStore),
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
       ],

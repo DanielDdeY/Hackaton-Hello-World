@@ -1,8 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackaton_hello_world/features/create_post/domain/services/auth_gateway.dart';
+import 'package:hackaton_hello_world/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:hackaton_hello_world/main.dart';
+class _TestAuthGateway implements AuthGateway {
+  const _TestAuthGateway({this.displayName});
+
+  final String? displayName;
+
+  @override
+  String? get currentUid => 'test-user';
+
+  @override
+  String? get currentDisplayName => displayName;
+
+  @override
+  Future<String> ensureSignedIn() async => 'test-user';
+
+  @override
+  Future<String> signInWithGoogle() async => 'test-user';
+}
 
 void main() {
   testWidgets('muestra la bienvenida de Mi Barrio', (
@@ -55,10 +73,12 @@ void main() {
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(
+      const MyApp(authGateway: _TestAuthGateway(displayName: 'Ana García')),
+    );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Continuar con Google · demo'));
+    await tester.tap(find.text('Continuar con Google'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Seleccionar').first);
@@ -79,6 +99,12 @@ void main() {
     await tester.tap(find.byType(ListTile).first);
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Revisar distrito'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar y conocer la app'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Seleccionar'), findsNothing);
+    expect(find.text('Ana García'), findsOneWidget);
   });
 }

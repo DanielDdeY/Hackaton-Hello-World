@@ -32,6 +32,19 @@ Para probar Auth contra `hackaton-hello-world`, habilita **Authentication →
 Método de acceso → Anónimo** en la consola de Firebase y ejecuta Flutter sin
 el modo de emuladores.
 
+Para habilitar el registro con Google, activa **Authentication → Método de
+acceso → Google** en Firebase Console. En Android añade la huella SHA-1 y
+SHA-256 de la aplicación en **Configuración del proyecto**, descarga de nuevo
+`android/app/google-services.json` y reemplaza el archivo existente. En iOS
+configura el cliente OAuth generado por Firebase en Xcode. Después de esto,
+el botón **Continuar con Google** del ingreso inicial abre el flujo real de
+Google; en web usa el popup de Firebase.
+
+El Home guarda el perfil de cada usuario en `users/{uid}` de Firestore:
+nombre, ubicación, XP, estrellas, favores, herramientas y estado de la
+mascota. Publica las reglas con `firebase deploy --only firestore:rules`
+para permitir únicamente el acceso del usuario a su propio perfil.
+
 ```powershell
 flutter analyze
 flutter test
