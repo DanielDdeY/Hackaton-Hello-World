@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "823030453446",
+    "project_id": "hackaton-hello-world",
+    "storage_bucket": "hackaton-hello-world.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:823030453446:android:4423d852b6f7f9b42ab3c7",
+        "android_client_info": {
+          "package_name": "com.example.hackaton_hello_world"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlO7Kp_gtHPF0ww0t4E4d2tQ5sekqLN6M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
