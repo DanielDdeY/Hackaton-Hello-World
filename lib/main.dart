@@ -191,9 +191,11 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    // Mapa y Comunidad gestionan sus propios AppBars superiores
+    // Inicio, Mapa y Comunidad gestionan sus propios encabezados.
     final ocultarAppBar =
-        _selected == _Destination.map || _selected == _Destination.community;
+        _selected == _Destination.home ||
+        _selected == _Destination.map ||
+        _selected == _Destination.community;
 
     return Scaffold(
       appBar: ocultarAppBar

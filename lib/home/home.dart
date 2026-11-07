@@ -33,6 +33,122 @@ const muted = Color(0xff5c5c5c);
 const line = Color(0xffd9d9d9);
 const orange = Color(0xff006d77);
 
+class _EditarInformacionPage extends StatefulWidget {
+  const _EditarInformacionPage({required this.datos});
+
+  final _DatosBarrio datos;
+
+  @override
+  State<_EditarInformacionPage> createState() => _EditarInformacionPageState();
+}
+
+class _EditarInformacionPageState extends State<_EditarInformacionPage> {
+  late final TextEditingController _nombre;
+  late final TextEditingController _bio;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombre = TextEditingController(text: widget.datos.nombre);
+    _bio = TextEditingController(text: widget.datos.bio);
+  }
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    _bio.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final nombre = _nombre.text.trim();
+    if (nombre.isEmpty || _guardando) return;
+
+    setState(() => _guardando = true);
+    try {
+      await widget.datos.guardarPerfil(
+        nombre,
+        _bio.text.trim(),
+        widget.datos.foto,
+      );
+      final auth = context.read<AuthGateway?>();
+      final store = context.read<UserProfileStore?>();
+      final uid = auth?.currentUid;
+      if (store != null && uid != null) {
+        await store.save(uid, widget.datos.toProfile());
+      }
+      if (mounted) Navigator.pop(context, true);
+    } on FirebaseException catch (error) {
+      debugPrint('No se pudo actualizar el perfil: ${error.code}');
+      _mostrarError();
+    } catch (error) {
+      debugPrint('No se pudo actualizar el perfil: $error');
+      _mostrarError();
+    }
+  }
+
+  void _mostrarError() {
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo actualizar la información.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Editar información'),
+      actions: [
+        TextButton(
+          onPressed: _guardando ? null : _guardar,
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          'Actualiza la información que verán tus vecinos.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _nombre,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nombre completo',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _bio,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Biografía',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: _guardando ? null : _guardar,
+          icon: _guardando
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_guardando ? 'Guardando...' : 'Guardar cambios'),
+        ),
+      ],
+    ),
+  );
+}
+
 class MiBarrioHome extends StatelessWidget {
   const MiBarrioHome({
     super.key,
@@ -294,59 +410,18 @@ class _InicioState extends State<Inicio> {
   }
 
   Future<void> _editarInformacion() async {
-    final nombre = TextEditingController(text: widget.datos.nombre);
-    final bio = TextEditingController(text: widget.datos.bio);
-    final resultado = await showDialog<(String, String)>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Editar información'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nombre,
-              decoration: const InputDecoration(labelText: 'Nombre completo'),
-            ),
-            TextField(
-              controller: bio,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Biografía'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, (nombre.text.trim(), bio.text.trim())),
-            child: const Text('Guardar'),
-          ),
-        ],
+    Navigator.pop(context);
+    final actualizada = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _EditarInformacionPage(datos: widget.datos),
       ),
     );
-    nombre.dispose();
-    bio.dispose();
-    if (!mounted || resultado == null || resultado.$1.isEmpty) return;
-
-    final auth = context.read<AuthGateway?>();
-    final store = context.read<UserProfileStore?>();
-    final uid = auth?.currentUid;
-    await widget.datos.guardarPerfil(
-      resultado.$1,
-      resultado.$2,
-      widget.datos.foto,
-    );
-    if (store != null && uid != null) {
-      try {
-        await store.save(uid, widget.datos.toProfile());
-      } on FirebaseException catch (error) {
-        debugPrint('No se pudo actualizar el perfil: ${error.code}');
-      }
+    if (mounted && actualizada == true) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tu información se actualizó.')),
+      );
     }
-    if (mounted) setState(() {});
   }
 
   Future<void> _cerrarSesion() async {
@@ -402,10 +477,7 @@ class _InicioState extends State<Inicio> {
           ListTile(
             leading: const Icon(Icons.edit_outlined),
             title: const Text('Editar información'),
-            onTap: () {
-              Navigator.pop(context);
-              _editarInformacion();
-            },
+            onTap: _editarInformacion,
           ),
           const Divider(),
           ListTile(
