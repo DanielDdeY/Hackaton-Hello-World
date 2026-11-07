@@ -12,8 +12,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
+import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import '../features/create_post/domain/services/auth_gateway.dart';
+import '../features/create_post/domain/services/photo_picker.dart';
+import '../features/emergency/data/firebase_emergency_alert_repository.dart';
+import '../features/emergency/data/firebase_emergency_post_repository.dart';
+import '../features/emergency/domain/emergency_alert.dart';
 import 'peru_locations.dart';
 import 'user_profile.dart';
 
@@ -139,6 +145,8 @@ class _InicioState extends State<Inicio> {
   int? _pasoTutorial;
   List<Rect> _zonasTutorial = [];
   int _solicitudTutorial = 0;
+  bool _sosSending = false;
+  String? _pendingSosId;
 
   @override
   void initState() {
@@ -270,29 +278,143 @@ class _InicioState extends State<Inicio> {
   }
 
   Future<void> confirmarSos() async {
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Simular alerta SOS'),
-        content: const Text(
-          'Esta es una demostración del flujo de emergencia.',
+    if (_sosSending) return;
+    setState(() => _sosSending = true);
+    var sosStage = 'ubicación GPS';
+    try {
+      final preferences = widget.datos.preferencias;
+      final auth = context.read<AuthGateway?>();
+      final photoPicker = context.read<PhotoPicker>();
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw StateError('Activa el GPS para enviar una alerta SOS.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError('Se necesita permiso de ubicación para enviar SOS.');
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+      );
+
+      sosStage = 'autenticación';
+      if (auth == null) {
+        throw StateError('No se pudo iniciar sesión para enviar el SOS.');
+      }
+      final uid = await auth.ensureSignedIn();
+      final localCommunityId = widget.datos.distrito.trim().toLowerCase();
+      sosStage = 'lectura del perfil de comunidad';
+      final profileRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid);
+      final profile = await profileRef.get();
+      final savedCommunityId = profile.data()?['communityId'] as String? ?? '';
+      final communityId = savedCommunityId.trim().isNotEmpty
+          ? savedCommunityId.trim()
+          : localCommunityId;
+      if (communityId.isEmpty) {
+        throw StateError(
+          'Completa tu distrito en el perfil antes de activar el SOS.',
+        );
+      }
+      if (savedCommunityId.trim().isEmpty) {
+        sosStage = 'guardado del distrito en tu perfil';
+        await profileRef.set({
+          'communityId': communityId,
+        }, SetOptions(merge: true));
+      }
+
+      final alertId =
+          _pendingSosId ??
+          preferences.getString('sos_pending_alert_id') ??
+          FirebaseFirestore.instance.collection('emergency_alerts').doc().id;
+      _pendingSosId = alertId;
+      await preferences.setString('sos_pending_alert_id', alertId);
+      final alertRepository = FirebaseEmergencyAlertRepository();
+      sosStage = 'creación de la alerta SOS';
+      await alertRepository.create(
+        alertId: alertId,
+        reporterUid: uid,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        communityId: communityId,
+      );
+
+      sosStage = 'formulario de emergencia';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xffb71c1c),
+          content: Text('SOS activo. Describe la emergencia.'),
+        ),
+      );
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EmergencyForm(
+            sosAlertId: alertId,
+            sosRepository: FirebaseEmergencyPostRepository(
+              alertId: alertId,
+              photoPicker: photoPicker,
+              firestore: FirebaseFirestore.instance,
+              storage: FirebaseStorage.instance,
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Simular'),
-          ),
-        ],
+        ),
+      );
+
+      if (!mounted) return;
+      sosStage = 'verificación de la publicación SOS';
+      final post = await FirebaseFirestore.instance
+          .collection('community_posts')
+          .doc(alertId)
+          .get();
+      if (!post.exists) {
+        await alertRepository.close(alertId, EmergencyAlertStatus.cancelled);
+      }
+      _pendingSosId = null;
+      await preferences.remove('sos_pending_alert_id');
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'SOS Firebase failure at $sosStage: ${error.code} ${error.message}',
+      );
+      if (mounted) {
+        _showSosError(
+          'Firebase rechazó el SOS durante $sosStage (${error.code}).',
+        );
+      }
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        _showSosError(
+          error.reason == AuthFailureReason.anonymousDisabled
+              ? 'Firebase no tiene habilitado el acceso anónimo.'
+              : 'No se pudo iniciar sesión para enviar el SOS.',
+        );
+      }
+    } on StateError catch (error) {
+      if (mounted) _showSosError(error.message.toString());
+    } on Exception catch (error) {
+      if (mounted) {
+        _showSosError('No se pudo activar el SOS. Inténtalo de nuevo. $error');
+      }
+    } finally {
+      if (mounted) setState(() => _sosSending = false);
+    }
+  }
+
+  void _showSosError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xffb71c1c),
+        content: Text(message),
+        duration: const Duration(seconds: 6),
       ),
     );
-    if (confirmado == true && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Alerta SOS simulada')));
-    }
   }
 
   @override
@@ -416,21 +538,31 @@ class _InicioState extends State<Inicio> {
         tarjeta(
           color: const Color(0xffb72f29),
           radius: 15,
-          onTap: confirmarSos,
+          onTap: _sosSending ? null : confirmarSos,
           child: SizedBox(
             key: _sosTutorial,
             width: 82,
             height: 66,
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  label('¡SOS!', 21, bold: true, color: Colors.white),
-                  const SizedBox(height: 3),
-                  label('EMERGENCIA', 9, bold: true, color: Colors.white),
-                ],
-              ),
+              child: _sosSending
+                  ? const Center(
+                      child: SizedBox.square(
+                        dimension: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        label('¡SOS!', 21, bold: true, color: Colors.white),
+                        const SizedBox(height: 3),
+                        label('EMERGENCIA', 9, bold: true, color: Colors.white),
+                      ],
+                    ),
             ),
           ),
         ),

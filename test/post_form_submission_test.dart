@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackaton_hello_world/features/create_post/data/mocks/mock_photo_picker.dart';
+import 'package:hackaton_hello_world/features/create_post/domain/entities/emergency_post_data.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/location_result.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/post_failure.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/post_form_data.dart';
@@ -168,6 +169,34 @@ void main() {
       expect(find.text('Publicación creada.'), findsOneWidget);
     },
   );
+
+  testWidgets('SOS report cannot publish until its title is entered', (
+    tester,
+  ) async {
+    final auth = _Auth();
+    final location = _Location();
+    final repository = _Repository();
+    await _open(
+      tester,
+      const EmergencyForm(sosAlertId: 'alert-id'),
+      auth,
+      location,
+      repository,
+    );
+    location.capture.completeError(const LocationUnavailableException());
+    await tester.pumpAndSettle();
+    await tester.enterText(_input('CALLE (Obligatorio)'), 'Jr. Lima 123');
+
+    await _tap(tester, find.text('Publicar'));
+    expect(repository.drafts, isEmpty);
+    expect(auth.requests, 0);
+
+    await tester.enterText(_input('Título (Obligatorio)'), 'Accidente');
+    await _tap(tester, find.text('Publicar'));
+    await tester.pumpAndSettle();
+    expect(repository.drafts, hasLength(1));
+    expect((repository.drafts.single as EmergencyPostData).title, 'Accidente');
+  });
 
   testWidgets(
     'help captures GPS without opening Details and keeps a draft on retry',

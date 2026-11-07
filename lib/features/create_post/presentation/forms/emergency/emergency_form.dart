@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../../features/emergency/data/firebase_emergency_post_repository.dart';
 import '../../../../../core/constants/input_limits.dart';
 import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
@@ -10,27 +11,35 @@ import '../../../../../core/widgets/optional_photo_picker.dart';
 import '../../../domain/entities/emergency_post_data.dart';
 import '../../../domain/services/location_provider.dart';
 import '../../../domain/services/photo_picker.dart';
+import '../../../domain/services/post_repository.dart';
 import '../../location/post_location_capture.dart';
 import '../../submission/post_submission_scope.dart';
 import 'emergency_form_controller.dart';
 
 class EmergencyForm extends StatelessWidget {
-  const EmergencyForm({super.key});
+  const EmergencyForm({super.key, this.sosAlertId, this.sosRepository});
+
+  final String? sosAlertId;
+  final FirebaseEmergencyPostRepository? sosRepository;
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
+    final form = ChangeNotifierProvider(
       create: (context) => EmergencyFormController(
         locationProvider: context.read<LocationProvider>(),
         photoPicker: context.read<PhotoPicker>(),
       ),
-      child: const _EmergencyFormView(),
+      child: _EmergencyFormView(sosMode: sosAlertId != null),
     );
+    if (sosRepository == null) return form;
+    return Provider<PostRepository?>.value(value: sosRepository, child: form);
   }
 }
 
 class _EmergencyFormView extends StatefulWidget {
-  const _EmergencyFormView();
+  const _EmergencyFormView({required this.sosMode});
+
+  final bool sosMode;
 
   @override
   State<_EmergencyFormView> createState() => _EmergencyFormViewState();
@@ -42,6 +51,10 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
     EmergencyType.accident: 'ACCIDENTE',
     EmergencyType.tragedy: 'TRAGEDIA',
     EmergencyType.health: 'SALUD',
+    EmergencyType.fire: 'INCENDIO',
+    EmergencyType.flood: 'INUNDACIÓN',
+    EmergencyType.missingPerson: 'PERSONA DESAPARECIDA',
+    EmergencyType.other: 'OTRO',
   };
 
   final _formKey = GlobalKey<FormState>();
@@ -62,7 +75,7 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
             icon: const BackButtonIcon(),
             tooltip: 'Volver',
           ),
-          title: const Text('Emergencia'),
+          title: Text(widget.sosMode ? 'Completar alerta SOS' : 'Emergencia'),
         ),
         body: SafeArea(
           top: false,
@@ -77,6 +90,24 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (widget.sosMode) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Tu alerta SOS ya está activa. Agrega los detalles '
+                            'para compartirlos con tu comunidad.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       Semantics(
                         header: true,
                         child: Text(
@@ -101,6 +132,20 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                         ],
                       ),
                       const SizedBox(height: 20),
+                      if (widget.sosMode) ...[
+                        TextFormField(
+                          controller: controller.titleController,
+                          textCapitalization: TextCapitalization.sentences,
+                          maxLength: 80,
+                          validator: RequiredFieldValidator.validate,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            labelText: 'Título (Obligatorio)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       TextFormField(
                         controller: controller.streetAddressController,
                         onChanged: controller.markAddressEdited,

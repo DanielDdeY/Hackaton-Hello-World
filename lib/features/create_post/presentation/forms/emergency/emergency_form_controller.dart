@@ -17,6 +17,7 @@ class EmergencyFormController extends ChangeNotifier with PostLocationCapture {
 
   final PhotoPicker _photoPicker;
   TextEditingController get streetAddressController => addressController;
+  final titleController = TextEditingController();
   final messageController = TextEditingController();
 
   EmergencyType _type = EmergencyType.robbery;
@@ -49,6 +50,9 @@ class EmergencyFormController extends ChangeNotifier with PostLocationCapture {
     final message = messageController.text.trim();
     return EmergencyPostData(
       streetAddress: streetAddressController.text.trim(),
+      title: titleController.text.trim().isEmpty
+          ? null
+          : titleController.text.trim(),
       type: _type,
       message: message.isEmpty ? null : message,
       photoPath: _photoPath,
@@ -59,6 +63,7 @@ class EmergencyFormController extends ChangeNotifier with PostLocationCapture {
 
   @override
   void dispose() {
+    titleController.dispose();
     messageController.dispose();
     super.dispose();
   }
