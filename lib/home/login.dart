@@ -15,6 +15,7 @@ class _DatosBarrio extends ChangeNotifier {
       provincia = profile.province,
       distrito = profile.district,
       nombre = profile.name,
+      phoneNumber = profile.phoneNumber,
       rol = profile.role,
       bio = profile.bio,
       xp = profile.xp,
@@ -28,6 +29,7 @@ class _DatosBarrio extends ChangeNotifier {
   String provincia;
   String distrito;
   String nombre;
+  String phoneNumber;
   String rol;
   String bio;
   int xp;
@@ -39,6 +41,7 @@ class _DatosBarrio extends ChangeNotifier {
   int get nivel => xp ~/ 100;
   UserProfile toProfile() => UserProfile(
     name: nombre,
+    phoneNumber: phoneNumber,
     role: rol,
     bio: bio,
     department: departamento,
@@ -95,6 +98,8 @@ class _EntradaState extends State<_Entrada> {
   late SharedPreferences _prefs;
   final _celular = TextEditingController();
   final _codigo = TextEditingController();
+  final _nombres = TextEditingController();
+  final _apellidos = TextEditingController();
   final _departamento = TextEditingController();
   final _provincia = TextEditingController();
   final _distrito = TextEditingController();
@@ -107,6 +112,10 @@ class _EntradaState extends State<_Entrada> {
   bool _cargando = true;
   bool _obteniendoUbicacion = false;
   bool _iniciandoGoogle = false;
+  bool _registroNuevo = true;
+  bool _verificandoTelefono = false;
+  String _telefonoVerificado = '';
+  UserProfile? _perfilExistente;
   String _nombreAutenticado = 'Carlos Mendoza';
   String? _errorUbicacion;
   VoidCallback? _accionAjustesUbicacion;
@@ -130,6 +139,7 @@ class _EntradaState extends State<_Entrada> {
             province: _prefs.getString('vecino_provincia') ?? '',
             district: d,
             name: _prefs.getString('vecino_nombre') ?? 'Carlos Mendoza',
+            phoneNumber: _prefs.getString('vecino_telefono') ?? '',
             role: _prefs.getString('vecino_rol') ?? 'Vecino',
             bio: _prefs.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
             xp: _prefs.getInt('vecino_xp') ?? 0,
@@ -153,7 +163,15 @@ class _EntradaState extends State<_Entrada> {
 
   @override
   void dispose() {
-    for (final c in [_celular, _codigo, _departamento, _provincia, _distrito]) {
+    for (final c in [
+      _celular,
+      _codigo,
+      _nombres,
+      _apellidos,
+      _departamento,
+      _provincia,
+      _distrito,
+    ]) {
       c.dispose();
     }
     _datos?.dispose();
@@ -161,6 +179,108 @@ class _EntradaState extends State<_Entrada> {
   }
 
   void _ir(int paso) => setState(() => _paso = paso);
+
+  String _telefono() => '+51${_celular.text.replaceAll(RegExp(r'\D'), '')}';
+
+  Future<void> _enviarCodigo() async {
+    if (_verificandoTelefono) return;
+    if (!_form.currentState!.validate()) return;
+    final gateway = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
+    if (gateway == null || store == null) {
+      _mostrarErrorTelefono('No se pudo preparar la verificación.');
+      return;
+    }
+    setState(() => _verificandoTelefono = true);
+    try {
+      final telefono = _telefono();
+      await gateway.ensureSignedIn();
+      _registroNuevo = !await store.phoneExists(telefono);
+      await gateway.sendPhoneCode(telefono);
+      _telefonoVerificado = telefono;
+      if (mounted) _ir(_registroNuevo ? 2 : 3);
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        _mostrarErrorTelefono(switch (error.reason) {
+          AuthFailureReason.noConnection =>
+            'Sin conexión. Inténtalo nuevamente.',
+          AuthFailureReason.tooManyRequests =>
+            'Demasiados intentos. Espera unos minutos.',
+          _ => 'No se pudo preparar el código de prueba.',
+        });
+      }
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'No se pudo consultar el teléfono en Firestore '
+        '(code=${error.code}): ${error.message}',
+      );
+      if (mounted) {
+        _mostrarErrorTelefono(
+          error.code == 'permission-denied'
+              ? 'Firebase rechazó el acceso. Publica las reglas de Firestore.'
+              : 'No se pudo conectar con Firestore (${error.code}).',
+        );
+      }
+    } catch (error) {
+      debugPrint('No se pudo preparar el código de prueba: $error');
+      if (mounted) {
+        _mostrarErrorTelefono('No se pudo preparar el código de prueba.');
+      }
+    } finally {
+      if (mounted) setState(() => _verificandoTelefono = false);
+    }
+  }
+
+  Future<void> _verificarTelefono() async {
+    if (!_form.currentState!.validate()) return;
+    final gateway = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
+    if (gateway == null) {
+      _mostrarErrorTelefono('No se pudo verificar el código.');
+      return;
+    }
+    setState(() => _verificandoTelefono = true);
+    try {
+      await gateway.signInWithPhoneCode(_codigo.text.trim());
+      if (!_registroNuevo) {
+        if (store != null) {
+          final profile = await store.loadByPhone(
+            _telefonoVerificado,
+            fallbackName: 'Vecino',
+            fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+            fallbackDepartment: '',
+            fallbackProvince: '',
+            fallbackDistrict: '',
+          );
+          if (profile != null) {
+            _perfilExistente = profile;
+            _nombreAutenticado = profile.name;
+          }
+        }
+      } else {
+        _nombreAutenticado =
+            '${_nombres.text.trim()} ${_apellidos.text.trim()}';
+      }
+      if (mounted) _ir(4);
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        _mostrarErrorTelefono(switch (error.reason) {
+          AuthFailureReason.invalidCode => 'El código no es válido.',
+          AuthFailureReason.noConnection =>
+            'Sin conexión. Inténtalo nuevamente.',
+          _ => 'No se pudo verificar el código.',
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _verificandoTelefono = false);
+    }
+  }
+
+  void _mostrarErrorTelefono(String mensaje) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(mensaje)));
+  }
 
   Future<void> _continuarConGoogle() async {
     if (_iniciandoGoogle) return;
@@ -175,13 +295,15 @@ class _EntradaState extends State<_Entrada> {
       if (nombre != null && nombre.isNotEmpty) {
         _nombreAutenticado = nombre;
       }
-      if (mounted) _ir(3);
+      if (mounted) _ir(4);
     } on AuthFailure catch (error) {
       if (!mounted) return;
       final mensaje = switch (error.reason) {
         AuthFailureReason.noConnection =>
           'Sin conexión. Conéctate y vuelve a intentarlo.',
         AuthFailureReason.cancelled => 'Inicio de sesión cancelado.',
+        AuthFailureReason.invalidCode || AuthFailureReason.tooManyRequests =>
+          'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
         AuthFailureReason.anonymousDisabled || AuthFailureReason.unavailable =>
           'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
       };
@@ -422,13 +544,14 @@ class _EntradaState extends State<_Entrada> {
           province: prov,
           district: dist,
           name: _nombreAutenticado,
-          role: 'Vecino',
-          bio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-          xp: 0,
-          stars: 0,
-          favors: 0,
-          tools: 0,
-          petHunger: 0,
+          phoneNumber: _telefonoVerificado,
+          role: _perfilExistente?.role ?? 'Vecino',
+          bio: _perfilExistente?.bio ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+          xp: _perfilExistente?.xp ?? 0,
+          stars: _perfilExistente?.stars ?? 0,
+          favors: _perfilExistente?.favors ?? 0,
+          tools: _perfilExistente?.tools ?? 0,
+          petHunger: _perfilExistente?.petHunger ?? 0,
         ),
       ),
     );
@@ -437,6 +560,7 @@ class _EntradaState extends State<_Entrada> {
       await _prefs.setString('vecino_provincia', prov);
       await _prefs.setString('vecino_distrito', dist);
       await _prefs.setString('vecino_nombre', _nombreAutenticado);
+      await _prefs.setString('vecino_telefono', _telefonoVerificado);
       if (store != null && uid != null) {
         await store.save(uid, _datos!.toProfile());
       }
@@ -454,6 +578,7 @@ class _EntradaState extends State<_Entrada> {
     const titulos = [
       '¡Hola, vecino!',
       'Ingresa tu celular',
+      'Crea tu perfil',
       'Revisa tus mensajes',
       '¿Dónde está tu barrio?',
       'Confirma tu barrio',
@@ -500,7 +625,7 @@ class _EntradaState extends State<_Entrada> {
       ],
       1 => <Widget>[
         label(
-          'En la app conectada recibirías un código por SMS. Aquí puedes probar el recorrido.',
+          'Usa el código de verificación de prueba: 123456.',
           16,
           color: muted,
         ),
@@ -512,13 +637,22 @@ class _EntradaState extends State<_Entrada> {
           minimo: 9,
           soloDigitos: true,
         ),
-        _accion('Continuar con código de prueba', () {
-          if (_form.currentState!.validate()) _ir(2);
-        }),
+        _accion(
+          _verificandoTelefono ? 'Preparando código...' : 'Continuar',
+          _enviarCodigo,
+        ),
       ],
       2 => <Widget>[
+        label('Crea tu perfil con tu nombre y apellido.', 16, color: muted),
+        _campo(_nombres, 'Nombres', minimo: 2),
+        _campo(_apellidos, 'Apellidos', minimo: 2),
+        _accion('Continuar a verificación', () {
+          if (_form.currentState!.validate()) _ir(3);
+        }),
+      ],
+      3 => <Widget>[
         label(
-          'Para esta demostración, escribe el código 123456.',
+          'Escribe el código de prueba para $_telefonoVerificado.',
           16,
           color: muted,
         ),
@@ -528,13 +662,14 @@ class _EntradaState extends State<_Entrada> {
           tipo: TextInputType.number,
           minimo: 6,
           soloDigitos: true,
-          esperado: '123456',
+          esperado: phoneTestCode,
         ),
-        _accion('Verificar y continuar', () {
-          if (_form.currentState!.validate()) _ir(3);
-        }),
+        _accion(
+          _verificandoTelefono ? 'Verificando...' : 'Verificar y continuar',
+          _verificarTelefono,
+        ),
       ],
-      3 => <Widget>[
+      4 => <Widget>[
         label(
           'Usa tu ubicación para completar la zona automáticamente o ingresa los datos manualmente.',
           16,
@@ -600,7 +735,7 @@ class _EntradaState extends State<_Entrada> {
           _seleccionarDistrito,
         ),
         _accion('Revisar distrito', () {
-          if (_form.currentState!.validate()) _ir(4);
+          if (_form.currentState!.validate()) _ir(5);
         }),
       ],
       _ => <Widget>[

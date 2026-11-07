@@ -60,6 +60,11 @@ nombre, ubicación, XP, estrellas, favores, herramientas y estado de la
 mascota. Publica las reglas con `firebase deploy --only firestore:rules`
 para permitir únicamente el acceso del usuario a su propio perfil.
 
+El registro con celular usa un código de prueba fijo: `123456`. Un teléfono
+nuevo solicita nombres y apellidos antes del código; un teléfono existente
+solicita únicamente el código. El índice `phoneIndex` permite distinguir ambos
+casos. No se envía un SMS real en este prototipo.
+
 ```powershell
 flutter analyze
 flutter test

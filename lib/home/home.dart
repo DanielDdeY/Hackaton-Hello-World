@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -74,6 +75,7 @@ class _InicioProfileLoader extends StatelessWidget {
     final store = context.read<UserProfileStore?>();
     final fallback = UserProfile(
       name: preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
+      phoneNumber: preferences.getString('vecino_telefono') ?? '',
       role: preferences.getString('vecino_rol') ?? 'Vecino',
       bio: preferences.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
       department: preferences.getString('vecino_departamento') ?? '',

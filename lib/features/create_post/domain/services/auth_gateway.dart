@@ -1,3 +1,5 @@
+const phoneTestCode = '123456';
+
 abstract interface class AuthGateway {
   String? get currentUid;
 
@@ -6,12 +8,18 @@ abstract interface class AuthGateway {
   Future<String> ensureSignedIn();
 
   Future<String> signInWithGoogle();
+
+  Future<void> sendPhoneCode(String phoneNumber);
+
+  Future<String> signInWithPhoneCode(String code);
 }
 
 enum AuthFailureReason {
   noConnection,
   anonymousDisabled,
   cancelled,
+  invalidCode,
+  tooManyRequests,
   unavailable,
 }
 

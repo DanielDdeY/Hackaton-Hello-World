@@ -60,6 +60,22 @@ final class FirebaseAuthGateway implements AuthGateway {
     }
   }
 
+  @override
+  Future<void> sendPhoneCode(String phoneNumber) async {
+    // The SMS step is intentionally simulated for the current prototype.
+  }
+
+  @override
+  Future<String> signInWithPhoneCode(String code) async {
+    if (code != phoneTestCode) {
+      throw const AuthFailure(AuthFailureReason.invalidCode);
+    }
+    final user = _auth.currentUser ?? (await _auth.signInAnonymously()).user;
+    final uid = user?.uid;
+    if (uid == null) throw const AuthFailure(AuthFailureReason.unavailable);
+    return uid;
+  }
+
   Future<AuthCredential> _signInWithGoogleOnWeb() async {
     final result = await _auth.signInWithPopup(GoogleAuthProvider());
     final credential = result.credential;
