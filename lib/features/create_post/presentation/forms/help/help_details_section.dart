@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/widgets/collapsible_section.dart';
+import '../../location/post_location_capture.dart';
 import 'help_form_controller.dart';
 
 class HelpDetailsSection extends StatelessWidget {
@@ -27,6 +28,7 @@ class HelpDetailsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final date = controller.neededBy;
     final count = controller.peopleCount;
+    final locationNotice = controller.locationNotice;
     final textTheme = Theme.of(context).textTheme;
     final dateLabel = date == null
         ? 'Elegir fecha'
@@ -97,13 +99,33 @@ class HelpDetailsSection extends StatelessWidget {
           const SizedBox(height: 12),
           TextFormField(
             controller: controller.locationController,
+            onChanged: controller.markAddressEdited,
             keyboardType: TextInputType.streetAddress,
             textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Ubicación específica (Opcional)',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon:
+                  controller.detailsExpanded &&
+                      controller.locationStatus == PostLocationStatus.loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          semanticsLabel: 'Obteniendo ubicación',
+                        ),
+                      ),
+                    )
+                  : null,
             ),
           ),
+          if (locationNotice != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Semantics(liveRegion: true, child: Text(locationNotice)),
+            ),
         ],
       ),
     );
