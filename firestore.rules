@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /phoneIndex/{phoneNumber} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validCategory(category) {
+      return category in ['emergency', 'help', 'service', 'news'];
+    }
+
+    function validPhoto(photo, postId) {
+      return photo is map
+        && photo.keys().hasOnly(['storagePath', 'downloadUrl'])
+        && photo.storagePath is string
+        && photo.downloadUrl is string
+        && photo.downloadUrl.size() > 0
+        && validPhotoPath(photo.storagePath.split('/'), postId);
+    }
+
+    function validPhotoPath(parts, postId) {
+      return parts.size() == 4
+        && parts[0] == 'posts'
+        && parts[1] == request.auth.uid
+        && parts[2] == postId
+        && parts[3].matches('[0-9]+_[0-9]+[.]jpg');
+    }
+
+    function validMedia(data, postId) {
+      let photos = data.photos;
+      return data.mediaStatus in ['none', 'uploading', 'ready', 'failed']
+        && photos is list
+        && photos.size() <= (data.category == 'service' ? 5 : 1)
+        && (data.mediaStatus == 'ready' ? photos.size() > 0 : photos.size() == 0)
+        && (photos.size() < 1 || validPhoto(photos[0], postId))
+        && (photos.size() < 2 || validPhoto(photos[1], postId))
+        && (photos.size() < 3 || validPhoto(photos[2], postId))
+        && (photos.size() < 4 || validPhoto(photos[3], postId))
+        && (photos.size() < 5 || validPhoto(photos[4], postId));
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.id == postId
+        && request.resource.data.authorId == request.auth.uid
+        && validCategory(request.resource.data.category)
+        && request.resource.data.status == 'active'
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.details is map
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validMedia(request.resource.data, postId);
+
+      allow update: if signedIn()
+        && resource.data.authorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['photos', 'mediaStatus', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && validMedia(request.resource.data, postId);
+
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+  }
+}

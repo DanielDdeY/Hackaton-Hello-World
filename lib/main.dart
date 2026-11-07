@@ -1,27 +1,68 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'core/firebase/configure_firebase_emulators.dart';
 import 'core/theme/app_theme.dart';
 import 'features/comunidad/data/mocks/mock_comunidad_repository.dart';
 import 'features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'features/comunidad/presentation/pages/comunidad_page.dart';
+import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
+import 'features/create_post/data/repositories/firestore_post_repository.dart';
+import 'features/create_post/data/repositories/post_document_store.dart';
+import 'features/create_post/data/services/device_location_provider.dart';
+import 'features/create_post/data/services/firebase_auth_gateway.dart';
+import 'features/create_post/data/services/firebase_photo_storage.dart';
+import 'features/create_post/data/services/firebase_storage_image_uploader.dart';
+import 'features/create_post/data/services/geocoding_address_resolver.dart';
+import 'features/create_post/data/services/image_picker_photo_picker.dart';
+import 'features/create_post/domain/services/auth_gateway.dart';
 import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
+import 'features/create_post/domain/services/post_repository.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
+import 'home/home.dart';
+import 'home/user_profile.dart';
 
 import 'firebase_options.dart';
+import 'screens/map/data/map_location_provider.dart'
+    show GeolocatorLocationProvider;
 import 'screens/map/map_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  final firebaseApp = await initializeVeciAppFirebase(
+    DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(MyApp());
+  runApp(
+    MyApp(
+      authGateway: FirebaseAuthGateway(
+        FirebaseAuth.instanceFor(app: firebaseApp),
+      ),
+      profileStore: FirestoreUserProfileStore(
+        FirebaseFirestore.instanceFor(app: firebaseApp),
+      ),
+      postRepository: FirestorePostRepository(
+        documents: FirebasePostDocumentStore(
+          FirebaseFirestore.instanceFor(app: firebaseApp),
+        ),
+        uploader: FirebaseStorageImageUploader(
+          FirebasePhotoStorage(FirebaseStorage.instanceFor(app: firebaseApp)),
+        ),
+      ),
+      locationProvider: DeviceLocationProvider(
+        mapProvider: GeolocatorLocationProvider(),
+        addressResolver: const GeocodingAddressResolver(),
+      ),
+      photoPicker: ImagePickerPhotoPicker(ImagePicker()),
+    ),
+  );
 }
 
 const _text = Color(0xFF1A1A1A);
@@ -36,17 +77,26 @@ class MyApp extends StatelessWidget {
     super.key,
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
+    this.authGateway,
+    this.profileStore,
+    this.postRepository,
     ComunidadRepository? comunidadRepository,
   }) : comunidadRepository = comunidadRepository ?? MockComunidadRepository();
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
+  final AuthGateway? authGateway;
+  final UserProfileStore? profileStore;
+  final PostRepository? postRepository;
   final ComunidadRepository comunidadRepository;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<AuthGateway?>.value(value: authGateway),
+        Provider<UserProfileStore?>.value(value: profileStore),
+        Provider<PostRepository?>.value(value: postRepository),
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
         Provider<ComunidadRepository>.value(value: comunidadRepository),
@@ -57,10 +107,31 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         supportedLocales: const [Locale('es', 'PE')],
         theme: createAppTheme(),
-        home: const _NeighborhoodShell(),
+        home: const _AppGate(),
         routes: {'/map': (_) => const MapScreen()},
       ),
     );
+  }
+}
+
+class _AppGate extends StatefulWidget {
+  const _AppGate();
+
+  @override
+  State<_AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends State<_AppGate> {
+  bool _authenticated = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_authenticated) {
+      return MiBarrioHome(
+        onAuthenticated: () => setState(() => _authenticated = true),
+      );
+    }
+    return const _NeighborhoodShell();
   }
 }
 
@@ -122,21 +193,19 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
       appBar: ocultarAppBar
           ? null
           : AppBar(
-              title: Text(
-                _selected.label,
-                style: theme.textTheme.titleLarge,
-              ),
+              title: Text(_selected.label, style: theme.textTheme.titleLarge),
             ),
       // IndexedStack conserva el estado de mapa y pestañas de comunidad
       body: IndexedStack(
         index: _selected.index,
         children: [
-          _PlaceholderPage(description: _Destination.home.description),
+          const MiBarrioHome(homeOnly: true),
           _mapVisited
               ? const MapScreen()
               : _PlaceholderPage(description: _Destination.map.description),
           const ComunidadPage(),
-          _PlaceholderPage(description: _Destination.help.description),
+
+          const AyudaPrevencionPage(),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

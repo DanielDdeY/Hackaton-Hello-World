@@ -1,0 +1,165 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+
+const project = 'demo-hackaton-hello-world';
+const bucket = project + '.firebasestorage.app';
+
+function localEmulator(...names) {
+  const value = names.map((name) => process.env[name]).find(Boolean);
+  assert.ok(value, 'Run this test with Firebase emulators:exec: ' + names[0]);
+  const url = new URL(value.includes('://') ? value : 'http://' + value);
+  assert.ok(
+    url.protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname),
+    'The rules test only accepts local emulators.',
+  );
+  return url.origin;
+}
+
+const auth = localEmulator('FIREBASE_AUTH_EMULATOR_HOST');
+const firestore = localEmulator('FIRESTORE_EMULATOR_HOST');
+const storage = localEmulator('FIREBASE_STORAGE_EMULATOR_HOST', 'STORAGE_EMULATOR_HOST');
+const documents = 'projects/' + project + '/databases/(default)/documents';
+const photosRoot = storage + '/v0/b/' + bucket + '/o';
+
+async function request(url, { status = 200, json, ...options } = {}) {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(20000),
+    ...options,
+    headers: {
+      ...(json === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...options.headers,
+    },
+    body: json === undefined ? options.body : JSON.stringify(json),
+  });
+  const accepted = Array.isArray(status) ? status : [status];
+  assert.ok(
+    accepted.includes(response.status),
+    response.status + ' instead of ' + accepted + ' on ' + new URL(url).pathname +
+      ': ' + (await response.clone().text()).slice(0, 500),
+  );
+  return response;
+}
+
+async function signIn() {
+  const response = await request(
+    auth + '/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-veciapp',
+    { method: 'POST', json: { returnSecureToken: true } },
+  );
+  const session = await response.json();
+  assert.ok(session.localId && session.idToken);
+  return { uid: session.localId, token: session.idToken };
+}
+
+function encode(value) {
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
+  if (typeof value === 'string') return { stringValue: value };
+  if (typeof value === 'number') return { integerValue: String(value) };
+  return { mapValue: { fields: fields(value) } };
+}
+
+function fields(data) {
+  return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, encode(value)]));
+}
+
+function firestoreAuth(session) {
+  return session ? { Authorization: 'Bearer ' + session.token } : {};
+}
+
+async function write(id, data, session, { create = true, status = 200 } = {}) {
+  const timestamps = create ? ['createdAt', 'updatedAt'] : ['updatedAt'];
+  await request(firestore + '/v1/' + documents + ':commit', {
+    method: 'POST',
+    headers: firestoreAuth(session),
+    status,
+    json: {
+      writes: [{
+        update: { name: documents + '/posts/' + id, fields: fields(data) },
+        ...(create ? {} : { updateMask: { fieldPaths: Object.keys(data) } }),
+        currentDocument: { exists: !create },
+        updateTransforms: timestamps.map((fieldPath) => ({
+          fieldPath, setToServerValue: 'REQUEST_TIME',
+        })),
+      }],
+    },
+  });
+}
+
+function storageAuth(session) {
+  return session ? { Authorization: 'Firebase ' + session.token } : {};
+}
+
+async function upload(path, session, {
+  contentType = 'image/jpeg',
+  body = Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  status = 200,
+} = {}) {
+  await request(photosRoot + '?uploadType=media&name=' + encodeURIComponent(path), {
+    method: 'POST',
+    headers: { ...storageAuth(session), 'Content-Type': contentType },
+    body,
+    status,
+  });
+}
+
+const owner = await signIn();
+const stranger = await signIn();
+const emergencyId = 'emergency-' + randomUUID();
+const helpId = 'help-' + randomUUID();
+const rejectedId = 'rejected-' + randomUUID();
+const docUrl = (id) => firestore + '/v1/' + documents + '/posts/' + id;
+const photoPath = (uid, id) => ['posts', uid, id, '0_1000.jpg'].join('/');
+const photoUrl = (path) => photosRoot + '/' + encodeURIComponent(path);
+const metadata = (path) => ({ storagePath: path, downloadUrl: photoUrl(path) + '?alt=media' });
+
+const emergency = {
+  id: emergencyId, category: 'emergency', authorId: owner.uid,
+  schemaVersion: 2, status: 'active', details: { type: 'robbery' },
+  photos: [], mediaStatus: 'uploading',
+};
+
+await write(emergencyId, emergency, null, { status: [401, 403] });
+await write(emergencyId, emergency, stranger, { status: 403 });
+await write(emergencyId, emergency, owner);
+await request(docUrl(emergencyId), { headers: firestoreAuth(stranger) });
+await request(docUrl(emergencyId), { status: [401, 403] });
+
+const rejected = { ...emergency, id: rejectedId };
+await write(rejectedId, { ...rejected, category: 'invalid' }, owner, { status: 403 });
+await write(rejectedId, { ...rejected, details: 'invalid' }, owner, { status: 403 });
+await write(rejectedId, { ...rejected, mediaStatus: 'ready' }, owner, { status: 403 });
+await write(rejectedId, {
+  ...rejected, mediaStatus: 'ready',
+  photos: [metadata(photoPath(stranger.uid, rejectedId))],
+}, owner, { status: 403 });
+
+const emergencyPhoto = photoPath(owner.uid, emergencyId);
+await upload(emergencyPhoto, owner);
+await upload(emergencyPhoto, stranger, { status: [401, 403] });
+await upload(photoPath(owner.uid, rejectedId), null, { status: [401, 403] });
+await upload(photoPath(owner.uid, rejectedId), owner, { contentType: 'text/plain', status: [401, 403] });
+await upload(photoPath(owner.uid, rejectedId), owner, { body: Buffer.alloc(5 * 1024 * 1024), status: [401, 403] });
+await request(photoUrl(emergencyPhoto) + '?alt=media', { headers: storageAuth(stranger) });
+await request(photoUrl(emergencyPhoto) + '?alt=media', { status: [401, 403] });
+
+const ready = { photos: [metadata(emergencyPhoto)], mediaStatus: 'ready' };
+await write(emergencyId, ready, stranger, { create: false, status: 403 });
+await write(emergencyId, { ...ready, authorId: stranger.uid }, owner, { create: false, status: 403 });
+await write(emergencyId, { ...ready, category: 'news' }, owner, { create: false, status: 403 });
+await write(emergencyId, { ...ready, createdAt: 'changed' }, owner, { create: false, status: 403 });
+await write(emergencyId, ready, owner, { create: false });
+await write(emergencyId, { photos: [], mediaStatus: 'failed' }, owner, { create: false });
+
+// Ayuda is allowed to upload before the post document exists.
+const helpPhoto = photoPath(owner.uid, helpId);
+await upload(helpPhoto, owner);
+await write(helpId, {
+  ...emergency, id: helpId, category: 'help', details: { description: 'Ayuda de prueba' },
+  photos: [metadata(helpPhoto)], mediaStatus: 'ready',
+}, owner);
+await request(docUrl(helpId), { method: 'DELETE', headers: firestoreAuth(stranger), status: 403 });
+await request(docUrl(helpId), { method: 'DELETE', headers: firestoreAuth(owner) });
+await request(photoUrl(helpPhoto), { method: 'DELETE', headers: storageAuth(stranger), status: [401, 403] });
+await request(photoUrl(helpPhoto), { method: 'DELETE', headers: storageAuth(owner), status: [200, 204] });
+
+console.log('Reglas de Firestore y Storage verificadas con dos sesiones anónimas locales.');

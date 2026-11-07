@@ -5,30 +5,24 @@ import 'package:flutter/widgets.dart';
 import '../../../domain/entities/emergency_post_data.dart';
 import '../../../domain/services/location_provider.dart';
 import '../../../domain/services/photo_picker.dart';
+import '../../location/post_location_capture.dart';
 
-enum EmergencyLocationStatus { loading, ready, unavailable }
-
-class EmergencyFormController extends ChangeNotifier {
+class EmergencyFormController extends ChangeNotifier with PostLocationCapture {
   EmergencyFormController({
-    required this._locationProvider,
+    required LocationProvider locationProvider,
     required this._photoPicker,
   }) {
-    unawaited(_loadAddress());
+    unawaited(captureLocation(locationProvider));
   }
 
-  final LocationProvider _locationProvider;
   final PhotoPicker _photoPicker;
-  final streetAddressController = TextEditingController();
+  TextEditingController get streetAddressController => addressController;
   final messageController = TextEditingController();
 
-  EmergencyLocationStatus _locationStatus = EmergencyLocationStatus.loading;
   EmergencyType _type = EmergencyType.robbery;
   bool _messageExpanded = false;
-  bool _addressEdited = false;
-  bool _disposed = false;
   String? _photoPath;
 
-  EmergencyLocationStatus get locationStatus => _locationStatus;
   EmergencyType get type => _type;
   bool get messageExpanded => _messageExpanded;
   String? get photoPath => _photoPath;
@@ -44,8 +38,6 @@ class EmergencyFormController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void markAddressEdited(String _) => _addressEdited = true;
-
   Future<String?> takePhoto() => _photoPicker.pickFromCamera();
 
   void setPhotoPath(String? path) {
@@ -60,31 +52,13 @@ class EmergencyFormController extends ChangeNotifier {
       type: _type,
       message: message.isEmpty ? null : message,
       photoPath: _photoPath,
+      coordinates: coordinates,
+      addressEditedByUser: addressEditedByUser,
     );
-  }
-
-  Future<void> _loadAddress() async {
-    String address;
-    try {
-      address = (await _locationProvider.getCurrentAddress()).trim();
-    } on LocationUnavailableException {
-      address = '';
-    }
-
-    if (_disposed) return;
-    _locationStatus = address.isEmpty
-        ? EmergencyLocationStatus.unavailable
-        : EmergencyLocationStatus.ready;
-    if (!_addressEdited && address.isNotEmpty) {
-      streetAddressController.text = address;
-    }
-    notifyListeners();
   }
 
   @override
   void dispose() {
-    _disposed = true;
-    streetAddressController.dispose();
     messageController.dispose();
     super.dispose();
   }

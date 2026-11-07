@@ -27,7 +27,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Usamos tu ubicación para mostrarte el mapa y los sitios de tu barrio.</string>
+	<string>Usamos tu ubicación para mostrar el mapa y ayudarte a indicar una dirección al publicar.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Usamos la cámara para que puedas adjuntar una foto a tu publicación.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usamos tu galería para que puedas elegir una foto para tu publicación.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

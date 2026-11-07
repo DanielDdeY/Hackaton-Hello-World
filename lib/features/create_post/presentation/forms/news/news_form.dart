@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
 import '../../../../../core/widgets/form_footer_buttons.dart';
 import '../../../../../core/widgets/optional_photo_picker.dart';
 import '../../../domain/entities/news_post_data.dart';
 import '../../../domain/services/photo_picker.dart';
+import '../../auth/ensure_post_author.dart';
 import 'news_form_controller.dart';
 
 class NewsForm extends StatelessWidget {
@@ -41,11 +43,12 @@ class _NewsFormViewState extends State<_NewsFormView> {
 
   final _formKey = GlobalKey<FormState>();
 
-  void _publish() {
+  Future<void> _publish() async {
     if (!_formKey.currentState!.validate()) return;
+    final data = context.read<NewsFormController>().data;
+    if (!await ensurePostAuthor(context) || !mounted) return;
 
     if (kDebugMode) {
-      final data = context.read<NewsFormController>().data;
       final payload = {
         'title': data.title,
         'description': data.description,
@@ -138,8 +141,10 @@ class _NewsFormViewState extends State<_NewsFormView> {
                     const SizedBox(height: 16),
                     OptionalPhotoPicker(
                       label: 'Subir foto',
-                      photoPath: controller.photoPath,
-                      onChanged: controller.setPhotoPath,
+                      photoPaths: [?controller.photoPath],
+                      onChanged: (paths) =>
+                          controller.setPhotoPath(paths.firstOrNull),
+                      maxPhotos: newsPhotoLimit,
                       pickFromCamera: controller.takePhoto,
                       pickFromGallery: controller.choosePhoto,
                     ),
