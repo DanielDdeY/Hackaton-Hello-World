@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hackaton_hello_world/features/create_post/presentation/widgets/category_card.dart';
 import 'package:hackaton_hello_world/main.dart';
+import 'package:hackaton_hello_world/screens/map/map_screen.dart';
+import 'package:hackaton_hello_world/screens/map/widgets/location_permission_view.dart';
 
 void main() {
   testWidgets('Opens the category grid from the active destination', (
@@ -14,8 +17,17 @@ void main() {
 
     final bar = find.byType(BottomAppBar);
     expect(find.text('Resumen de tu barrio'), findsOneWidget);
+
+    // La pestaña Mapa muestra MapScreen. Sin permiso de ubicación el mapa
+    // queda bloqueado en la vista de permisos.
+    expect(find.byType(MapScreen), findsNothing);
+    await tester.tap(find.descendant(of: bar, matching: find.text('Mapa')));
+    await tester.pumpAndSettle();
+    expect(find.byType(MapScreen), findsOneWidget);
+    expect(find.byType(LocationPermissionView), findsOneWidget);
+    expect(find.byType(FlutterMap), findsNothing);
+
     for (final (label, description) in [
-      ('Mapa', 'Explora tu zona'),
       ('Comunidad', 'Conecta con tus vecinos'),
       ('Inicio', 'Resumen de tu barrio'),
       ('Ayuda', 'Encuentra orientación y apoyo'),

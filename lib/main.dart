@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -9,11 +10,28 @@ import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
 
-void main() {
+import 'firebase_options.dart';
+import 'screens/map/map_screen.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
-const _navigationLabel = TextStyle(fontSize: 11, fontWeight: FontWeight.w500);
+//colorcitos//
+const _background = Color(0xFFFAFAFA);
+const _surface = Color(0xFFFFFFFF);
+const _primary = Color(0xFF006D77);
+const _text = Color(0xFF1A1A1A);
+const _secondaryText = Color(0xFF5C5C5C);
+const _navigationLabel = TextStyle(
+  color: _text,
+  fontSize: 11,
+  fontWeight: FontWeight.w500,
+);
 
 class MyApp extends StatelessWidget {
   const MyApp({
@@ -40,6 +58,8 @@ class MyApp extends StatelessWidget {
         theme: createAppTheme(),
         home: const _NeighborhoodShell(),
       ),
+      home: const _NeighborhoodShell(),
+      routes: {'/map': (_) => const MapScreen()},
     );
   }
 }
@@ -94,6 +114,8 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
+    // En la pestaña Mapa se oculta el AppBar del shell: la pantalla de mapa
+    // trae el suyo (con la acción para ver la lista de sitios).
     return Scaffold(
       appBar: AppBar(title: Text(_selected.label)),
       body: SafeArea(
@@ -107,6 +129,19 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
             ),
           ),
         ),
+      appBar: _selected == _Destination.map
+          ? null
+          : AppBar(title: Text(_selected.label, style: titleStyle)),
+      // IndexedStack conserva el estado del mapa (cámara, filtros, búsqueda)
+      // al cambiar de pestaña y volver a Mapa.
+      body: IndexedStack(
+        index: _selected.index,
+        children: [
+          _PlaceholderPage(description: _Destination.home.description),
+          const MapScreen(),
+          _PlaceholderPage(description: _Destination.community.description),
+          _PlaceholderPage(description: _Destination.help.description),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
@@ -178,6 +213,74 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceholderPage extends StatelessWidget {
+  const _PlaceholderPage({required this.description});
+
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            description,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PublishSheet extends StatelessWidget {
+  const _PublishSheet();
+
+  static const _options = [
+    ('Pedir ayuda', Icons.front_hand_outlined),
+    ('Ofrecer un favor', Icons.volunteer_activism_outlined),
+    ('Compartir un aviso', Icons.campaign_outlined),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'Publicación rápida',
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            for (final (label, icon) in _options)
+              ListTile(
+                leading: Icon(icon, color: _primary),
+                title: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                onTap: () => Navigator.pop(context, label),
+              ),
+          ],
         ),
       ),
     );

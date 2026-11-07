@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Necesario para descargar los tiles del mapa en builds de release. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Necesarios para limitar el mapa a la ubicación del usuario. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+
     <application
         android:label="hackaton_hello_world"
         android:name="${applicationName}"
