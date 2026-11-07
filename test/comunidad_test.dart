@@ -75,6 +75,20 @@ void main() {
         returnsNormally,
       );
     });
+
+    test('confirmarYCalificar cambia el estado a completado con calificacion', () async {
+      await repo.confirmarYCalificar('fav_04', 5.0);
+      final favor = await repo.obtenerFavorPorId('fav_04');
+      expect(favor.estado, equals(EstadoFavor.completado));
+      expect(favor.participantes.first.calificacion, equals(5.0));
+    });
+
+    test('verificarAsistencia marca asistenciaVerificada en el evento', () async {
+      await repo.verificarAsistencia('evt_01', '1234');
+      final eventos = await repo.obtenerEventos();
+      final evento = eventos.firstWhere((e) => e.id == 'evt_01');
+      expect(evento.asistenciaVerificada, isTrue);
+    });
   });
 
   group('Módulo de Comunidad - Pruebas de Interfaz UI', () {
