@@ -145,6 +145,18 @@ class ComunidadController extends ChangeNotifier {
     }
   }
 
+  Future<void> verificarAsistencia(String eventoId, String codigo) async {
+    try {
+      await repository.verificarAsistencia(eventoId, codigo);
+      await cargarEventos();
+      await cargarResumenHoy();
+    } catch (e) {
+      _error = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> cargarRanking(String ambito) async {
     _ambitoRanking = ambito;
     _ranking = await repository.obtenerRanking(ambito: ambito);

@@ -210,6 +210,38 @@ class _TarjetaEvento extends StatelessWidget {
                 ),
               ],
             ),
+            if (evento.requiereAsistencia) ...[
+              const SizedBox(height: 10),
+              if (evento.asistenciaVerificada)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified, size: 16, color: Color(0xFF2E7D32)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Asistencia vecinal verificada (+5 monedas, +20 XP)',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: () => _mostrarDialogoValidarAsistencia(context, controller, evento),
+                  icon: const Icon(Icons.pin_outlined, size: 16),
+                  label: const Text('Validar mi asistencia física'),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
+                ),
+            ],
           ],
         ),
       ),
@@ -316,6 +348,86 @@ void _mostrarDialogoReporteEvento(BuildContext context, String eventoId) {
             ],
           );
         },
+      );
+    },
+  );
+}
+
+void _mostrarDialogoValidarAsistencia(
+  BuildContext context,
+  ComunidadController controller,
+  EventoComunitario evento,
+) {
+  final codigoCtrl = TextEditingController();
+  final formKey = GlobalKey<FormState>();
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogCtx) {
+      return AlertDialog(
+        title: const Text('Validar asistencia vecinal'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ingresa el código de 4 dígitos dictado por el delegado en "${evento.titulo}":',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: codigoCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                textAlign: TextAlign.center,
+                style: const TextStyle(letterSpacing: 8, fontSize: 22, fontWeight: FontWeight.bold),
+                decoration: const InputDecoration(
+                  hintText: '••••',
+                  counterText: '',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().length < 4) {
+                    return 'Ingresa los 4 dígitos.';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              try {
+                await controller.verificarAsistencia(evento.id, codigoCtrl.text.trim());
+                if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('¡Asistencia confirmada! Puntos y XP sumados a tu perfil.'),
+                      backgroundColor: Color(0xFF2A9D8F),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (dialogCtx.mounted) {
+                  ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('Validar presencia'),
+          ),
+        ],
       );
     },
   );

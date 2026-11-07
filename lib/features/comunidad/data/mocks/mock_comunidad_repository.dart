@@ -438,6 +438,23 @@ class MockComunidadRepository implements ComunidadRepository {
   }
 
   @override
+  Future<void> verificarAsistencia(String eventoId, String codigo) async {
+    final idx = _eventos.indexWhere((e) => e.id == eventoId);
+    if (idx == -1) return;
+    final e = _eventos[idx];
+
+    // Simula validación de código de delegado vecinal
+    if (codigo.trim().isEmpty) {
+      throw Exception('El código no puede estar vacío.');
+    }
+
+    _eventos[idx] = e.copyWith(
+      asistenciaVerificada: true,
+      miRespuesta: RespuestaEvento.voy,
+    );
+  }
+
+  @override
   Future<List<VecinoRanking>> obtenerRanking({String ambito = 'cuadra'}) async {
     return ambito == 'cuadra' ? _rankingCuadra : _rankingBarrio;
   }
