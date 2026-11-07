@@ -39,7 +39,7 @@ void main() {
     await tester.pumpWidget(MyApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('¡Hola, vecino!'), findsOneWidget);
+    expect(find.text('Hola, vecino'), findsOneWidget);
     expect(find.text('Continuar con celular'), findsOneWidget);
   });
 
