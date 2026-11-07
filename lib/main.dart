@@ -1,41 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
+
+import 'core/theme/app_theme.dart';
+import 'features/create_post/data/mocks/mock_location_provider.dart';
+import 'features/create_post/data/mocks/mock_photo_picker.dart';
+import 'features/create_post/domain/services/location_provider.dart';
+import 'features/create_post/domain/services/photo_picker.dart';
+import 'features/create_post/presentation/pages/category_selector_page.dart';
 
 void main() {
   runApp(const MyApp());
 }
-//colorcitos//
-const _background = Color(0xFFFAFAFA);
-const _surface = Color(0xFFFFFFFF);
-const _primary = Color(0xFF006D77);
-const _text = Color(0xFF1A1A1A);
-const _secondaryText = Color(0xFF5C5C5C);
-const _navigationLabel = TextStyle(
-  color: _text,
-  fontSize: 11,
-  fontWeight: FontWeight.w500,
-);
+
+const _navigationLabel = TextStyle(fontSize: 11, fontWeight: FontWeight.w500);
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({
+    super.key,
+    this.locationProvider = const MockLocationProvider(),
+    this.photoPicker = const MockPhotoPicker(),
+  });
+
+  final LocationProvider locationProvider;
+  final PhotoPicker photoPicker;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Seguridad Vecinal',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: _background,
-        colorScheme: const ColorScheme.light(
-          primary: _primary,
-          surface: _surface,
-          onSurface: _text,
-          onSurfaceVariant: _secondaryText,
-        ),
-        appBarTheme: const AppBarThemeData(backgroundColor: _background),
+    return MultiProvider(
+      providers: [
+        Provider<LocationProvider>.value(value: locationProvider),
+        Provider<PhotoPicker>.value(value: photoPicker),
+      ],
+      child: MaterialApp(
+        title: 'VeciApp',
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [Locale('es', 'PE')],
+        theme: createAppTheme(),
+        home: const _NeighborhoodShell(),
       ),
-      home: const _NeighborhoodShell(),
     );
   }
 }
@@ -79,30 +83,19 @@ class _NeighborhoodShell extends StatefulWidget {
 class _NeighborhoodShellState extends State<_NeighborhoodShell> {
   _Destination _selected = _Destination.home;
 
-  Future<void> _showPublishOptions() async {
-    final option = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: _surface,
-      barrierLabel: 'Cerrar opciones de publicación',
-      showDragHandle: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => const _PublishSheet(),
+  void _openCategorySelector() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const CategorySelectorPage()),
     );
-    if (!mounted || option == null) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('Elegiste: $option')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final titleStyle = Theme.of(context).textTheme.titleLarge
-        ?.copyWith(fontWeight: FontWeight.w600);
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_selected.label, style: titleStyle)),
+      appBar: AppBar(title: Text(_selected.label)),
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -110,23 +103,21 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
             child: Text(
               _selected.description,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
+              style: theme.textTheme.bodyLarge,
             ),
           ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
-        onPressed: _showPublishOptions,
+        onPressed: _openCategorySelector,
         tooltip: 'Publicar',
-        backgroundColor: _primary,
-        foregroundColor: _surface,
+        backgroundColor: colors.primary,
+        foregroundColor: colors.onPrimary,
         shape: const CircleBorder(),
         child: const Icon(Icons.add, size: 28),
       ),
       bottomNavigationBar: BottomAppBar(
-        color: _surface,
-        surfaceTintColor: Colors.transparent,
         shape: const CircularNotchedRectangle(),
         notchMargin: 6,
         padding: EdgeInsets.zero,
@@ -161,6 +152,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
 
   Widget _navigationItem(_Destination destination) {
     final selected = _selected == destination;
+    final colors = Theme.of(context).colorScheme;
     return Expanded(
       child: Semantics(
         selected: selected,
@@ -173,7 +165,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
               children: [
                 Icon(
                   selected ? destination.selectedIcon : destination.icon,
-                  color: selected ? _primary : _secondaryText,
+                  color: selected ? colors.primary : colors.onSurfaceVariant,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -186,52 +178,6 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PublishSheet extends StatelessWidget {
-  const _PublishSheet();
-
-  static const _options = [
-    ('Pedir ayuda', Icons.front_hand_outlined),
-    ('Ofrecer un favor', Icons.volunteer_activism_outlined),
-    ('Compartir un aviso', Icons.campaign_outlined),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                'Publicación rápida',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-            for (final (label, icon) in _options)
-              ListTile(
-                leading: Icon(icon, color: _primary),
-                title: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                onTap: () => Navigator.pop(context, label),
-              ),
-          ],
         ),
       ),
     );
