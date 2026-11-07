@@ -3,6 +3,7 @@ import '../../../../core/validators/required_field_validator.dart';
 import '../../../../core/validators/service_amount_validator.dart';
 import 'post_category.dart';
 import 'post_form_data.dart';
+import 'post_location.dart';
 import 'service_availability.dart';
 
 enum ServiceMode { provideService, sell }
@@ -29,6 +30,7 @@ final class ServicePostData implements PostFormData {
     ServiceAvailability? availability,
     int? stock,
     this.attachmentPath,
+    this.locationData,
   }) : paymentMethods = Set.unmodifiable(paymentMethods),
        availability = mode == ServiceMode.provideService ? availability : null,
        stock = mode == ServiceMode.sell ? stock : null;
@@ -42,6 +44,11 @@ final class ServicePostData implements PostFormData {
   final ServiceAvailability? availability;
   final int? stock;
   final String? attachmentPath;
+  @override
+  final PostLocation? locationData;
+
+  @override
+  List<String> get localPhotoPaths => [?attachmentPath];
 
   @override
   PostCategory get category => PostCategory.services;
@@ -59,5 +66,45 @@ final class ServicePostData implements PostFormData {
       ServiceMode.provideService => availability?.isValid ?? true,
       ServiceMode.sell => (stock ?? 0) >= 1,
     };
+  }
+
+  @override
+  Map<String, Object?> toMap() {
+    final banks = [for (final method in paymentMethods) ?_bankNames[method]];
+    return {
+      'title': title,
+      'information': description,
+      'mode': mode == ServiceMode.sell ? 'sell' : 'provide_service',
+      'price': ServiceAmountValidator.parse(amount),
+      'currency': 'PEN',
+      'paymentMethods': [
+        for (final method in paymentMethods)
+          if (!_bankNames.containsKey(method)) method.name,
+        if (banks.isNotEmpty) 'bank_transfer',
+      ],
+      if (banks.isNotEmpty) 'transferBanks': banks,
+      'contactPhone': phoneNumber,
+      if (availability case final hours?)
+        'availability': {
+          'days': [for (final day in hours.days) day.name.substring(0, 3)],
+          'startTime': _formatMinutes(hours.startMinute),
+          'endTime': _formatMinutes(hours.endMinute),
+        },
+      if (mode == ServiceMode.sell) 'stock': stock,
+    };
+  }
+
+  static const _bankNames = {
+    PaymentMethod.bcpTransfer: 'bcp',
+    PaymentMethod.interbankTransfer: 'interbank',
+    PaymentMethod.bbvaTransfer: 'bbva',
+    PaymentMethod.scotiabankTransfer: 'scotiabank',
+  };
+
+  static String? _formatMinutes(int? minutes) {
+    if (minutes == null) return null;
+    final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+    final minute = (minutes % 60).toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }

@@ -4,7 +4,15 @@ abstract final class ServiceAmountValidator {
   static final _amount = RegExp(r'^[0-9]+(?:[.,][0-9]{1,2})?$');
 
   static bool isValid(String? value) {
-    return value != null && _amount.hasMatch(value.trim());
+    return parse(value) != null;
+  }
+
+  static num? parse(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    if (!_amount.hasMatch(trimmed)) return null;
+    final parsed = num.tryParse(trimmed.replaceAll(',', '.'));
+    return parsed != null && parsed.isFinite ? parsed : null;
   }
 
   static String? validate(String? value) {

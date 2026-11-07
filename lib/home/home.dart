@@ -1,13 +1,30 @@
 // ignore_for_file: library_private_types_in_public_api
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-part 'tutorial.dart';
+import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
+import '../features/create_post/domain/services/auth_gateway.dart';
+import '../features/create_post/domain/services/photo_picker.dart';
+import '../features/emergency/data/firebase_emergency_alert_repository.dart';
+import '../features/emergency/data/firebase_emergency_post_repository.dart';
+import '../features/emergency/domain/emergency_alert.dart';
+import 'peru_locations.dart';
+import 'user_profile.dart';
+
 part 'login.dart';
+part 'tutorial.dart';
 
 const cream = Color(0xfffafafa);
 const paper = Color(0xffffffff);
@@ -17,11 +34,7 @@ const line = Color(0xffd9d9d9);
 const orange = Color(0xff006d77);
 
 class MiBarrioHome extends StatelessWidget {
-  const MiBarrioHome({
-    super.key,
-    this.homeOnly = false,
-    this.onAuthenticated,
-  });
+  const MiBarrioHome({super.key, this.homeOnly = false, this.onAuthenticated});
 
   final bool homeOnly;
   final VoidCallback? onAuthenticated;
@@ -46,35 +59,72 @@ class _InicioLoaderState extends State<_InicioLoader> {
 
   @override
   Widget build(BuildContext context) => FutureBuilder<SharedPreferences>(
-        future: _preferences,
-        builder: (context, snapshot) {
-          final preferences = snapshot.data;
-          if (preferences == null) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          return Inicio(
-            datos: _DatosBarrio(
-              preferences,
-              preferences.getString('vecino_departamento') ?? '',
-              preferences.getString('vecino_provincia') ?? '',
-              preferences.getString('vecino_distrito') ?? '',
-              preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
-              preferences.getString('vecino_bio') ??
-                  'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-              preferences.getBool('vecino_foto_demo') ?? false,
-            ),
+    future: _preferences,
+    builder: (context, snapshot) {
+      final preferences = snapshot.data;
+      if (preferences == null) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return _InicioProfileLoader(preferences);
+    },
+  );
+}
+
+class _InicioProfileLoader extends StatelessWidget {
+  const _InicioProfileLoader(this.preferences);
+
+  final SharedPreferences preferences;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
+    final fallback = UserProfile(
+      name: preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
+      phoneNumber: preferences.getString('vecino_telefono') ?? '',
+      role: preferences.getString('vecino_rol') ?? 'Vecino',
+      bio: preferences.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+      department: preferences.getString('vecino_departamento') ?? '',
+      province: preferences.getString('vecino_provincia') ?? '',
+      district: preferences.getString('vecino_distrito') ?? '',
+      xp: preferences.getInt('vecino_xp') ?? 0,
+      stars: preferences.getInt('vecino_stars') ?? 0,
+      favors: preferences.getInt('vecino_favores') ?? 0,
+      tools: preferences.getInt('vecino_herramientas') ?? 0,
+      petHunger: preferences.getDouble('vecino_hambre') ?? 0,
+    );
+    if (store == null || auth?.currentUid == null) {
+      return Inicio(datos: _DatosBarrio(preferences, fallback));
+    }
+    return FutureBuilder<UserProfile?>(
+      future: store.load(
+        auth!.currentUid!,
+        fallbackName: fallback.name,
+        fallbackBio: fallback.bio,
+        fallbackDepartment: fallback.department,
+        fallbackProvince: fallback.province,
+        fallbackDistrict: fallback.district,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
-        },
-      );
+        }
+        final profile = snapshot.data ?? fallback;
+        if (snapshot.hasError) {
+          debugPrint(
+            'No se pudo cargar el perfil de Firestore: ${snapshot.error}',
+          );
+        }
+        return Inicio(datos: _DatosBarrio(preferences, profile));
+      },
+    );
+  }
 }
 
 class Inicio extends StatefulWidget {
-  const Inicio({
-    super.key,
-    required this.datos,
-  });
+  const Inicio({super.key, required this.datos});
   final _DatosBarrio datos;
 
   @override
@@ -82,7 +132,7 @@ class Inicio extends StatefulWidget {
 }
 
 class _InicioState extends State<Inicio> {
-  double hambre = 151 / 222;
+  late double hambre = widget.datos.hambre;
 
   static const _claveTutorial = 'tutorial_inicio_v1_visto';
   final _inicio = GlobalKey();
@@ -95,6 +145,8 @@ class _InicioState extends State<Inicio> {
   int? _pasoTutorial;
   List<Rect> _zonasTutorial = [];
   int _solicitudTutorial = 0;
+  bool _sosSending = false;
+  String? _pendingSosId;
 
   @override
   void initState() {
@@ -141,8 +193,9 @@ class _InicioState extends State<Inicio> {
       final caja = key.currentContext?.findRenderObject();
       if (caja is RenderBox && caja.hasSize) {
         final origen = caja.localToGlobal(Offset.zero, ancestor: raiz);
-        final rect =
-            (origen & caja.size).inflate(5).intersect(Offset.zero & raiz.size);
+        final rect = (origen & caja.size)
+            .inflate(5)
+            .intersect(Offset.zero & raiz.size);
         if (!rect.isEmpty) zonas.add(rect);
       }
     }
@@ -225,29 +278,143 @@ class _InicioState extends State<Inicio> {
   }
 
   Future<void> confirmarSos() async {
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Simular alerta SOS'),
-        content: const Text(
-          'Esta es una demostración del flujo de emergencia.',
+    if (_sosSending) return;
+    setState(() => _sosSending = true);
+    var sosStage = 'ubicación GPS';
+    try {
+      final preferences = widget.datos.preferencias;
+      final auth = context.read<AuthGateway?>();
+      final photoPicker = context.read<PhotoPicker>();
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw StateError('Activa el GPS para enviar una alerta SOS.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError('Se necesita permiso de ubicación para enviar SOS.');
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+      );
+
+      sosStage = 'autenticación';
+      if (auth == null) {
+        throw StateError('No se pudo iniciar sesión para enviar el SOS.');
+      }
+      final uid = await auth.ensureSignedIn();
+      final localCommunityId = widget.datos.distrito.trim().toLowerCase();
+      sosStage = 'lectura del perfil de comunidad';
+      final profileRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid);
+      final profile = await profileRef.get();
+      final savedCommunityId = profile.data()?['communityId'] as String? ?? '';
+      final communityId = savedCommunityId.trim().isNotEmpty
+          ? savedCommunityId.trim()
+          : localCommunityId;
+      if (communityId.isEmpty) {
+        throw StateError(
+          'Completa tu distrito en el perfil antes de activar el SOS.',
+        );
+      }
+      if (savedCommunityId.trim().isEmpty) {
+        sosStage = 'guardado del distrito en tu perfil';
+        await profileRef.set({
+          'communityId': communityId,
+        }, SetOptions(merge: true));
+      }
+
+      final alertId =
+          _pendingSosId ??
+          preferences.getString('sos_pending_alert_id') ??
+          FirebaseFirestore.instance.collection('emergency_alerts').doc().id;
+      _pendingSosId = alertId;
+      await preferences.setString('sos_pending_alert_id', alertId);
+      final alertRepository = FirebaseEmergencyAlertRepository();
+      sosStage = 'creación de la alerta SOS';
+      await alertRepository.create(
+        alertId: alertId,
+        reporterUid: uid,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        communityId: communityId,
+      );
+
+      sosStage = 'formulario de emergencia';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xffb71c1c),
+          content: Text('SOS activo. Describe la emergencia.'),
+        ),
+      );
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EmergencyForm(
+            sosAlertId: alertId,
+            sosRepository: FirebaseEmergencyPostRepository(
+              alertId: alertId,
+              photoPicker: photoPicker,
+              firestore: FirebaseFirestore.instance,
+              storage: FirebaseStorage.instance,
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Simular'),
-          ),
-        ],
+        ),
+      );
+
+      if (!mounted) return;
+      sosStage = 'verificación de la publicación SOS';
+      final post = await FirebaseFirestore.instance
+          .collection('community_posts')
+          .doc(alertId)
+          .get();
+      if (!post.exists) {
+        await alertRepository.close(alertId, EmergencyAlertStatus.cancelled);
+      }
+      _pendingSosId = null;
+      await preferences.remove('sos_pending_alert_id');
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'SOS Firebase failure at $sosStage: ${error.code} ${error.message}',
+      );
+      if (mounted) {
+        _showSosError(
+          'Firebase rechazó el SOS durante $sosStage (${error.code}).',
+        );
+      }
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        _showSosError(
+          error.reason == AuthFailureReason.anonymousDisabled
+              ? 'Firebase no tiene habilitado el acceso anónimo.'
+              : 'No se pudo iniciar sesión para enviar el SOS.',
+        );
+      }
+    } on StateError catch (error) {
+      if (mounted) _showSosError(error.message.toString());
+    } on Exception catch (error) {
+      if (mounted) {
+        _showSosError('No se pudo activar el SOS. Inténtalo de nuevo. $error');
+      }
+    } finally {
+      if (mounted) setState(() => _sosSending = false);
+    }
+  }
+
+  void _showSosError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xffb71c1c),
+        content: Text(message),
+        duration: const Duration(seconds: 6),
       ),
     );
-    if (confirmado == true && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Alerta SOS simulada')));
-    }
   }
 
   @override
@@ -285,220 +452,255 @@ class _InicioState extends State<Inicio> {
   }
 
   Widget _pantallaInicio() => Scaffold(
-        body: SafeArea(
-          bottom: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _encabezado(),
-                    const SizedBox(height: 12),
-                    _perfil(),
-                    const SizedBox(height: 12),
-                    _wrapped(),
-                    const SizedBox(height: 12),
-                    _mascota(),
-                    const SizedBox(height: 12),
-                    for (var index = 0; index < accesos.length; index += 2) ...[
-                      if (index > 0) const SizedBox(height: 10),
-                      Row(
-                        key: _filasTutorial[index ~/ 2],
-                        children: [
-                          Expanded(child: _acceso(index)),
-                          const SizedBox(width: 10),
-                          Expanded(child: _acceso(index + 1)),
-                        ],
-                      ),
+    body: SafeArea(
+      bottom: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _encabezado(),
+                const SizedBox(height: 12),
+                _perfil(),
+                const SizedBox(height: 12),
+                _wrapped(),
+                const SizedBox(height: 12),
+                _mascota(),
+                const SizedBox(height: 12),
+                for (var index = 0; index < accesos.length; index += 2) ...[
+                  if (index > 0) const SizedBox(height: 10),
+                  Row(
+                    key: _filasTutorial[index ~/ 2],
+                    children: [
+                      Expanded(child: _acceso(index)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _acceso(index + 1)),
                     ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _encabezado() => SizedBox(
+    height: 28,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        label('MI BARRIO', 13, bold: true, color: orange),
+        InkWell(
+          key: _campanaTutorial,
+          onTap: () => detalle(
+            'Notificaciones',
+            'Aquí aparecerán los avisos de tu grupo.',
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: icono('Notificaciones', 22),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _perfil() => SizedBox(
+    height: 91,
+    child: Row(
+      children: [
+        _avatarVecino(widget.datos.iniciales, widget.datos.foto, 29),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            key: _perfilTutorial,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              label(widget.datos.nombre, 19, bold: true),
+              const SizedBox(height: 5),
+              label(widget.datos.rol, 12, color: muted),
+              const SizedBox(height: 5),
+              label(
+                '★ Nivel ${widget.datos.nivel}   ·   XP: ${widget.datos.xp}   ·   Star: ${widget.datos.stars}',
+                12,
+                bold: true,
+                color: orange,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        tarjeta(
+          color: const Color(0xffb72f29),
+          radius: 15,
+          onTap: _sosSending ? null : confirmarSos,
+          child: SizedBox(
+            key: _sosTutorial,
+            width: 82,
+            height: 66,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _sosSending
+                  ? const Center(
+                      child: SizedBox.square(
+                        dimension: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        label('¡SOS!', 21, bold: true, color: Colors.white),
+                        const SizedBox(height: 3),
+                        label('EMERGENCIA', 9, bold: true, color: Colors.white),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _wrapped() => tarjeta(
+    color: const Color(0xfff6dfec),
+    radius: 18,
+    onTap: () => detalle(
+      'Tu Wrapped del mes',
+      'Este mes completaste ${widget.datos.favores} favores y prestaste ${widget.datos.herramientas} herramientas.',
+    ),
+    child: SizedBox(
+      key: _wrappedTutorial,
+      height: 79,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            icono('Regalo', 36),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    label('Tu Wrapped del mes', 17, bold: true),
+                    const SizedBox(height: 5),
+                    label('Descubre tu impacto en el barrio', 12, color: muted),
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-      );
-
-  Widget _encabezado() => SizedBox(
-        height: 28,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            label('MI BARRIO', 13, bold: true, color: orange),
-            InkWell(
-              key: _campanaTutorial,
-              onTap: () => detalle(
-                'Notificaciones',
-                'Aquí aparecerán los avisos de tu grupo.',
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: icono('Notificaciones', 22),
-              ),
-            ),
           ],
         ),
-      );
+      ),
+    ),
+  );
 
-  Widget _perfil() => SizedBox(
-        height: 91,
-        child: Row(
-          children: [
-            _avatarVecino(widget.datos.iniciales, widget.datos.foto, 29),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                key: _perfilTutorial,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  label(widget.datos.nombre, 19, bold: true),
-                  const SizedBox(height: 5),
-                  label('Jefe de grupo', 12, color: muted),
-                  const SizedBox(height: 5),
-                  label(
-                    '★ Nivel 25   ·   Star: ${widget.datos.puntos}',
-                    12,
-                    bold: true,
-                    color: orange,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            tarjeta(
-              color: const Color(0xffb72f29),
-              radius: 15,
-              onTap: confirmarSos,
-              child: SizedBox(
-                key: _sosTutorial,
-                width: 82,
-                height: 66,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      label('¡SOS!', 21, bold: true, color: Colors.white),
-                      const SizedBox(height: 3),
-                      label('EMERGENCIA', 9, bold: true, color: Colors.white),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _wrapped() => tarjeta(
-        color: const Color(0xfff6dfec),
-        radius: 18,
-        onTap: () => detalle(
-          'Tu Wrapped del mes',
-          'Este mes completaste 4 favores y prestaste 2 herramientas.',
-        ),
-        child: SizedBox(
-          key: _wrappedTutorial,
-          height: 79,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                icono('Regalo', 36),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        label('Tu Wrapped del mes', 17, bold: true),
-                        const SizedBox(height: 5),
-                        label('Descubre tu impacto en el barrio', 12,
-                            color: muted),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+  Future<void> _alimentarMascota() async {
+    final nuevaHambre = (hambre - .20).clamp(0.0, 1.0).toDouble();
+    setState(() => hambre = nuevaHambre);
+    widget.datos.hambre = nuevaHambre;
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
+    final uid = auth?.currentUid;
+    if (store != null && uid != null) {
+      try {
+        await store.save(uid, widget.datos.toProfile());
+      } catch (error) {
+        debugPrint('No se pudo guardar el estado de la mascota: $error');
+      }
+    }
+  }
 
   Widget _mascota() => tarjeta(
-        radius: 18,
-        border: true,
-        child: SizedBox(
-          key: _mascotaTutorial,
-          height: 139,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 78,
-                  height: 84,
-                  decoration: BoxDecoration(
-                    color: const Color(0xfffbe8d1),
-                    borderRadius: BorderRadius.circular(19),
+    radius: 18,
+    border: true,
+    child: SizedBox(
+      key: _mascotaTutorial,
+      height: 139,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 78,
+              height: 84,
+              decoration: BoxDecoration(
+                color: const Color(0xfffbe8d1),
+                borderRadius: BorderRadius.circular(19),
+              ),
+              alignment: Alignment.center,
+              child: widget.datos.mascotaDesbloqueada
+                  ? icono('Firulais', 61)
+                  : const Icon(Icons.lock_outline, size: 38, color: muted),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  label(
+                    widget.datos.mascotaDesbloqueada
+                        ? 'Firulais'
+                        : 'Mascota bloqueada',
+                    17,
+                    bold: true,
                   ),
-                  alignment: Alignment.center,
-                  child: icono('Firulais', 61),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      label('Firulais', 17, bold: true),
-                      const SizedBox(height: 7),
-                      label('Mascota comunitaria · Hambre', 11, color: muted),
-                      const SizedBox(height: 7),
-                      LinearProgressIndicator(
-                        value: hambre,
-                        minHeight: 8,
-                        borderRadius: BorderRadius.circular(4),
-                        backgroundColor: const Color(0xffefdfca),
-                        color: const Color(0xffc96631),
-                      ),
-                      const SizedBox(height: 7),
-                      tarjeta(
-                        color: const Color(0xfffbe1c4),
-                        radius: 12,
-                        onTap: hambre == 0
-                            ? null
-                            : () => setState(
-                                  () => hambre =
-                                      (hambre - .20).clamp(0.0, 1.0).toDouble(),
-                                ),
-                        child: SizedBox(
-                          width: 186,
-                          height: 33,
-                          child: Center(
-                            child: label(
-                              hambre == 0
-                                  ? 'Firulais está satisfecho'
-                                  : 'Alimentar · Nivel 25+',
-                              12,
-                              bold: true,
-                              color: orange,
-                            ),
+                  const SizedBox(height: 7),
+                  if (widget.datos.mascotaDesbloqueada) ...[
+                    label('Mascota comunitaria · Hambre', 11, color: muted),
+                    const SizedBox(height: 7),
+                    LinearProgressIndicator(
+                      value: hambre,
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
+                      backgroundColor: const Color(0xffefdfca),
+                      color: const Color(0xffc96631),
+                    ),
+                    const SizedBox(height: 7),
+                    tarjeta(
+                      color: const Color(0xfffbe1c4),
+                      radius: 12,
+                      onTap: hambre == 0 ? null : _alimentarMascota,
+                      child: SizedBox(
+                        width: 186,
+                        height: 33,
+                        child: Center(
+                          child: label(
+                            hambre == 0
+                                ? 'Firulais está satisfecho'
+                                : 'Alimentar',
+                            12,
+                            bold: true,
+                            color: orange,
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ] else
+                    label(
+                      'Alcanza el nivel 25 para desbloquearla',
+                      12,
+                      color: muted,
+                    ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _acceso(int index) {
     final (titulo, asset, tono, _) = accesos[index];
@@ -506,10 +708,7 @@ class _InicioState extends State<Inicio> {
       color: index == 5 ? const Color(0xfffff1d0) : paper,
       radius: 16,
       border: true,
-      onTap: () => detalle(
-        titulo.replaceAll('\n', ' '),
-        accesos[index].$4,
-      ),
+      onTap: () => detalle(titulo.replaceAll('\n', ' '), accesos[index].$4),
       child: SizedBox(
         height: 78,
         child: Padding(
@@ -534,39 +733,36 @@ class _InicioState extends State<Inicio> {
       ),
     );
   }
-
 }
 
 Widget _avatarVecino(String iniciales, bool foto, double radio) => CircleAvatar(
-      radius: radio,
-      backgroundColor:
-          foto ? const Color(0xffe0eeee) : const Color(0xffd7eeee),
-      child: foto
-          ? Icon(Icons.person, size: radio, color: orange)
-          : label(iniciales, radio * .57, bold: true, color: orange),
-    );
+  radius: radio,
+  backgroundColor: foto ? const Color(0xffe0eeee) : const Color(0xffd7eeee),
+  child: foto
+      ? Icon(Icons.person, size: radio, color: orange)
+      : label(iniciales, radio * .57, bold: true, color: orange),
+);
 
 Widget label(
   String value,
   double size, {
   bool bold = false,
   Color color = ink,
-}) =>
-    Text(
-      value,
-      style: TextStyle(
-        fontSize: size,
-        fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-        color: color,
-      ),
-    );
+}) => Text(
+  value,
+  style: TextStyle(
+    fontSize: size,
+    fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+    color: color,
+  ),
+);
 
 Widget icono(String asset, double size) => SvgPicture.asset(
-      'assets/$asset.svg',
-      width: size,
-      height: size,
-      excludeFromSemantics: true,
-    );
+  'assets/$asset.svg',
+  width: size,
+  height: size,
+  excludeFromSemantics: true,
+);
 
 Widget tarjeta({
   required Widget child,
@@ -574,13 +770,12 @@ Widget tarjeta({
   Color color = paper,
   bool border = false,
   VoidCallback? onTap,
-}) =>
-    Material(
-      color: color,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radius),
-        side: border ? const BorderSide(color: line) : BorderSide.none,
-      ),
-      child: InkWell(onTap: onTap, child: child),
-    );
+}) => Material(
+  color: color,
+  clipBehavior: Clip.antiAlias,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(radius),
+    side: border ? const BorderSide(color: line) : BorderSide.none,
+  ),
+  child: InkWell(onTap: onTap, child: child),
+);
