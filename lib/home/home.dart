@@ -6,28 +6,75 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../screens/map/map_screen.dart';
+part 'tutorial.dart';
+part 'login.dart';
 
-part 'tutorial_inicio.dart';
-part 'entrada.dart';
-part 'modulos.dart';
-
-const cream = Color(0xfffaf3e5);
-const paper = Color(0xfffffcf7);
-const ink = Color(0xff292017);
-const muted = Color(0xff695848);
-const line = Color(0xffe4d6c2);
-const orange = Color(0xffb74316);
+const cream = Color(0xfffafafa);
+const paper = Color(0xffffffff);
+const ink = Color(0xff1a1a1a);
+const muted = Color(0xff5c5c5c);
+const line = Color(0xffd9d9d9);
+const orange = Color(0xff006d77);
 
 class MiBarrioHome extends StatelessWidget {
-  const MiBarrioHome({super.key});
+  const MiBarrioHome({
+    super.key,
+    this.homeOnly = false,
+    this.onAuthenticated,
+  });
+
+  final bool homeOnly;
+  final VoidCallback? onAuthenticated;
 
   @override
-  Widget build(BuildContext context) => const _Entrada();
+  Widget build(BuildContext context) {
+    if (homeOnly) return const _InicioLoader();
+    return _Entrada(onAuthenticated: onAuthenticated);
+  }
+}
+
+class _InicioLoader extends StatefulWidget {
+  const _InicioLoader();
+
+  @override
+  State<_InicioLoader> createState() => _InicioLoaderState();
+}
+
+class _InicioLoaderState extends State<_InicioLoader> {
+  late final Future<SharedPreferences> _preferences =
+      SharedPreferences.getInstance();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<SharedPreferences>(
+        future: _preferences,
+        builder: (context, snapshot) {
+          final preferences = snapshot.data;
+          if (preferences == null) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          return Inicio(
+            datos: _DatosBarrio(
+              preferences,
+              preferences.getString('vecino_departamento') ?? '',
+              preferences.getString('vecino_provincia') ?? '',
+              preferences.getString('vecino_distrito') ?? '',
+              preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
+              preferences.getString('vecino_bio') ??
+                  'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+              preferences.getBool('vecino_foto_demo') ?? false,
+            ),
+          );
+        },
+      );
 }
 
 class Inicio extends StatefulWidget {
-  const Inicio({super.key, required this.datos});
+  const Inicio({
+    super.key,
+    required this.datos,
+  });
   final _DatosBarrio datos;
 
   @override
@@ -45,7 +92,6 @@ class _InicioState extends State<Inicio> {
   final _wrappedTutorial = GlobalKey();
   final _mascotaTutorial = GlobalKey();
   final _filasTutorial = List.generate(3, (_) => GlobalKey());
-  final _navTutorial = GlobalKey();
   int? _pasoTutorial;
   List<Rect> _zonasTutorial = [];
   int _solicitudTutorial = 0;
@@ -78,7 +124,7 @@ class _InicioState extends State<Inicio> {
       [_filasTutorial[0]],
       [_filasTutorial[1]],
       [_filasTutorial[2]],
-      [_navTutorial],
+      [_filasTutorial[2]],
     ][paso];
     final solicitud = ++_solicitudTutorial;
     final destino = destinos.first.currentContext;
@@ -155,14 +201,6 @@ class _InicioState extends State<Inicio> {
       'Consulta los avisos de tu grupo barrial.',
     ),
   ];
-
-  void _abrir(Widget pantalla) {
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => pantalla));
-  }
-
-  void _verPerfil() =>
-      _abrir(_PerfilVecino(widget.datos, () => _mostrarPaso(0)));
 
   void detalle(String titulo, String mensaje) {
     showModalBottomSheet<void>(
@@ -282,7 +320,6 @@ class _InicioState extends State<Inicio> {
             ),
           ),
         ),
-        bottomNavigationBar: _navegacion(),
       );
 
   Widget _encabezado() => SizedBox(
@@ -310,12 +347,7 @@ class _InicioState extends State<Inicio> {
         height: 91,
         child: Row(
           children: [
-            InkWell(
-              onTap: _verPerfil,
-              borderRadius: BorderRadius.circular(29),
-              child:
-                  _avatarVecino(widget.datos.iniciales, widget.datos.foto, 29),
-            ),
+            _avatarVecino(widget.datos.iniciales, widget.datos.foto, 29),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -474,7 +506,10 @@ class _InicioState extends State<Inicio> {
       color: index == 5 ? const Color(0xfffff1d0) : paper,
       radius: 16,
       border: true,
-      onTap: () => _abrir(_ModuloBarrio(widget.datos, index)),
+      onTap: () => detalle(
+        titulo.replaceAll('\n', ' '),
+        accesos[index].$4,
+      ),
       child: SizedBox(
         height: 78,
         child: Padding(
@@ -500,91 +535,16 @@ class _InicioState extends State<Inicio> {
     );
   }
 
-  Widget _navegacion() {
-    const items = [
-      ('Inicio', 'Inicio', ''),
-      (
-        'Mapa',
-        'Mapa',
-        'Explora los servicios y las solicitudes de ayuda del barrio.',
-      ),
-      (
-        'Publicar',
-        'Publicar',
-        'Elige entre publicar un oficio o pedir un favor.',
-      ),
-      ('Mensajes', 'Mensajes', 'Aquí podrás coordinar con otros vecinos.'),
-      (
-        'Mi barrio',
-        'MiBarrio',
-        'Consulta tu grupo vecinal y tus puntos de Aura.',
-      ),
-    ];
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: paper,
-        border: Border(top: BorderSide(color: line)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Center(
-          heightFactor: 1,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: SizedBox(
-              key: _navTutorial,
-              height: 90,
-              child: Row(
-                children: [
-                  for (final (titulo, asset, _) in items)
-                    Expanded(
-                      child: InkWell(
-                        onTap: switch (titulo) {
-                          'Mapa' => () => _abrir(
-                                _ModuloBarrio(widget.datos, 6),
-                              ),
-                          'Publicar' => () => _abrir(_Publicar(widget.datos)),
-                          'Mensajes' => () => _abrir(
-                                _ModuloBarrio(widget.datos, 7),
-                              ),
-                          'Mi barrio' => _verPerfil,
-                          _ => null,
-                        },
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: titulo == 'Publicar' ? 38 : 31,
-                              height: titulo == 'Publicar' ? 38 : 31,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: titulo == 'Publicar'
-                                    ? orange
-                                    : Colors.transparent,
-                                shape: BoxShape.circle,
-                              ),
-                              child: icono(asset, 22),
-                            ),
-                            const SizedBox(height: 5),
-                            label(
-                              titulo,
-                              10,
-                              bold: true,
-                              color: titulo == 'Inicio' ? orange : muted,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
+
+Widget _avatarVecino(String iniciales, bool foto, double radio) => CircleAvatar(
+      radius: radio,
+      backgroundColor:
+          foto ? const Color(0xffe0eeee) : const Color(0xffd7eeee),
+      child: foto
+          ? Icon(Icons.person, size: radio, color: orange)
+          : label(iniciales, radio * .57, bold: true, color: orange),
+    );
 
 Widget label(
   String value,

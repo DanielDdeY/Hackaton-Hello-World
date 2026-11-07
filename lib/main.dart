@@ -9,7 +9,7 @@ import 'features/create_post/data/mocks/mock_photo_picker.dart';
 import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
-import 'mi_barrio/mi_barrio.dart';
+import 'home/home.dart';
 
 import 'firebase_options.dart';
 import 'screens/map/map_screen.dart';
@@ -52,10 +52,32 @@ class MyApp extends StatelessWidget {
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         supportedLocales: const [Locale('es', 'PE')],
         theme: createAppTheme(),
-        home: const MiBarrioHome(),
+        home: const _AppGate(),
         routes: {'/map': (_) => const MapScreen()},
       ),
     );
+  }
+
+}
+
+class _AppGate extends StatefulWidget {
+  const _AppGate();
+
+  @override
+  State<_AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends State<_AppGate> {
+  bool _authenticated = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_authenticated) {
+      return MiBarrioHome(
+        onAuthenticated: () => setState(() => _authenticated = true),
+      );
+    }
+    return const _NeighborhoodShell();
   }
 }
 
@@ -126,7 +148,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
       body: IndexedStack(
         index: _selected.index,
         children: [
-          _PlaceholderPage(description: _Destination.home.description),
+          const MiBarrioHome(homeOnly: true),
           _mapVisited
               ? const MapScreen()
               : _PlaceholderPage(description: _Destination.map.description),
