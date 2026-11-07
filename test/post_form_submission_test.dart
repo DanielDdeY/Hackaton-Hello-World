@@ -33,6 +33,12 @@ class _Auth implements AuthGateway {
 
   @override
   Future<String> signInWithGoogle() async => currentUid;
+
+  @override
+  Future<void> sendPhoneCode(String phoneNumber) async {}
+
+  @override
+  Future<String> signInWithPhoneCode(String code) async => currentUid;
 }
 
 class _Location implements DetailedLocationProvider {

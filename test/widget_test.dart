@@ -20,6 +20,12 @@ class _TestAuthGateway implements AuthGateway {
 
   @override
   Future<String> signInWithGoogle() async => 'test-user';
+
+  @override
+  Future<void> sendPhoneCode(String phoneNumber) async {}
+
+  @override
+  Future<String> signInWithPhoneCode(String code) async => 'test-user';
 }
 
 void main() {

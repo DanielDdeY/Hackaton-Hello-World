@@ -6,6 +6,12 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    match /phoneIndex/{phoneNumber} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+    }
+
     function signedIn() {
       return request.auth != null;
     }

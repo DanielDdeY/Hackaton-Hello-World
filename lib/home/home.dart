@@ -74,6 +74,7 @@ class _InicioProfileLoader extends StatelessWidget {
     final store = context.read<UserProfileStore?>();
     final fallback = UserProfile(
       name: preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
+      phoneNumber: preferences.getString('vecino_telefono') ?? '',
       role: preferences.getString('vecino_rol') ?? 'Vecino',
       bio: preferences.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
       department: preferences.getString('vecino_departamento') ?? '',
