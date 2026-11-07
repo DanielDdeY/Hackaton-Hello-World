@@ -1,4 +1,4 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Tipo de sitio que se puede mostrar en el mapa.
 enum PlaceKind {

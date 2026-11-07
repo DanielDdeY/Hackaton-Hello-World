@@ -1,14 +1,25 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
+import 'data/map_location_provider.dart';
 import 'data/map_places_repository.dart';
 import 'models/map_place.dart';
+import 'utils/map_geo.dart';
+import 'widgets/location_permission_view.dart';
 import 'widgets/place_details_sheet.dart';
 import 'widgets/places_list_sheet.dart';
 
 /// Pantalla de mapa con los negocios y los sitios guardados por los usuarios.
+///
+/// Solo muestra el mapa dentro de un radio de [kMapRadiusMeters] desde la
+/// ubicación del usuario: la cámara no puede salirse del círculo, el límite
+/// se dibuja en el mapa y los sitios fuera de él se ocultan. Si el usuario
+/// no concede su ubicación, la pantalla queda bloqueada con una vista para
+/// activar el GPS o conceder el permiso.
 ///
 /// Los datos se obtienen de un [MapPlacesRepository]. De momento se usa
 /// [MockMapPlacesRepository]; cuando esté lista la conexión con Firebase basta
@@ -21,10 +32,14 @@ import 'widgets/places_list_sheet.dart';
 /// Para previsualizar la pantalla antes de enlazarla en `main.dart`, usa:
 /// `home: const MapScreen()`.
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key, this.repository});
+  const MapScreen({super.key, this.repository, this.locationProvider});
 
   /// Fuente de datos. Si es `null` se usan los datos de ejemplo.
   final MapPlacesRepository? repository;
+
+  /// Fuente de la ubicación del usuario. Si es `null` se usa
+  /// [GeolocatorLocationProvider].
+  final MapLocationProvider? locationProvider;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -33,13 +48,22 @@ class MapScreen extends StatefulWidget {
 enum _PlaceFilter { all, businesses, saved }
 
 class _MapScreenState extends State<MapScreen> {
-  static const LatLng _initialTarget = LatLng(40.4168, -3.7038);
-  static const double _initialZoom = 13.5;
+  static const double _initialZoom = 14;
 
   late final MapPlacesRepository _repository;
+  late final MapLocationProvider _locationProvider;
   final TextEditingController _searchController = TextEditingController();
   StreamSubscription<List<MapPlace>>? _subscription;
-  GoogleMapController? _mapController;
+  StreamSubscription<LocationResult>? _locationSubscription;
+  final MapController _mapController = MapController();
+
+  /// Ubicación del usuario; hasta que no está disponible no se muestra el mapa.
+  LatLng? _userLocation;
+
+  /// `true` si se está usando la última posición conocida (GPS apagado).
+  bool _isLastKnown = false;
+  LocationFailure? _locationFailure;
+  bool _locationLoading = true;
 
   List<MapPlace> _places = const [];
   bool _loading = true;
@@ -51,14 +75,16 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _repository = widget.repository ?? MockMapPlacesRepository();
+    _locationProvider = widget.locationProvider ?? GeolocatorLocationProvider();
     _subscribe();
+    _resolveLocation();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _locationSubscription?.cancel();
     _searchController.dispose();
-    _mapController?.dispose();
     super.dispose();
   }
 
@@ -91,8 +117,91 @@ class _MapScreenState extends State<MapScreen> {
     _subscribe();
   }
 
+  /// Pide la ubicación del usuario. Mientras no haya ninguna posición
+  /// (ni en vivo ni guardada), el mapa permanece bloqueado en la vista de
+  /// permisos; si ya hay posición y el reintento falla, el mapa sigue
+  /// visible con el último punto conocido.
+  Future<void> _resolveLocation() async {
+    if (_userLocation == null) {
+      setState(() {
+        _locationLoading = true;
+        _locationFailure = null;
+      });
+    }
+    final result = await _locationProvider.currentLocation();
+    if (!mounted) return;
+    if (result.location != null) {
+      setState(() {
+        _locationLoading = false;
+        _userLocation = result.location;
+        _isLastKnown = result.isLastKnown;
+        _locationFailure = null;
+      });
+      _watchLocation();
+    } else {
+      setState(() {
+        _locationLoading = false;
+        if (_userLocation == null) {
+          _locationFailure = result.failure ?? LocationFailure.error;
+        }
+      });
+    }
+  }
+
+  /// Sigue las posiciones del usuario: actualiza el marcador, el círculo de
+  /// 1.8 km y el aviso de "última ubicación conocida" sin bloquear el mapa.
+  void _watchLocation() {
+    _locationSubscription?.cancel();
+    _locationSubscription = _locationProvider.watch().listen(
+      (update) {
+        if (!mounted || update.location == null) return;
+        setState(() {
+          _userLocation = update.location;
+          _isLastKnown = update.isLastKnown;
+        });
+        _keepCameraInside();
+      },
+      onError: (_) {
+        // El stream falló: el mapa se queda en el último punto conocido.
+      },
+    );
+  }
+
+  /// Si el usuario se movió más allá de 1.8 km del centro de la cámara, se
+  /// recentra para no quedar fuera del área permitida.
+  void _keepCameraInside() {
+    final userLocation = _userLocation;
+    if (userLocation == null) return;
+    try {
+      if (distanceMeters(userLocation, _mapController.camera.center) >
+          kMapRadiusMeters) {
+        _mapController.move(userLocation, _initialZoom);
+      }
+    } catch (_) {
+      // El mapa aún no está renderizado; se aplica en el próximo movimiento.
+    }
+  }
+
+  /// Acción del botón de la vista bloqueada según el motivo del fallo.
+  Future<void> _handleLocationAction() async {
+    try {
+      switch (_locationFailure) {
+        case LocationFailure.permissionDeniedForever:
+          await Geolocator.openAppSettings();
+        case LocationFailure.serviceDisabled:
+          await Geolocator.openLocationSettings();
+        default:
+          break;
+      }
+    } catch (_) {
+      // El sistema no abrió ajustes; reintentamos igualmente abajo.
+    }
+    await _resolveLocation();
+  }
+
   List<MapPlace> get _visiblePlaces {
     final query = _query.trim().toLowerCase();
+    final userLocation = _userLocation;
     return _places
         .where((place) {
           final matchesFilter = switch (_filter) {
@@ -105,25 +214,65 @@ class _MapScreenState extends State<MapScreen> {
               place.name.toLowerCase().contains(query) ||
               place.category.toLowerCase().contains(query) ||
               place.address.toLowerCase().contains(query);
-          return matchesFilter && matchesQuery;
+          // Solo los sitios dentro del radio de 1.8 km del usuario.
+          final withinRadius =
+              userLocation == null ||
+              isWithinRadius(userLocation, place.location);
+          return matchesFilter && matchesQuery && withinRadius;
         })
         .toList(growable: false);
   }
 
-  Set<Marker> _markersFor(List<MapPlace> places) {
-    return {
+  List<Marker> _markersFor(List<MapPlace> places) {
+    return [
       for (final place in places)
         Marker(
-          markerId: MarkerId(place.id),
-          position: place.location,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            place.isBusiness
-                ? BitmapDescriptor.hueOrange
-                : BitmapDescriptor.hueAzure,
+          point: place.location,
+          width: 36,
+          height: 36,
+          child: GestureDetector(
+            onTap: () => _showDetails(place),
+            child: Icon(
+              place.isBusiness
+                  ? Icons.storefront_rounded
+                  : Icons.bookmark_rounded,
+              size: 32,
+              color: place.isBusiness
+                  ? Colors.orange.shade700
+                  : Colors.blue.shade700,
+              shadows: const [
+                Shadow(color: Colors.black45, blurRadius: 6),
+              ],
+            ),
           ),
-          onTap: () => _showDetails(place),
         ),
-    };
+      if (_userLocation != null) _userMarker(_userLocation!),
+    ];
+  }
+
+  /// Punto azul con halo que indica la posición del usuario.
+  Marker _userMarker(LatLng location) {
+    return Marker(
+      point: location,
+      width: 28,
+      height: 28,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.blue.withValues(alpha: 0.25),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+        ),
+        alignment: Alignment.center,
+        child: Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: Colors.blue.shade700,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showDetails(MapPlace place) {
@@ -147,15 +296,20 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _focusOn(MapPlace place) {
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(place.location, 16),
-    );
+    final userLocation = _userLocation;
+    final target = userLocation == null
+        ? place.location
+        : clampToRadius(userLocation, place.location);
+    _mapController.move(target, 16);
   }
 
   void _recenter() {
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(_initialTarget, _initialZoom),
-    );
+    final userLocation = _userLocation;
+    if (userLocation == null) {
+      _resolveLocation();
+      return;
+    }
+    _mapController.move(userLocation, _initialZoom);
   }
 
   void _selectFilter(_PlaceFilter filter) {
@@ -172,13 +326,14 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final visiblePlaces = _visiblePlaces;
     final theme = Theme.of(context);
+    final locationReady = _userLocation != null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mapa'),
         actions: [
           IconButton(
-            onPressed: _loading || _error != null
+            onPressed: _loading || _error != null || !locationReady
                 ? null
                 : () => _openList(visiblePlaces),
             icon: const Icon(Icons.format_list_bulleted_rounded),
@@ -186,88 +341,218 @@ class _MapScreenState extends State<MapScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: _initialTarget,
-              zoom: _initialZoom,
+      body: _buildBody(theme, visiblePlaces),
+      floatingActionButton: locationReady
+          ? FloatingActionButton(
+              onPressed: _recenter,
+              tooltip: 'Centrar en mi ubicación',
+              child: const Icon(Icons.my_location_rounded),
+            )
+          : null,
+    );
+  }
+
+  /// Hasta que no hay ubicación el mapa no se muestra: primero el estado de
+  /// carga y después la vista que bloquea el mapa hasta conceder el permiso.
+  Widget _buildBody(ThemeData theme, List<MapPlace> visiblePlaces) {
+    if (_locationLoading) {
+      return const _OverlayCard(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
             ),
-            onMapCreated: (controller) => _mapController = controller,
-            markers: _markersFor(visiblePlaces),
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            onTap: (_) => FocusScope.of(context).unfocus(),
+            SizedBox(width: 16),
+            Flexible(
+              child: Text(
+                'Obteniendo tu ubicación…',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final failure = _locationFailure;
+    if (failure != null) {
+      return LocationPermissionView(
+        failure: failure,
+        onAction: _handleLocationAction,
+      );
+    }
+
+    return _buildMap(theme, visiblePlaces);
+  }
+
+  Widget _buildMap(ThemeData theme, List<MapPlace> visiblePlaces) {
+    final userLocation = _userLocation!;
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: userLocation,
+            initialZoom: _initialZoom,
+            // Evita alejarse tanto que el viewport supere el diámetro del círculo.
+            minZoom: 13.5,
+            // El centro de la cámara no puede salirse de los 1.8 km.
+            cameraConstraint: RadiusCameraConstraint(center: userLocation),
+            // Igual que antes con Google Maps: sin rotación.
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+            ),
+            onTap: (_, _) => FocusScope.of(context).unfocus(),
           ),
-          Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildSearchField(theme),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.hackaton_hello_world',
+              maxZoom: 19,
+            ),
+            // Límite visible de los 1.8 km alrededor del usuario.
+            CircleLayer(
+              circles: [
+                CircleMarker(
+                  point: userLocation,
+                  radius: kMapRadiusMeters,
+                  useRadiusInMeter: true,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.06),
+                  borderColor: theme.colorScheme.primary.withValues(
+                    alpha: 0.45,
+                  ),
+                  borderStrokeWidth: 2,
+                ),
+              ],
+            ),
+            MarkerLayer(markers: _markersFor(visiblePlaces)),
+            RichAttributionWidget(
+              attributions: [
+                const TextSourceAttribution('OpenStreetMap contributors'),
+              ],
+            ),
+          ],
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSearchField(theme),
+                const SizedBox(height: 10),
+                _buildFilters(theme),
+                if (_isLastKnown) ...[
                   const SizedBox(height: 10),
-                  _buildFilters(theme),
+                  _buildLastKnownBanner(theme),
                 ],
-              ),
+              ],
             ),
           ),
-          if (_loading)
-            _OverlayCard(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
+        ),
+        if (_loading)
+          _OverlayCard(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(width: 16),
+                Flexible(
+                  child: Text(
+                    'Cargando sitios…',
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(width: 16),
-                  Text('Cargando sitios…', style: theme.textTheme.bodyMedium),
-                ],
+                ),
+              ],
+            ),
+          ),
+        if (_error != null)
+          _OverlayCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.cloud_off_rounded,
+                  size: 36,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'No se pudieron cargar los sitios.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: _retry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        if (!_loading && _error == null && visiblePlaces.isEmpty)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: _EmptyResults(onClear: _clearSearch),
+          ),
+      ],
+    );
+  }
+
+  /// Aviso discreto de que el mapa usa la última posición conocida en vez
+  /// de la actual. Tocarlo vuelve a pedir la ubicación.
+  Widget _buildLastKnownBanner(ThemeData theme) {
+    return Material(
+      elevation: 3,
+      borderRadius: BorderRadius.circular(16),
+      color: theme.colorScheme.surface,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _resolveLocation,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                Icons.location_off_rounded,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-            ),
-          if (_error != null)
-            _OverlayCard(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.cloud_off_rounded,
-                    size: 36,
-                    color: theme.colorScheme.error,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Mostrando tu última ubicación conocida',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'No se pudieron cargar los sitios.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.tonalIcon(
-                    onPressed: _retry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Reintentar'),
-                  ),
-                ],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          if (!_loading && _error == null && visiblePlaces.isEmpty)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 24,
-              child: _EmptyResults(onClear: _clearSearch),
-            ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _recenter,
-        tooltip: 'Centrar mapa',
-        child: const Icon(Icons.my_location_rounded),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.refresh_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
