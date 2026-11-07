@@ -194,6 +194,7 @@ class _EntradaState extends State<_Entrada> {
     setState(() => _verificandoTelefono = true);
     try {
       final telefono = _telefono();
+      await gateway.ensureSignedIn();
       _registroNuevo = !await store.phoneExists(telefono);
       await gateway.sendPhoneCode(telefono);
       _telefonoVerificado = telefono;
@@ -208,10 +209,23 @@ class _EntradaState extends State<_Entrada> {
           _ => 'No se pudo preparar el código de prueba.',
         });
       }
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'No se pudo consultar el teléfono en Firestore '
+        '(code=${error.code}): ${error.message}',
+      );
+      if (mounted) {
+        _mostrarErrorTelefono(
+          error.code == 'permission-denied'
+              ? 'Firebase rechazó el acceso. Publica las reglas de Firestore.'
+              : 'No se pudo conectar con Firestore (${error.code}).',
+        );
+      }
     } catch (error) {
-      debugPrint('No se pudo enviar el código telefónico: $error');
-      if (mounted)
+      debugPrint('No se pudo preparar el código de prueba: $error');
+      if (mounted) {
         _mostrarErrorTelefono('No se pudo preparar el código de prueba.');
+      }
     } finally {
       if (mounted) setState(() => _verificandoTelefono = false);
     }
