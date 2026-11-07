@@ -1,14 +1,22 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../domain/entities/help_post_data.dart';
+import '../../../domain/services/location_provider.dart';
 import '../../../domain/services/photo_picker.dart';
+import '../../location/post_location_capture.dart';
 
-class HelpFormController extends ChangeNotifier {
-  HelpFormController({required this._photoPicker});
+class HelpFormController extends ChangeNotifier with PostLocationCapture {
+  HelpFormController({
+    required this._photoPicker,
+    required LocationProvider locationProvider,
+  }) {
+    locationReady = captureLocation(locationProvider);
+  }
 
   final PhotoPicker _photoPicker;
+  late final Future<void> locationReady;
   final descriptionController = TextEditingController();
-  final locationController = TextEditingController();
+  TextEditingController get locationController => addressController;
   final rewardController = TextEditingController();
 
   bool _detailsExpanded = false;
@@ -60,7 +68,10 @@ class HelpFormController extends ChangeNotifier {
     peopleCount: _peopleCount,
     location: _optionalText(locationController.text),
     reward: _rewardEnabled ? _optionalText(rewardController.text) : null,
+    hasReward: _rewardEnabled,
     photoPath: _photoPath,
+    coordinates: coordinates,
+    addressEditedByUser: addressEditedByUser,
   );
 
   static String? _optionalText(String value) {
@@ -71,7 +82,6 @@ class HelpFormController extends ChangeNotifier {
   @override
   void dispose() {
     descriptionController.dispose();
-    locationController.dispose();
     rewardController.dispose();
     super.dispose();
   }

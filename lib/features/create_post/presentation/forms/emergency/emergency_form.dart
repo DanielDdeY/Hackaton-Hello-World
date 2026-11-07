@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,12 +6,12 @@ import '../../../../../core/constants/input_limits.dart';
 import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
 import '../../../../../core/widgets/collapsible_section.dart';
-import '../../../../../core/widgets/form_footer_buttons.dart';
 import '../../../../../core/widgets/optional_photo_picker.dart';
 import '../../../domain/entities/emergency_post_data.dart';
 import '../../../domain/services/location_provider.dart';
 import '../../../domain/services/photo_picker.dart';
-import '../../auth/ensure_post_author.dart';
+import '../../location/post_location_capture.dart';
+import '../../submission/post_submission_scope.dart';
 import 'emergency_form_controller.dart';
 
 class EmergencyForm extends StatelessWidget {
@@ -49,159 +46,134 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
 
   final _formKey = GlobalKey<FormState>();
 
-  String? _locationNotice(EmergencyFormController controller) {
-    if (controller.isLastKnown) {
-      return 'Usamos la última ubicación conocida. Revísala antes de publicar.';
-    }
-    if (controller.locationStatus != EmergencyLocationStatus.unavailable) {
-      return null;
-    }
-    return switch (controller.locationFailure) {
-      LocationUnavailableReason.permissionDenied ||
-      LocationUnavailableReason.permissionDeniedForever =>
-        'Permiso de ubicación denegado. Escribe la dirección manualmente.',
-      LocationUnavailableReason.serviceDisabled =>
-        'El GPS está apagado. Escribe la dirección manualmente.',
-      LocationUnavailableReason.timeout =>
-        'La ubicación tardó demasiado. Escribe la dirección manualmente.',
-      _ => 'No se pudo obtener tu ubicación, escríbela manualmente',
-    };
-  }
-
-  Future<void> _publish() async {
-    if (!_formKey.currentState!.validate()) return;
-    final data = context.read<EmergencyFormController>().data;
-    if (!await ensurePostAuthor(context) || !mounted) return;
-
-    if (kDebugMode) {
-      debugPrint(
-        'Emergency post: ${jsonEncode({'type': data.type.name, 'streetAddress': data.streetAddress, 'message': data.message, 'photoPath': data.photoPath})}',
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<EmergencyFormController>();
     final theme = Theme.of(context);
-    final locationNotice = _locationNotice(controller);
+    final locationNotice = controller.locationNotice;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () => Navigator.maybePop(context),
-          icon: const BackButtonIcon(),
-          tooltip: 'Volver',
+    return PostSubmissionScope(
+      formKey: _formKey,
+      readData: () => controller.data,
+      builder: (context, onCancel, footer) => Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            onPressed: onCancel,
+            icon: const BackButtonIcon(),
+            tooltip: 'Volver',
+          ),
+          title: const Text('Emergencia'),
         ),
-        title: const Text('Emergencia'),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        'Tipo de emergencia (Obligatorio)',
-                        style: theme.textTheme.titleMedium,
+        body: SafeArea(
+          top: false,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          'Tipo de emergencia (Obligatorio)',
+                          style: theme.textTheme.titleMedium,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        for (final entry in _typeLabels.entries)
-                          ChoiceChip(
-                            label: Text(entry.value),
-                            selected: controller.type == entry.key,
-                            onSelected: (_) => controller.selectType(entry.key),
-                            materialTapTargetSize: MaterialTapTargetSize.padded,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: controller.streetAddressController,
-                      onChanged: controller.markAddressEdited,
-                      keyboardType: TextInputType.streetAddress,
-                      textInputAction: TextInputAction.done,
-                      validator: RequiredFieldValidator.validate,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      decoration: InputDecoration(
-                        labelText: 'CALLE (Obligatorio)',
-                        border: const OutlineInputBorder(),
-                        suffixIcon:
-                            controller.locationStatus ==
-                                EmergencyLocationStatus.loading
-                            ? const Padding(
-                                padding: EdgeInsets.all(14),
-                                child: SizedBox.square(
-                                  dimension: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    semanticsLabel: 'Obteniendo ubicación',
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          for (final entry in _typeLabels.entries)
+                            ChoiceChip(
+                              label: Text(entry.value),
+                              selected: controller.type == entry.key,
+                              onSelected: (_) =>
+                                  controller.selectType(entry.key),
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.padded,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: controller.streetAddressController,
+                        onChanged: controller.markAddressEdited,
+                        keyboardType: TextInputType.streetAddress,
+                        textInputAction: TextInputAction.done,
+                        validator: RequiredFieldValidator.validate,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        decoration: InputDecoration(
+                          labelText: 'CALLE (Obligatorio)',
+                          border: const OutlineInputBorder(),
+                          suffixIcon:
+                              controller.locationStatus ==
+                                  PostLocationStatus.loading
+                              ? const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: SizedBox.square(
+                                    dimension: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      semanticsLabel: 'Obteniendo ubicación',
+                                    ),
                                   ),
-                                ),
-                              )
-                            : null,
+                                )
+                              : null,
+                        ),
                       ),
-                    ),
-                    if (locationNotice != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            locationNotice,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                      if (locationNotice != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              locationNotice,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 16),
-                    CollapsibleSection(
-                      label: 'Mensaje',
-                      icon: Icons.notes_outlined,
-                      expanded: controller.messageExpanded,
-                      onChanged: controller.setMessageExpanded,
-                      child: TextFormField(
-                        controller: controller.messageController,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        minLines: 3,
-                        maxLines: 5,
-                        maxLength: emergencyMessageMaxLength,
-                        maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                        decoration: const InputDecoration(
-                          labelText: 'Mensaje (Opcional)',
-                          alignLabelWithHint: true,
-                          border: OutlineInputBorder(),
+                      const SizedBox(height: 16),
+                      CollapsibleSection(
+                        label: 'Mensaje',
+                        icon: Icons.notes_outlined,
+                        expanded: controller.messageExpanded,
+                        onChanged: controller.setMessageExpanded,
+                        child: TextFormField(
+                          controller: controller.messageController,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          minLines: 3,
+                          maxLines: 5,
+                          maxLength: emergencyMessageMaxLength,
+                          maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                          decoration: const InputDecoration(
+                            labelText: 'Mensaje (Opcional)',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    OptionalPhotoPicker(
-                      label: 'Tomar Foto',
-                      photoPaths: [?controller.photoPath],
-                      onChanged: (paths) =>
-                          controller.setPhotoPath(paths.firstOrNull),
-                      maxPhotos: emergencyPhotoLimit,
-                      pickFromCamera: controller.takePhoto,
-                    ),
-                    const SizedBox(height: 24),
-                    FormFooterButtons(onPublish: _publish),
-                  ],
+                      const SizedBox(height: 12),
+                      OptionalPhotoPicker(
+                        label: 'Tomar Foto',
+                        photoPaths: [?controller.photoPath],
+                        onChanged: (paths) =>
+                            controller.setPhotoPath(paths.firstOrNull),
+                        maxPhotos: emergencyPhotoLimit,
+                        pickFromCamera: controller.takePhoto,
+                      ),
+                      const SizedBox(height: 24),
+                      footer,
+                    ],
+                  ),
                 ),
               ),
             ),
