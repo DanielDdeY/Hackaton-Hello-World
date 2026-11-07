@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
 
-class FormFooterButtons extends StatelessWidget {
+class FormFooterButtons extends StatefulWidget {
   const FormFooterButtons({super.key, required this.onPublish, this.onCancel});
 
-  final VoidCallback? onPublish;
+  final Future<void> Function()? onPublish;
   final VoidCallback? onCancel;
+
+  @override
+  State<FormFooterButtons> createState() => _FormFooterButtonsState();
+}
+
+class _FormFooterButtonsState extends State<FormFooterButtons> {
+  bool _publishing = false;
+
+  Future<void> _publish() async {
+    final publish = widget.onPublish;
+    if (_publishing || publish == null) return;
+    setState(() => _publishing = true);
+    try {
+      await publish();
+    } finally {
+      if (mounted) setState(() => _publishing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +32,7 @@ class FormFooterButtons extends StatelessWidget {
         Expanded(
           child: OutlinedButton(
             style: OutlinedButton.styleFrom(minimumSize: buttonSize),
-            onPressed: onCancel ?? () => Navigator.of(context).pop(),
+            onPressed: widget.onCancel ?? () => Navigator.of(context).pop(),
             child: const Text('Cancelar', textAlign: TextAlign.center),
           ),
         ),
@@ -22,8 +40,18 @@ class FormFooterButtons extends StatelessWidget {
         Expanded(
           child: FilledButton(
             style: FilledButton.styleFrom(minimumSize: buttonSize),
-            onPressed: onPublish,
-            child: const Text('Publicar', textAlign: TextAlign.center),
+            onPressed: _publishing || widget.onPublish == null
+                ? null
+                : _publish,
+            child: _publishing
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      semanticsLabel: 'Verificando sesión',
+                    ),
+                  )
+                : const Text('Publicar', textAlign: TextAlign.center),
           ),
         ),
       ],

@@ -17,6 +17,7 @@ import '../../../domain/entities/service_post_data.dart';
 import '../../../domain/services/photo_picker.dart';
 import '../../widgets/payment_methods_sheet.dart';
 import 'service_availability_fields.dart';
+import '../../auth/ensure_post_author.dart';
 import 'service_form_controller.dart';
 
 class ServiceForm extends StatelessWidget {
@@ -56,11 +57,12 @@ class _ServiceFormViewState extends State<_ServiceFormView> {
     if (mounted && selection != null) controller.setPaymentMethods(selection);
   }
 
-  void _publish() {
+  Future<void> _publish() async {
     if (!_formKey.currentState!.validate()) return;
+    final data = context.read<ServiceFormController>().data;
+    if (!await ensurePostAuthor(context) || !mounted) return;
 
     if (kDebugMode) {
-      final data = context.read<ServiceFormController>().data;
       final payload = {
         'title': data.title,
         'description': data.description,
@@ -267,8 +269,9 @@ class _ServiceFormViewState extends State<_ServiceFormView> {
                     const SizedBox(height: 16),
                     OptionalPhotoPicker(
                       label: 'Agregar certificados o Fotos',
-                      photoPath: controller.attachmentPath,
-                      onChanged: controller.setAttachmentPath,
+                      photoPaths: [?controller.attachmentPath],
+                      onChanged: (paths) =>
+                          controller.setAttachmentPath(paths.firstOrNull),
                       pickFromGallery: controller.chooseAttachment,
                     ),
                     const SizedBox(height: 24),

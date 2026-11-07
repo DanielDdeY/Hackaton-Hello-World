@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../../core/constants/input_limits.dart';
+import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
 import '../../../../../core/widgets/collapsible_section.dart';
 import '../../../../../core/widgets/form_footer_buttons.dart';
@@ -13,6 +14,7 @@ import '../../../../../core/widgets/optional_photo_picker.dart';
 import '../../../domain/entities/emergency_post_data.dart';
 import '../../../domain/services/location_provider.dart';
 import '../../../domain/services/photo_picker.dart';
+import '../../auth/ensure_post_author.dart';
 import 'emergency_form_controller.dart';
 
 class EmergencyForm extends StatelessWidget {
@@ -47,11 +49,31 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
 
   final _formKey = GlobalKey<FormState>();
 
-  void _publish() {
+  String? _locationNotice(EmergencyFormController controller) {
+    if (controller.isLastKnown) {
+      return 'Usamos la última ubicación conocida. Revísala antes de publicar.';
+    }
+    if (controller.locationStatus != EmergencyLocationStatus.unavailable) {
+      return null;
+    }
+    return switch (controller.locationFailure) {
+      LocationUnavailableReason.permissionDenied ||
+      LocationUnavailableReason.permissionDeniedForever =>
+        'Permiso de ubicación denegado. Escribe la dirección manualmente.',
+      LocationUnavailableReason.serviceDisabled =>
+        'El GPS está apagado. Escribe la dirección manualmente.',
+      LocationUnavailableReason.timeout =>
+        'La ubicación tardó demasiado. Escribe la dirección manualmente.',
+      _ => 'No se pudo obtener tu ubicación, escríbela manualmente',
+    };
+  }
+
+  Future<void> _publish() async {
     if (!_formKey.currentState!.validate()) return;
+    final data = context.read<EmergencyFormController>().data;
+    if (!await ensurePostAuthor(context) || !mounted) return;
 
     if (kDebugMode) {
-      final data = context.read<EmergencyFormController>().data;
       debugPrint(
         'Emergency post: ${jsonEncode({'type': data.type.name, 'streetAddress': data.streetAddress, 'message': data.message, 'photoPath': data.photoPath})}',
       );
@@ -62,6 +84,7 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
   Widget build(BuildContext context) {
     final controller = context.watch<EmergencyFormController>();
     final theme = Theme.of(context);
+    final locationNotice = _locationNotice(controller);
 
     return Scaffold(
       appBar: AppBar(
@@ -133,14 +156,13 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                             : null,
                       ),
                     ),
-                    if (controller.locationStatus ==
-                        EmergencyLocationStatus.unavailable)
+                    if (locationNotice != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Semantics(
                           liveRegion: true,
                           child: Text(
-                            'No se pudo obtener tu ubicación, escríbela manualmente',
+                            locationNotice,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -171,8 +193,10 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                     const SizedBox(height: 12),
                     OptionalPhotoPicker(
                       label: 'Tomar Foto',
-                      photoPath: controller.photoPath,
-                      onChanged: controller.setPhotoPath,
+                      photoPaths: [?controller.photoPath],
+                      onChanged: (paths) =>
+                          controller.setPhotoPath(paths.firstOrNull),
+                      maxPhotos: emergencyPhotoLimit,
                       pickFromCamera: controller.takePhoto,
                     ),
                     const SizedBox(height: 24),

@@ -1,26 +1,46 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'core/firebase/configure_firebase_emulators.dart';
 import 'core/theme/app_theme.dart';
 import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
+import 'features/create_post/data/services/device_location_provider.dart';
+import 'features/create_post/data/services/firebase_auth_gateway.dart';
+import 'features/create_post/data/services/geocoding_address_resolver.dart';
+import 'features/create_post/data/services/image_picker_photo_picker.dart';
+import 'features/create_post/domain/services/auth_gateway.dart';
 import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
 import 'home/home.dart';
 
 import 'firebase_options.dart';
+import 'screens/map/data/map_location_provider.dart'
+    show GeolocatorLocationProvider;
 import 'screens/map/map_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  final firebaseApp = await initializeVeciAppFirebase(
+    DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+  runApp(
+    MyApp(
+      authGateway: FirebaseAuthGateway(
+        FirebaseAuth.instanceFor(app: firebaseApp),
+      ),
+      locationProvider: DeviceLocationProvider(
+        mapProvider: GeolocatorLocationProvider(),
+        addressResolver: const GeocodingAddressResolver(),
+      ),
+      photoPicker: ImagePickerPhotoPicker(ImagePicker()),
+    ),
+  );
 }
 
 const _text = Color(0xFF1A1A1A);
@@ -35,15 +55,18 @@ class MyApp extends StatelessWidget {
     super.key,
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
+    this.authGateway,
   });
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
+  final AuthGateway? authGateway;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<AuthGateway?>.value(value: authGateway),
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
       ],
@@ -58,7 +81,6 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _AppGate extends StatefulWidget {
@@ -139,10 +161,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
       appBar: _selected == _Destination.map
           ? null
           : AppBar(
-              title: Text(
-                _selected.label,
-                style: theme.textTheme.titleLarge,
-              ),
+              title: Text(_selected.label, style: theme.textTheme.titleLarge),
             ),
       // IndexedStack conserva el estado del mapa (cámara, filtros, búsqueda)
       // al cambiar de pestaña y volver a Mapa.
