@@ -1,8 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Necesario para descargar los tiles del mapa en builds de release. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="hackaton_hello_world"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Clave de Google Maps para Android. Se define en android/local.properties
+             como MAPS_API_KEY=... y se inyecta desde build.gradle.kts. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
