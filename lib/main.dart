@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/comunidad/presentation/pages/comunidad_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
 import 'features/create_post/domain/services/location_provider.dart';
@@ -109,10 +110,11 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    // En la pestaña Mapa se oculta el AppBar del shell: la pantalla de mapa
-    // trae el suyo (con la acción para ver la lista de sitios).
+    // Mapa y Comunidad gestionan sus propios AppBars superiores
+    final ocultarAppBar = _selected == _Destination.map || _selected == _Destination.community;
+
     return Scaffold(
-      appBar: _selected == _Destination.map
+      appBar: ocultarAppBar
           ? null
           : AppBar(
               title: Text(
@@ -120,8 +122,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
                 style: theme.textTheme.titleLarge,
               ),
             ),
-      // IndexedStack conserva el estado del mapa (cámara, filtros, búsqueda)
-      // al cambiar de pestaña y volver a Mapa.
+      // IndexedStack conserva el estado de mapa y pestañas de comunidad
       body: IndexedStack(
         index: _selected.index,
         children: [
@@ -129,7 +130,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
           _mapVisited
               ? const MapScreen()
               : _PlaceholderPage(description: _Destination.map.description),
-          _PlaceholderPage(description: _Destination.community.description),
+          const ComunidadPage(),
           _PlaceholderPage(description: _Destination.help.description),
         ],
       ),
