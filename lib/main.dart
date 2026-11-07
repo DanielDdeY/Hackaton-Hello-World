@@ -158,15 +158,14 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
           children: [
             _navigationItem(_Destination.home),
             _navigationItem(_Destination.map),
-            const SizedBox(
-              width: 68,
+            Expanded(
               child: Padding(
-                padding: EdgeInsets.only(top: 38),
+                padding: const EdgeInsets.only(top: 38),
                 child: ExcludeSemantics(
                   child: Text(
                     'Publicar',
                     textAlign: TextAlign.center,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _navigationLabel,
                   ),
