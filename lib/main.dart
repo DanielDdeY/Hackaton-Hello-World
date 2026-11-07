@@ -8,10 +8,10 @@ import 'package:provider/provider.dart';
 
 import 'core/firebase/configure_firebase_emulators.dart';
 import 'core/theme/app_theme.dart';
+import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/comunidad/data/mocks/mock_comunidad_repository.dart';
 import 'features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'features/comunidad/presentation/pages/comunidad_page.dart';
-import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
 import 'features/create_post/data/repositories/firestore_post_repository.dart';
@@ -27,10 +27,9 @@ import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/domain/services/post_repository.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
+import 'firebase_options.dart';
 import 'home/home.dart';
 import 'home/user_profile.dart';
-
-import 'firebase_options.dart';
 import 'screens/map/data/map_location_provider.dart'
     show GeolocatorLocationProvider;
 import 'screens/map/map_screen.dart';
@@ -131,7 +130,11 @@ class _AppGateState extends State<_AppGate> {
         onAuthenticated: () => setState(() => _authenticated = true),
       );
     }
-    return const _NeighborhoodShell();
+    return _NeighborhoodShell(
+      onSignedOut: () {
+        setState(() => _authenticated = false);
+      },
+    );
   }
 }
 
@@ -165,7 +168,9 @@ enum _Destination {
 }
 
 class _NeighborhoodShell extends StatefulWidget {
-  const _NeighborhoodShell();
+  const _NeighborhoodShell({this.onSignedOut});
+
+  final VoidCallback? onSignedOut;
 
   @override
   State<_NeighborhoodShell> createState() => _NeighborhoodShellState();
@@ -187,7 +192,8 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final colors = theme.colorScheme;
 
     // Mapa y Comunidad gestionan sus propios AppBars superiores
-    final ocultarAppBar = _selected == _Destination.map || _selected == _Destination.community;
+    final ocultarAppBar =
+        _selected == _Destination.map || _selected == _Destination.community;
 
     return Scaffold(
       appBar: ocultarAppBar
@@ -199,7 +205,7 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
       body: IndexedStack(
         index: _selected.index,
         children: [
-          const MiBarrioHome(homeOnly: true),
+          MiBarrioHome(homeOnly: true, onSignedOut: widget.onSignedOut),
           _mapVisited
               ? const MapScreen()
               : _PlaceholderPage(description: _Destination.map.description),

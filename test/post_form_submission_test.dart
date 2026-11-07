@@ -36,6 +36,9 @@ class _Auth implements AuthGateway {
   Future<String> signInWithGoogle() async => currentUid;
 
   @override
+  Future<void> signOut() async {}
+
+  @override
   Future<void> sendPhoneCode(String phoneNumber) async {}
 
   @override
