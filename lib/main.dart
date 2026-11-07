@@ -8,6 +8,9 @@ import 'package:provider/provider.dart';
 
 import 'core/firebase/configure_firebase_emulators.dart';
 import 'core/theme/app_theme.dart';
+import 'features/comunidad/data/mocks/mock_comunidad_repository.dart';
+import 'features/comunidad/domain/repositories/comunidad_repository.dart';
+import 'features/comunidad/presentation/pages/comunidad_page.dart';
 import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
@@ -70,20 +73,22 @@ const _navigationLabel = TextStyle(
 );
 
 class MyApp extends StatelessWidget {
-  const MyApp({
+  MyApp({
     super.key,
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
     this.authGateway,
     this.profileStore,
     this.postRepository,
-  });
+    ComunidadRepository? comunidadRepository,
+  }) : comunidadRepository = comunidadRepository ?? MockComunidadRepository();
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
   final AuthGateway? authGateway;
   final UserProfileStore? profileStore;
   final PostRepository? postRepository;
+  final ComunidadRepository comunidadRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +99,7 @@ class MyApp extends StatelessWidget {
         Provider<PostRepository?>.value(value: postRepository),
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
+        Provider<ComunidadRepository>.value(value: comunidadRepository),
       ],
       child: MaterialApp(
         title: 'VeciApp',
@@ -180,16 +186,16 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    // En la pestaña Mapa se oculta el AppBar del shell: la pantalla de mapa
-    // trae el suyo (con la acción para ver la lista de sitios).
+    // Mapa y Comunidad gestionan sus propios AppBars superiores
+    final ocultarAppBar = _selected == _Destination.map || _selected == _Destination.community;
+
     return Scaffold(
-      appBar: _selected == _Destination.map
+      appBar: ocultarAppBar
           ? null
           : AppBar(
               title: Text(_selected.label, style: theme.textTheme.titleLarge),
             ),
-      // IndexedStack conserva el estado del mapa (cámara, filtros, búsqueda)
-      // al cambiar de pestaña y volver a Mapa.
+      // IndexedStack conserva el estado de mapa y pestañas de comunidad
       body: IndexedStack(
         index: _selected.index,
         children: [
@@ -197,7 +203,8 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
           _mapVisited
               ? const MapScreen()
               : _PlaceholderPage(description: _Destination.map.description),
-          _PlaceholderPage(description: _Destination.community.description),
+          const ComunidadPage(),
+
           const AyudaPrevencionPage(),
         ],
       ),
@@ -220,15 +227,14 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
           children: [
             _navigationItem(_Destination.home),
             _navigationItem(_Destination.map),
-            const SizedBox(
-              width: 68,
+            Expanded(
               child: Padding(
-                padding: EdgeInsets.only(top: 38),
+                padding: const EdgeInsets.only(top: 38),
                 child: ExcludeSemantics(
                   child: Text(
                     'Publicar',
                     textAlign: TextAlign.center,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _navigationLabel,
                   ),

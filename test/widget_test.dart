@@ -50,21 +50,27 @@ void main() {
     });
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
+    expect(find.byType(MapScreen), findsOneWidget);
+    expect(find.byType(LocationPermissionView), findsOneWidget);
+    expect(find.byType(FlutterMap), findsNothing);
 
-    expect(find.text('MI BARRIO'), findsOneWidget);
-    expect(find.text('Carlos Mendoza'), findsOneWidget);
-    expect(find.text('Servicios\nde oficios'), findsOneWidget);
-  });
+    // Verifica la pestaña de Comunidad
+    await tester.tap(find.descendant(of: bar, matching: find.text('Comunidad')));
+    await tester.pumpAndSettle();
+    expect(find.text('Favores'), findsOneWidget);
 
-  testWidgets('la pestaña Ayuda abre la feature Ayuda y Prevención', (
-    WidgetTester tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({
-      'vecino_departamento': 'Lima',
-      'vecino_provincia': 'Lima',
-      'vecino_distrito': 'Miraflores',
-    });
-    await tester.pumpWidget(const MyApp());
+    // Verifica la pestaña de Inicio
+    await tester.tap(find.descendant(of: bar, matching: find.text('Inicio')));
+    await tester.pumpAndSettle();
+    expect(find.text('Resumen de tu barrio'), findsOneWidget);
+
+    // Verifica la pestaña de Ayuda
+    await tester.tap(find.descendant(of: bar, matching: find.text('Ayuda')));
+    await tester.pumpAndSettle();
+    expect(find.text('Encuentra orientación y apoyo'), findsOneWidget);
+
+    expect(find.byType(CategoryCard), findsNothing);
+    await tester.tap(find.byTooltip('Publicar'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Ayuda').last);

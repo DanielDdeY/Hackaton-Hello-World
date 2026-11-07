@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
 import '../../../../../core/widgets/optional_photo_picker.dart';
+import '../../../../comunidad/domain/entities/favor.dart';
+import '../../../../comunidad/domain/repositories/comunidad_repository.dart';
 import '../../../domain/services/location_provider.dart';
 import '../../../domain/services/photo_picker.dart';
 import '../../submission/post_submission_scope.dart';
@@ -34,6 +36,52 @@ class _HelpFormView extends StatefulWidget {
 
 class _HelpFormViewState extends State<_HelpFormView> {
   final _formKey = GlobalKey<FormState>();
+
+  void _publish() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final data = context.read<HelpFormController>().data;
+
+    // Registra el nuevo favor en el repositorio de comunidad
+    final repo = context.read<ComunidadRepository?>();
+    if (repo != null) {
+      final desc = data.description.trim();
+      final titulo = desc.length > 50 ? '${desc.substring(0, 47)}...' : desc;
+
+      final nuevoFavor = Favor(
+        id: 'fav_${DateTime.now().millisecondsSinceEpoch}',
+        titulo: titulo,
+        descripcion: desc,
+        categoria: CategoriaFavor.otros,
+        tamano: (data.peopleCount ?? 1) > 2 ? TamanoFavor.comunitario : TamanoFavor.medio,
+        estado: EstadoFavor.abierto,
+        cuposTotales: data.peopleCount ?? 1,
+        cuposTomados: 0,
+        solicitanteId: 'usr_actual',
+        solicitanteNombre: 'Tú',
+        solicitanteTelefono: '999888777',
+        cuadraNombre: data.location?.isNotEmpty == true ? data.location! : 'Mi Cuadra',
+        ubicacionAproximada: data.location?.isNotEmpty == true ? data.location! : 'En tu zona cercana',
+        creadoEn: DateTime.now(),
+        venceEn: data.neededBy ?? DateTime.now().add(const Duration(days: 1)),
+        monedasRecompensa: TamanoFavor.medio.monedasBase,
+        xpRecompensa: TamanoFavor.medio.xpBase,
+      );
+
+      await repo.agregarFavor(nuevoFavor);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Pedido de ayuda publicado en la comunidad!'),
+          backgroundColor: Color(0xFF2A9D8F),
+        ),
+      );
+      // Cierra el formulario y vuelve al selector o pantalla previa
+      Navigator.of(context).pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
