@@ -4,6 +4,8 @@
     <!-- Necesarios para limitar el mapa a la ubicación del usuario. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Necesario para la cámara al verificar la mochila de emergencia y publicaciones. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
         android:label="AyniVeci"
