@@ -82,9 +82,9 @@ class PerfilCabecera extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF006D77).withOpacity(0.08),
+            color: const Color(0xFF006D77).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF006D77).withOpacity(0.2)),
+            border: Border.all(color: const Color(0xFF006D77).withValues(alpha: 0.2)),
           ),
           child: Text(
             'Nivel $nivel · ${_tituloNivel(nivel)}',

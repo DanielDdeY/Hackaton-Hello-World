@@ -45,7 +45,7 @@ class PerfilTarjetasDestacadas extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF16A34A).withOpacity(0.12),
+                      color: const Color(0xFF16A34A).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.pets, color: Color(0xFF16A34A)),
@@ -119,7 +119,7 @@ class PerfilTarjetasDestacadas extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD97706).withOpacity(0.12),
+                      color: const Color(0xFFD97706).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.backpack_outlined, color: Color(0xFFD97706)),

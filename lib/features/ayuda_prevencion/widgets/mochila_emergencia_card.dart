@@ -92,11 +92,12 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
     }
 
     if (ruta == null || !mounted) return;
+    final fotoRuta = ruta;
 
     List<String> etiquetas = const [];
     try {
       final reconocedor = _obtenerReconocedor();
-      etiquetas = await reconocedor.detectarEtiquetas(ruta);
+      etiquetas = await reconocedor.detectarEtiquetas(fotoRuta);
     } catch (e) {
       debugPrint('Error en reconocimiento con ML Kit: $e');
     }
@@ -162,10 +163,10 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
     if (confirmar && mounted) {
       setState(() {
         _items[item] = true;
-        _itemPhotos[item] = ruta!;
+        _itemPhotos[item] = fotoRuta;
       });
       await BackpackChecklistStore.save(_items);
-      await BackpackChecklistStore.saveItemPhoto(item, ruta!);
+      await BackpackChecklistStore.saveItemPhoto(item, fotoRuta);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

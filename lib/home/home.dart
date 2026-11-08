@@ -686,21 +686,6 @@ class _InicioState extends State<Inicio> {
     );
   }
 
-  Future<void> _editarInformacion() async {
-    Navigator.pop(context);
-    final actualizada = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => _EditarInformacionPage(datos: widget.datos),
-      ),
-    );
-    if (mounted && actualizada == true) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tu información se actualizó.')),
-      );
-    }
-  }
-
   Future<void> _editarUbicacion() async {
     Navigator.pop(context);
     final actualizada = await Navigator.of(context).push<bool>(

@@ -26,7 +26,7 @@ class PerfilInsignias extends StatelessWidget {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: info.color.withOpacity(0.12),
+                    color: info.color.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(info.icono, color: info.color, size: 30),
@@ -116,8 +116,8 @@ class PerfilInsignias extends StatelessWidget {
                   return ActionChip(
                     avatar: Icon(info.icono, size: 18, color: info.color),
                     label: Text(info.nombre),
-                    backgroundColor: info.color.withOpacity(0.08),
-                    side: BorderSide(color: info.color.withOpacity(0.3)),
+                    backgroundColor: info.color.withValues(alpha: 0.08),
+                    side: BorderSide(color: info.color.withValues(alpha: 0.3)),
                     onPressed: () => _mostrarDetalleInsignia(context, info),
                   );
                 }(),
