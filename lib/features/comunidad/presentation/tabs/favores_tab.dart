@@ -337,15 +337,17 @@ class _EstadoVacioFavores extends StatelessWidget {
 }
 
 void _mostrarDetalleFavor(BuildContext context, Favor favor) {
+  final controller = context.read<ComunidadController>();
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (modalCtx) {
-      return _DetalleFavorSheet(favor: favor);
-    },
+    builder: (_) => ChangeNotifierProvider.value(
+      value: controller,
+      child: _DetalleFavorSheet(favor: favor),
+    ),
   );
 }
 
@@ -366,7 +368,7 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
     final favor = widget.favor;
     final controller = context.watch<ComunidadController>();
     final participanteActual = favor.participantes.where(
-      (p) => p.uid == controller.resumenHoy?.favoresEnCurso.firstOrNull?.participantes.firstOrNull?.uid || p.uid == 'usr_actual',
+      (p) => p.uid == controller.repository.usuarioActualId,
     ).firstOrNull;
 
     final estaParticipando = participanteActual != null;

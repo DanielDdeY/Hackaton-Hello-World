@@ -52,9 +52,12 @@ async function signIn() {
 }
 
 function encode(value) {
+  if (value === null) return { nullValue: null };
   if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
   if (typeof value === 'string') return { stringValue: value };
-  if (typeof value === 'number') return { integerValue: String(value) };
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  }
   return { mapValue: { fields: fields(value) } };
 }
 
@@ -213,5 +216,74 @@ await request(docUrl(helpId), { method: 'DELETE', headers: firestoreAuth(strange
 await request(docUrl(helpId), { method: 'DELETE', headers: firestoreAuth(owner) });
 await request(photoUrl(helpPhoto), { method: 'DELETE', headers: storageAuth(stranger), status: [401, 403] });
 await request(photoUrl(helpPhoto), { method: 'DELETE', headers: storageAuth(owner), status: [200, 204] });
+
+const serviceId = 'service-' + randomUUID();
+const otherServiceId = 'service-other-' + randomUUID();
+const newsId = 'news-' + randomUUID();
+const service = {
+  ...emergency, id: serviceId, category: 'service', authorName: 'Vecino', mediaStatus: 'none',
+  details: {
+    title: 'Reparación de laptops', information: 'Diagnóstico y mantenimiento',
+    serviceCategory: 'technology', categorySource: 'keyword',
+    mode: 'provide_service', price: 25.5, currency: 'PEN',
+    paymentMethods: ['yape'], contactPhone: '987654321',
+  },
+};
+const news = {
+  ...emergency, id: newsId, category: 'news', authorName: 'Vecino', mediaStatus: 'none',
+  details: { title: 'Aviso vecinal', content: 'Primera línea\nSegunda línea', quickCategory: null },
+};
+
+for (const patch of [
+  { serviceCategory: 'unknown' },
+  { price: -1 },
+  { price: '25' },
+  { contactPhone: '887654321' },
+  { contactPhone: '9876543210' },
+]) {
+  await write(serviceId, { ...service, details: { ...service.details, ...patch } }, owner, { status: 403 });
+}
+for (const patch of [{ title: '' }, { content: ' \t\n ' }, { title: 123 }]) {
+  await write(newsId, { ...news, details: { ...news.details, ...patch } }, owner, { status: 403 });
+}
+await write(serviceId, service, owner);
+await write(otherServiceId, {
+  ...service, id: otherServiceId, details: { ...service.details, serviceCategory: 'food', price: 0 },
+}, owner);
+await write(newsId, news, owner);
+
+async function readFeed(category, session, { serviceCategory, status = 200 } = {}) {
+  const equalTo = (fieldPath, value) => ({
+    fieldFilter: { field: { fieldPath }, op: 'EQUAL', value: encode(value) },
+  });
+  const response = await request(firestore + '/v1/' + documents + ':runQuery', {
+    method: 'POST',
+    headers: firestoreAuth(session),
+    status,
+    json: {
+      structuredQuery: {
+        from: [{ collectionId: 'posts' }],
+        where: { compositeFilter: { op: 'AND', filters: [
+          equalTo('category', category),
+          equalTo('status', 'active'),
+          ...(serviceCategory ? [equalTo('details.serviceCategory', serviceCategory)] : []),
+        ] } },
+        orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+        limit: 30,
+      },
+    },
+  });
+  if (!response.ok) return [];
+  return (await response.json()).flatMap(({ document }) => document ? [document.name] : []);
+}
+
+const services = await readFeed('service', stranger);
+assert.ok(services.some((path) => path.endsWith('/' + serviceId)));
+assert.ok(services.some((path) => path.endsWith('/' + otherServiceId)));
+const filteredServices = await readFeed('service', stranger, { serviceCategory: 'technology' });
+assert.ok(filteredServices.some((path) => path.endsWith('/' + serviceId)));
+assert.ok(!filteredServices.some((path) => path.endsWith('/' + otherServiceId)));
+assert.ok((await readFeed('news', stranger)).some((path) => path.endsWith('/' + newsId)));
+await readFeed('news', null, { status: [401, 403] });
 
 console.log('Reglas de Firestore y Storage verificadas con dos sesiones anónimas locales.');

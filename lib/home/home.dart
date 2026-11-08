@@ -66,14 +66,14 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
     if (nombre.isEmpty || _guardando) return;
 
     setState(() => _guardando = true);
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
     try {
       await widget.datos.guardarPerfil(
         nombre,
         _bio.text.trim(),
         widget.datos.foto,
       );
-      final auth = context.read<AuthGateway?>();
-      final store = context.read<UserProfileStore?>();
       final uid = auth?.currentUid;
       if (store != null && uid != null) {
         await store.save(uid, widget.datos.toProfile());
@@ -759,7 +759,7 @@ class _InicioState extends State<Inicio> {
         tarjeta(
           color: const Color(0xffb72f29),
           radius: 15,
-          onTap: _sosSending ? null : confirmarSos,
+          onTap: confirmarSos,
           child: SizedBox(
             key: _sosTutorial,
             width: 82,

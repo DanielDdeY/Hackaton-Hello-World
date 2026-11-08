@@ -1,6 +1,5 @@
 import '../../domain/entities/evento_comunitario.dart';
 import '../../domain/entities/favor.dart';
-import '../../domain/entities/resumen_hoy.dart';
 import '../../domain/entities/vecino_ranking.dart';
 import '../../domain/repositories/comunidad_repository.dart';
 
@@ -12,6 +11,7 @@ class MockComunidadRepository implements ComunidadRepository {
     _inicializarDatos();
   }
 
+  @override
   final String usuarioActualId;
   final String usuarioActualNombre;
 
@@ -20,19 +20,8 @@ class MockComunidadRepository implements ComunidadRepository {
   late List<VecinoRanking> _rankingCuadra;
   late List<VecinoRanking> _rankingBarrio;
   late BuenVecinoSemana _buenVecino;
-  AlertaActiva? _alertaActiva;
 
   void _inicializarDatos() {
-    _alertaActiva = AlertaActiva(
-      id: 'alt_01',
-      titulo: 'Corte de agua programado en la manzana B',
-      descripcion:
-          'Sedapal informa corte por mantenimiento este sábado de 2:00 pm a 6:00 pm. Tomar precauciones.',
-      fecha: DateTime.now().subtract(const Duration(hours: 2)),
-      esModoEmergencia: false,
-      autor: 'Junta Vecinal Sector 4',
-    );
-
     _favores = [
       Favor(
         id: 'fav_01',
@@ -275,30 +264,6 @@ class MockComunidadRepository implements ComunidadRepository {
       motivo:
           'Por coordinar la olla común de emergencia y cuidar a las mascotas de los vecinos durante el corte de luz.',
       votosReconocimiento: 18,
-    );
-  }
-
-  @override
-  Future<ResumenHoy> obtenerResumenHoy() async {
-    final enCurso = _favores.where((f) {
-      return f.participantes.any((p) => p.uid == usuarioActualId) ||
-          (f.solicitanteId == usuarioActualId && f.estado == EstadoFavor.esperandoConfirmacion);
-    }).toList();
-
-    final cercanos = _favores.where((f) => f.tieneCupo).take(3).toList();
-    final proximosEventos = _eventos.take(2).toList();
-
-    return ResumenHoy(
-      alertaActiva: _alertaActiva,
-      favoresEnCurso: enCurso,
-      favoresCercanos: cercanos,
-      eventosProximos: proximosEventos,
-      estadisticasCuadra: const EstadisticasCuadra(
-        cuadraNombre: 'Calle Los Pinos Cdra. 3',
-        porcentajeMochilaPreparada: 68,
-        favoresCompletadosSemana: 12,
-        vecinosActivos: 24,
-      ),
     );
   }
 

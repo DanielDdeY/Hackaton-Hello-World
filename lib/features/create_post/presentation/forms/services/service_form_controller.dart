@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/service_availability.dart';
 import '../../../domain/entities/service_post_data.dart';
 import '../../../domain/services/photo_picker.dart';
+import '../../../domain/services/service_category_classifier.dart';
 
 class ServiceFormController extends ChangeNotifier {
-  ServiceFormController({required this._photoPicker});
+  ServiceFormController({
+    required this._photoPicker,
+    required this._classifier,
+  });
 
   final PhotoPicker _photoPicker;
+  final ServiceCategoryClassifier _classifier;
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
   final amountController = TextEditingController();
@@ -90,6 +95,10 @@ class ServiceFormController extends ChangeNotifier {
     availability: availability,
     stock: int.tryParse(stockController.text, radix: 10),
     attachmentPath: _attachmentPath,
+    serviceCategory: _classifier.classify(
+      title: titleController.text.trim(),
+      information: descriptionController.text.trim(),
+    ),
   );
 
   static int? _minutesOfDay(TimeOfDay? time) {

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunidad_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/evento_comunitario.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/favor.dart';
+import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/comunidad_page.dart';
 import 'package:provider/provider.dart';
 
@@ -12,15 +13,6 @@ void main() {
 
     setUp(() {
       repo = MockComunidadRepository();
-    });
-
-    test('obtenerResumenHoy retorna estadísticas y favores cercanos', () async {
-      final resumen = await repo.obtenerResumenHoy();
-      expect(
-        resumen.estadisticasCuadra.porcentajeMochilaPreparada,
-        greaterThan(0),
-      );
-      expect(resumen.favoresCercanos, isNotEmpty);
     });
 
     test('aceptarFavor descuenta cupos y actualiza estado', () async {
@@ -103,6 +95,39 @@ void main() {
   });
 
   group('Módulo de Comunidad - Pruebas de Interfaz UI', () {
+    testWidgets('El participante del repositorio ve el detalle de su favor', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(500, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Provider<ComunidadRepository>(
+            create: (_) => MockComunidadRepository(usuarioActualId: 'mi-uid'),
+            child: const ComunidadPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final title = find.text('Revisión y cambio de empaque de caño que gotea');
+      await tester.scrollUntilVisible(
+        title,
+        220,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.tap(title);
+      await tester.pumpAndSettle();
+      expect(find.text('Dirección exacta:'), findsOneWidget);
+      expect(find.text('Marcar como terminado'), findsOneWidget);
+    });
+
     testWidgets('ComunidadPage renderiza las 4 pestañas superiores', (
       tester,
     ) async {
@@ -118,11 +143,14 @@ void main() {
       // Permite que los futuros y microtareas del TabController se procesen
       await tester.pumpAndSettle();
 
-      expect(find.text('Hoy'), findsOneWidget);
+      final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+      expect(tabBar.tabs.cast<Tab>().map((tab) => tab.text), [
+        'Favores',
+        'Servicios',
+        'Eventos',
+        'Vecinos',
+      ]);
       expect(find.text('Alertas SOS cercanas'), findsOneWidget);
-      expect(find.text('Favores'), findsOneWidget);
-      expect(find.text('Eventos'), findsOneWidget);
-      expect(find.text('Vecinos'), findsOneWidget);
     });
   });
 }
