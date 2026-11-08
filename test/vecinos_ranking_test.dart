@@ -72,8 +72,8 @@ void main() {
         rachaSemanal: 8,
       );
 
-      expect(profile.level, equals(12));
-      expect(profile.xpEnNivelActual, equals(80));
+      expect(profile.level, equals(9));
+      expect(profile.xpEnNivelActual, equals(20));
       expect(profile.badges.length, equals(2));
       expect(profile.district, equals('Ate'));
 

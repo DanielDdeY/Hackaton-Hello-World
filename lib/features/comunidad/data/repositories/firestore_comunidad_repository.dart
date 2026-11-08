@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../economia/domain/entities/nivel_xp.dart';
 import '../fixtures/datos_simulados_ate.dart';
 import '../../domain/entities/evento_comunitario.dart';
 import '../../domain/entities/favor.dart';
@@ -541,7 +542,7 @@ class FirestoreComunidadRepository implements ComunidadRepository {
           : distrito,
       xpPeriodo: xpPeriodo,
       posicion: posicion,
-      nivel: _int(data['level'] ?? xpTotal ~/ 100),
+      nivel: _int(data['level'] ?? NivelXp.calcularNivel(xpTotal)),
       esUsuarioActual: uid == usuarioActualId,
       bio: (data['bio'] as String?) ?? '',
       insignias: _listaTexto(data['badges'] ?? data['insignias']),
