@@ -319,5 +319,58 @@ await commit(helper,[...eventWrites,coinWrite]);
 await commit(helper,[...eventWrites,coinWrite],[400,403,409]);
 assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,40);
 assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,18);
-console.log('Servicios y recompensas de actividad: atomicidad, evidencia, privacidad e idempotencia verificadas.');
+
+// Bono unico de la mochila: monto fijo, sin publicacion de origen y una sola vez.
+const scout=await newUser('Vecino preparado');
+const intruder=await newUser('Intruso');
+function backpackWrites(uid,{type='backpack_verified',sourceId='mochila',xp=100,coins=50,
+  xpBefore=20,coinsBefore=10,other=uid}={}) {
+  const id=type+'_'+sourceId;
+  return {
+    id,
+    user:write(root(uid),{
+      xp:xpBefore+xp,monthlyXp:xpBefore+xp,rankingPeriod:period,lastActivityReward:id,
+    },{update:true,timestamps:['updatedAt']}),
+    movement:write(root(uid)+'/movimientos/'+id,{
+      id,confirmationId:id,uid,counterpartyUid:other,type,sourceId,
+      deltaXpTotal:xp,deltaXpMonth:xp,deltaCoins:coins,period,status:'released',
+    },{exists:false,timestamps:['createdAt']}),
+    coins:write(account(uid),{availableCoins:coinsBefore+coins},{update:true}),
+  };
+}
+const bonus=backpackWrites(scout.uid);
+// Atomicidad: cada escritura por separado o incompleta se rechaza.
+await commit(scout,[bonus.user,bonus.movement],[403]);
+await commit(scout,[bonus.movement,bonus.coins],[403]);
+await commit(scout,[bonus.user,bonus.coins],[403]);
+await commit(scout,[bonus.coins],[403]);
+// Montos inflados, origen ajeno, tipo falsificado y ajeno a la cuenta.
+const inflatedXp=backpackWrites(scout.uid,{xp:500});
+await commit(scout,[inflatedXp.user,inflatedXp.movement,inflatedXp.coins],[403]);
+const inflatedCoins=backpackWrites(scout.uid,{coins:500});
+await commit(scout,[inflatedCoins.user,inflatedCoins.movement,inflatedCoins.coins],[403]);
+const otherSource=backpackWrites(scout.uid,{sourceId:'otra'});
+await commit(scout,[otherSource.user,otherSource.movement,otherSource.coins],[403]);
+const spoofed=backpackWrites(scout.uid,{type:'favor_completed'});
+await commit(scout,[spoofed.user,spoofed.movement,spoofed.coins],[403]);
+const foreign=backpackWrites(scout.uid);
+await commit(intruder,[foreign.user,foreign.movement,foreign.coins],[403]);
+assert.equal(decode((await get(scout,root(scout.uid))).body.fields).xp,20);
+assert.equal(decode((await get(scout,account(scout.uid))).body.fields).availableCoins,10);
+await get(scout,root(scout.uid)+'/movimientos/'+bonus.id,[404]);
+
+// Reclamo valido: una sola vez, aunque se intente repetir o variar el origen.
+await commit(scout,[bonus.user,bonus.movement,bonus.coins]);
+assert.equal(decode((await get(scout,root(scout.uid))).body.fields).xp,120);
+assert.equal(decode((await get(scout,root(scout.uid))).body.fields).monthlyXp,120);
+assert.equal(decode((await get(scout,account(scout.uid))).body.fields).availableCoins,60);
+await get(scout,root(scout.uid)+'/movimientos/'+bonus.id);
+await commit(scout,[bonus.user,bonus.movement,bonus.coins],[400,403,409]);
+const again=backpackWrites(scout.uid,{xpBefore:120,coinsBefore:60});
+await commit(scout,[again.user,again.movement,again.coins],[400,403,409]);
+const variant=backpackWrites(scout.uid,{sourceId:'otra',xpBefore:120,coinsBefore:60});
+await commit(scout,[variant.user,variant.movement,variant.coins],[403]);
+assert.equal(decode((await get(scout,root(scout.uid))).body.fields).xp,120);
+assert.equal(decode((await get(scout,account(scout.uid))).body.fields).availableCoins,60);
+console.log('Visto Bueno, recompensas de actividad y bono de mochila: atomicidad, evidencia, privacidad e idempotencia verificadas.');
 

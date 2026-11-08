@@ -417,4 +417,33 @@ void main() {
       failure(EconomyFailureReason.unsupportedSource),
     );
   });
+  test('Bono de mochila otorga 100 XP y 50 fichas de forma idempotente', () async {
+    final result = await engine.award(
+      source: EconomySource.backpackVerified,
+      sourceId: 'mochila',
+      operationId: 'operation-00000001',
+    );
+    expect(result.alreadyApplied, false);
+    expect(result.confirmationId, 'backpack_verified_mochila');
+    expect(result.clientXp, 100);
+    expect(result.coins, 50);
+
+    expect(store.docs['users/client']!['xp'], 200);
+    expect(store.docs['users/client']!['monthlyXp'], 110);
+    expect(store.docs['users/client/private/account']!['availableCoins'], 127);
+    final mov = store.docs['users/client/movimientos/backpack_verified_mochila']!;
+    expect(mov['deltaXpTotal'], 100);
+    expect(mov['deltaXpMonth'], 100);
+    expect(mov['deltaCoins'], 50);
+    expect(mov['type'], 'backpack_verified');
+
+    final replay = await engine.award(
+      source: EconomySource.backpackVerified,
+      sourceId: 'mochila',
+      operationId: 'operation-00000001',
+    );
+    expect(replay.alreadyApplied, true);
+    expect(store.docs['users/client']!['xp'], 200);
+    expect(store.docs['users/client/private/account']!['availableCoins'], 127);
+  });
 }

@@ -10,7 +10,6 @@ import { emergencyAlertProjection } from "./emergency_projection";
 export {
   abrirCaja,
   completarFavor,
-  reclamarBonoMochila,
   sortearItem,
   CATALOGO_OFICIAL,
   COSTO_CAJA,

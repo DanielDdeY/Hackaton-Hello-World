@@ -1,11 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:hackaton_hello_world/features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'package:hackaton_hello_world/features/ayuda_prevencion/data/peru_emergency_numbers.dart';
 import 'package:hackaton_hello_world/features/ayuda_prevencion/services/backpack_checklist_store.dart';
 import 'package:hackaton_hello_world/features/ayuda_prevencion/widgets/simulacro_video_page.dart';
+import 'package:hackaton_hello_world/features/economy/domain/models/economy_result.dart';
+import 'package:hackaton_hello_world/features/economy/domain/services/economy_engine.dart';
+
+/// Motor falso: registra las llamadas y devuelve (o lanza) lo configurado.
+class _FakeEngine implements EconomyEngine {
+  _FakeEngine({this.failure, this.alreadyApplied = false});
+
+  final EconomyFailure? failure;
+  final bool alreadyApplied;
+  final awards = <({EconomySource source, String sourceId})>[];
+
+  @override
+  String newOperationId() => 'operation-backpack-0001';
+
+  @override
+  Future<EconomyResult> award({
+    required EconomySource source,
+    required String sourceId,
+    required String operationId,
+    int? rating,
+  }) async {
+    awards.add((source: source, sourceId: sourceId));
+    if (failure != null) throw failure!;
+    return EconomyResult(
+      confirmationId: 'backpack_verified_$sourceId',
+      period: '2026-11',
+      slot: 1,
+      alreadyApplied: alreadyApplied,
+      clientXp: EconomyResult.backpackXp,
+      providerXp: 0,
+      coins: EconomyResult.backpackCoins,
+    );
+  }
+
+  @override
+  Future<EconomyResult> confirmService({
+    required String postId,
+    required int rating,
+    required String operationId,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> confirmFavor({
+    required String postId,
+    required String helperUid,
+  }) => throw UnimplementedError();
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,12 +65,27 @@ void main() {
   Future<void> pumpPage(
     WidgetTester tester, {
     AyudaPrevencionPage page = const AyudaPrevencionPage(),
+    EconomyEngine? engine,
   }) async {
     await tester.binding.setSurfaceSize(const Size(400, 2400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: page)));
+    await tester.pumpWidget(
+      Provider<EconomyEngine?>.value(
+        value: engine,
+        child: MaterialApp(home: Scaffold(body: page)),
+      ),
+    );
     await tester.pumpAndSettle();
   }
+
+  Future<void> marcarTodosLosProductos(WidgetTester tester) async {
+    for (final item in BackpackChecklistStore.defaultItems) {
+      await tester.tap(find.widgetWithText(FilterChip, item));
+      await tester.pumpAndSettle();
+    }
+  }
+
+  const botonBono = 'Reclamar bono de preparación (+50 fichas, +100 XP)';
 
   testWidgets('renderiza las tres secciones principales', (tester) async {
     await pumpPage(tester);
@@ -45,30 +108,92 @@ void main() {
       findsNWidgets(BackpackChecklistStore.defaultItems.length),
     );
 
-    for (final item in BackpackChecklistStore.defaultItems) {
-      await tester.tap(find.widgetWithText(FilterChip, item));
-      await tester.pumpAndSettle();
-    }
-    expect(find.text('Validado por Jefe de Grupo'), findsOneWidget);
-    expect(
-      find.text('Reclamar bono de preparación (+50 fichas, +100 XP)'),
-      findsOneWidget,
-    );
+    await marcarTodosLosProductos(tester);
+    expect(find.text('Mochila completa'), findsOneWidget);
+    expect(find.text('Validado por Jefe de Grupo'), findsNothing);
+    expect(find.text(botonBono), findsOneWidget);
+  });
 
-    await tester.tap(
-      find.text('Reclamar bono de preparación (+50 fichas, +100 XP)'),
-    );
+  testWidgets('reclama el bono con el motor y recuerda la marca local', (
+    tester,
+  ) async {
+    final engine = _FakeEngine();
+    await pumpPage(tester, engine: engine);
+    await marcarTodosLosProductos(tester);
+
+    await tester.tap(find.text(botonBono));
     await tester.pumpAndSettle();
 
+    expect(engine.awards, [
+      (source: EconomySource.backpackVerified, sourceId: 'mochila'),
+    ]);
     expect(
       find.text('Insignia "Vecino preparado" obtenida'),
       findsOneWidget,
     );
+    expect(find.textContaining('+50 fichas y +100 XP'), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('mochila_bono_reclamado_v1'), isTrue);
-    expect(prefs.getInt('vecino_fichas'), 50);
-    expect(prefs.getInt('vecino_xp'), 100);
     expect(prefs.getStringList('vecino_insignias'), contains('vecino-preparado'));
+    // El saldo lo escribe solo el servidor: nunca se suman puntos en local.
+    expect(prefs.getInt('vecino_fichas'), isNull);
+    expect(prefs.getInt('vecino_xp'), isNull);
+  });
+
+  testWidgets('avisa si el bono ya estaba reclamado en el servidor', (
+    tester,
+  ) async {
+    final engine = _FakeEngine(alreadyApplied: true);
+    await pumpPage(tester, engine: engine);
+    await marcarTodosLosProductos(tester);
+
+    await tester.tap(find.text(botonBono));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Tu bono de preparación ya estaba reclamado.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Insignia "Vecino preparado" obtenida'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('no marca el bono como reclamado si el servidor lo rechaza', (
+    tester,
+  ) async {
+    final engine = _FakeEngine(
+      failure: const EconomyFailure(EconomyFailureReason.permissionDenied),
+    );
+    await pumpPage(tester, engine: engine);
+    await marcarTodosLosProductos(tester);
+
+    await tester.tap(find.text(botonBono));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('No se pudo autorizar'), findsOneWidget);
+    expect(find.text(botonBono), findsOneWidget);
+    expect(
+      find.text('Insignia "Vecino preparado" obtenida'),
+      findsNothing,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('mochila_bono_reclamado_v1'), isNull);
+    expect(prefs.getStringList('vecino_insignias'), isNull);
+  });
+
+  testWidgets('pide iniciar sesion si no hay motor de economia', (
+    tester,
+  ) async {
+    await pumpPage(tester);
+    await marcarTodosLosProductos(tester);
+
+    await tester.tap(find.text(botonBono));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Inicia sesión para reclamar el bono.'), findsOneWidget);
+    expect(find.text(botonBono), findsOneWidget);
   });
 
   testWidgets('conserva los productos guardados al ampliar el checklist', (

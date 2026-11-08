@@ -500,9 +500,30 @@ service cloud.firestore {
         && getAfter(account).data.availableCoins == get(account).data.availableCoins + 3;
     }
 
-    function validActivityMovement(uid, id, data) {
+    // Bono unico de la mochila: sin publicacion de origen, monto fijo y una sola vez
+    // (el id fijo del movimiento impide reclamarlo de nuevo).
+    function validBackpackBonus(uid, id, data) {
+      let account = /databases/$(database)/documents/users/$(uid)/private/account;
+      return owns(uid) && data.type == 'backpack_verified'
+        && data.sourceId == 'mochila' && id == 'backpack_verified_mochila'
+        && data.counterpartyUid == uid
+        && data.deltaXpTotal == 100 && data.deltaXpMonth == 100 && data.deltaCoins == 50
+        && getAfter(account).data.availableCoins == get(account).data.availableCoins + 50;
+    }
+
+    // Actividades que dependen de una publicacion (favores y eventos): +10 XP.
+    function validPostActivity(uid, id, data) {
       let postId = data.sourceId;
       let post = get(/databases/$(database)/documents/posts/$(postId)).data;
+      return data.deltaXpTotal == 10 && data.deltaXpMonth == 10
+        && post.status == 'active'
+        && ((data.type == 'favor_completed' && post.category == 'help'
+            && validFavorReward(uid, postId, post, data))
+          || (data.type == 'event_attended' && post.category == 'event'
+            && validEventReward(uid, postId, post, data)));
+    }
+
+    function validActivityMovement(uid, id, data) {
       let user = /databases/$(database)/documents/users/$(uid);
       let after = getAfter(user).data;
       return data.keys().hasOnly([
@@ -510,16 +531,14 @@ service cloud.firestore {
           'deltaXpTotal', 'deltaXpMonth', 'deltaCoins', 'period', 'status', 'createdAt'
         ])
         && data.id == id && data.confirmationId == id && data.uid == uid
-        && id == data.type + '_' + postId && after.lastActivityReward == id
-        && data.deltaXpTotal == 10 && data.deltaXpMonth == 10
+        && id == data.type + '_' + data.sourceId && after.lastActivityReward == id
         && data.status == 'released' && data.createdAt == request.time
-        && post.status == 'active' && activityXpChange(get(user).data, after, data)
-        && ((data.type == 'favor_completed' && post.category == 'help'
-            && validFavorReward(uid, postId, post, data))
-          || (data.type == 'event_attended' && post.category == 'event'
-            && validEventReward(uid, postId, post, data)));
+        && activityXpChange(get(user).data, after, data)
+        && ((data.type == 'backpack_verified' && validBackpackBonus(uid, id, data))
+          || (data.type != 'backpack_verified' && validPostActivity(uid, id, data)));
     }
 
+    // Monedas de actividad: +3 por evento, +50 por el bono de la mochila o +5 por favor completado.
     function activityCoinsUpdate(uid) {
       let id = getAfter(/databases/$(database)/documents/users/$(uid)).data.get('lastActivityReward', '');
       let movement = activityMovement(uid, id);
@@ -527,6 +546,7 @@ service cloud.firestore {
       let after = request.resource.data;
       return signedIn() && id != '' && !exists(movement)
         && ((owns(uid) && data.type == 'event_attended' && data.deltaCoins == 3)
+          || (owns(uid) && data.type == 'backpack_verified' && data.deltaCoins == 50)
           || (data.type == 'favor_completed' && data.deltaCoins == 5
             && data.counterpartyUid == request.auth.uid && request.auth.uid != uid))
         && after.diff(resource.data).affectedKeys().hasOnly(['availableCoins'])

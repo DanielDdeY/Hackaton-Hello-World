@@ -48,8 +48,8 @@ final class ServiceEconomyEngine implements EconomyEngine {
         sourceId: sourceId,
         operationId: operationId,
         movementType: 'backpack_verified',
-        xp: 100,
-        coins: 50,
+        xp: EconomyResult.backpackXp,
+        coins: EconomyResult.backpackCoins,
       ),
       EconomySource.completedFavor =>
       throw const EconomyFailure(EconomyFailureReason.unsupportedSource),

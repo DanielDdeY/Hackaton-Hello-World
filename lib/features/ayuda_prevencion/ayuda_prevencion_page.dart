@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../create_post/domain/services/photo_picker.dart';
+import 'services/reconocedor_objetos.dart';
 import 'widgets/directorio_seccion.dart';
 import 'widgets/mochila_emergencia_card.dart';
 import 'widgets/servicios_cercanos_section.dart';
@@ -12,16 +14,26 @@ import 'widgets/tutorial_card.dart';
 /// Compone: Mochila de Emergencia, Tutorial Paso a Paso,
 /// Directorio de Emergencia (offline) y Servicios cercanos (GPS + Overpass).
 class AyudaPrevencionPage extends StatelessWidget {
-  const AyudaPrevencionPage({super.key, this.simulacroPageBuilder});
+  const AyudaPrevencionPage({
+    super.key,
+    this.simulacroPageBuilder,
+    this.reconocedor,
+    this.photoPicker,
+  });
 
   final WidgetBuilder? simulacroPageBuilder;
+  final ReconocedorObjetos? reconocedor;
+  final PhotoPicker? photoPicker;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        MochilaEmergenciaCard(),
+        MochilaEmergenciaCard(
+          reconocedor: reconocedor,
+          photoPicker: photoPicker,
+        ),
         const SizedBox(height: 12),
         _SimulacroButton(pageBuilder: simulacroPageBuilder),
         const SizedBox(height: 12),
