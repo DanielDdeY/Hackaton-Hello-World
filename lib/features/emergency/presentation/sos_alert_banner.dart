@@ -5,15 +5,24 @@ import '../data/active_sos_alerts.dart';
 import '../domain/emergency_type_labels.dart';
 
 /// Aviso compacto para Inicio: solo aparece cuando hay alertas SOS activas.
-class SosAlertBanner extends StatelessWidget {
+class SosAlertBanner extends StatefulWidget {
   const SosAlertBanner({super.key, this.alerts, this.onOpenMap});
 
   final Stream<List<Map<String, dynamic>>>? alerts;
   final void Function(LatLng? location)? onOpenMap;
 
   @override
+  State<SosAlertBanner> createState() => _SosAlertBannerState();
+}
+
+class _SosAlertBannerState extends State<SosAlertBanner> {
+  final Set<String> _dismissed = {};
+
+  String? _alertId(Map<String, dynamic> alert) => alert['alertId'] as String?;
+
+  @override
   Widget build(BuildContext context) {
-    final alertsStream = alerts ?? ActiveSosAlerts().watch();
+    final alertsStream = widget.alerts ?? ActiveSosAlerts().watch();
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: alertsStream,
       builder: (context, snapshot) {
@@ -21,17 +30,33 @@ class SosAlertBanner extends StatelessWidget {
         if (active == null || active.isEmpty) {
           return const SizedBox.shrink();
         }
-        final sorted = sortSosAlerts(active);
-        return _Banner(alerts: sorted, onOpenMap: onOpenMap);
+        final activeIds = {for (final alert in active) ?_alertId(alert)};
+        _dismissed.removeWhere((id) => !activeIds.contains(id));
+        final sorted = sortSosAlerts(active)
+            .where((alert) => !_dismissed.contains(_alertId(alert)))
+            .toList(growable: false);
+        if (sorted.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return _Banner(
+          alerts: sorted,
+          onOpenMap: widget.onOpenMap,
+          onDismiss: (id) => setState(() => _dismissed.add(id)),
+        );
       },
     );
   }
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({required this.alerts, this.onOpenMap});
+  const _Banner({
+    required this.alerts,
+    required this.onDismiss,
+    this.onOpenMap,
+  });
 
   final List<Map<String, dynamic>> alerts;
+  final ValueChanged<String> onDismiss;
   final void Function(LatLng? location)? onOpenMap;
 
   @override
@@ -97,10 +122,25 @@ class _Banner extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               TextButton(
                 onPressed: () => _openDetails(context),
                 child: const Text('Ver'),
+              ),
+              IconButton(
+                onPressed: () {
+                  final id = latest['alertId'] as String?;
+                  if (id != null) onDismiss(id);
+                },
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: 'Ocultar aviso SOS',
+                color: const Color(0xffb71c1c),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
               ),
             ],
           ),

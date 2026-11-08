@@ -5,7 +5,8 @@ void main() {
   test('traduce los tipos del enum a etiquetas en español', () {
     expect(emergencyTypeLabel('robbery'), 'ROBO');
     expect(emergencyTypeLabel('accident'), 'ACCIDENTE');
-    expect(emergencyTypeLabel('tragedy'), 'TRAGEDIA');
+    expect(emergencyTypeLabel('disaster'), 'DESASTRE');
+    expect(emergencyTypeLabel('tragedy'), 'DESASTRE');
     expect(emergencyTypeLabel('health'), 'SALUD');
     expect(emergencyTypeLabel('fire'), 'INCENDIO');
     expect(emergencyTypeLabel('flood'), 'INUNDACIÓN');
@@ -16,6 +17,8 @@ void main() {
   test('tolera valores antiguos o ya escritos en español', () {
     expect(emergencyTypeLabel('ROBO'), 'ROBO');
     expect(emergencyTypeLabel('Accidente'), 'ACCIDENTE');
+    expect(emergencyTypeLabel('tragedia'), 'DESASTRE');
+    expect(emergencyTypeLabel('desastre'), 'DESASTRE');
     expect(emergencyTypeLabel('emergencia'), 'EMERGENCIA');
     expect(emergencyTypeLabel(''), 'EMERGENCIA');
     expect(emergencyTypeLabel(null), 'EMERGENCIA');

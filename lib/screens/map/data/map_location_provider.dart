@@ -62,7 +62,8 @@ abstract interface class MapLocationProvider {
 
 /// Implementación real basada en `geolocator`.
 class GeolocatorLocationProvider implements MapLocationProvider {
-  GeolocatorLocationProvider({LastLocationStore? store}) : _externalStore = store;
+  GeolocatorLocationProvider({LastLocationStore? store})
+    : _externalStore = store;
 
   /// Límite global de espera: si el sistema no responde (o el plugin no
   /// está disponible), se devuelve [LocationFailure.timeout] en vez de
@@ -118,7 +119,9 @@ class GeolocatorLocationProvider implements MapLocationProvider {
         permission == LocationPermission.always;
     if (!hasPermission) {
       final saved = await _lastKnown(store);
-      if (saved != null) return LocationResult.success(saved, isLastKnown: true);
+      if (saved != null) {
+        return LocationResult.success(saved, isLastKnown: true);
+      }
       return LocationResult.failure(
         permission == LocationPermission.deniedForever
             ? LocationFailure.permissionDeniedForever
@@ -169,19 +172,23 @@ class GeolocatorLocationProvider implements MapLocationProvider {
     Future<void> startPositions() async {
       if (positionSubscription != null) return;
       try {
-        positionSubscription = Geolocator.getPositionStream(
-          locationSettings: _liveSettings,
-        ).listen((position) async {
-          final location = LatLng(position.latitude, position.longitude);
-          _hasLiveLocation = true;
-          if (!controller.isClosed) {
-            controller.add(LocationResult.success(location));
-          }
-          final store = await _resolveStore();
-          store.write(location);
-        }, onError: (_) {
-          // Sin posiciones nuevas: el mapa se queda en el último punto.
-        });
+        positionSubscription =
+            Geolocator.getPositionStream(
+              locationSettings: _liveSettings,
+            ).listen(
+              (position) async {
+                final location = LatLng(position.latitude, position.longitude);
+                _hasLiveLocation = true;
+                if (!controller.isClosed) {
+                  controller.add(LocationResult.success(location));
+                }
+                final store = await _resolveStore();
+                store.write(location);
+              },
+              onError: (_) {
+                // Sin posiciones nuevas: el mapa se queda en el último punto.
+              },
+            );
       } catch (_) {
         // El dispositivo no soporta el stream de posiciones.
       }
@@ -235,7 +242,9 @@ class GeolocatorLocationProvider implements MapLocationProvider {
     if (saved != null) return saved;
     try {
       final lastKnown = await Geolocator.getLastKnownPosition();
-      if (lastKnown != null) return LatLng(lastKnown.latitude, lastKnown.longitude);
+      if (lastKnown != null) {
+        return LatLng(lastKnown.latitude, lastKnown.longitude);
+      }
     } catch (_) {
       // La caché del sistema no está disponible.
     }

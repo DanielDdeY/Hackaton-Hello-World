@@ -271,7 +271,10 @@ class _TarjetaBuenVecino extends StatelessWidget {
               ),
               child: Text(
                 '“${buenVecino.motivo}”',
-                style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
             const SizedBox(height: 12),

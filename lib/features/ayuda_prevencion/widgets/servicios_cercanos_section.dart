@@ -79,9 +79,9 @@ class _ServiciosCercanosSectionState extends State<ServiciosCercanosSection> {
                 child: Text(
                   'Cerca de ti',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
                 ),
               ),
               TextButton.icon(
@@ -93,10 +93,10 @@ class _ServiciosCercanosSectionState extends State<ServiciosCercanosSection> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh, size: 18),
-                label: Text(_status == NearbyStatus.initial ? 'Buscar' : 'Actualizar'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
+                label: Text(
+                  _status == NearbyStatus.initial ? 'Buscar' : 'Actualizar',
                 ),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
               ),
             ],
           ),
@@ -155,7 +155,8 @@ class _ServiciosCercanosSectionState extends State<ServiciosCercanosSection> {
         ];
       case NearbyStatus.success:
         return [
-          for (final service in _services.take(10)) _ServiceTile(service: service),
+          for (final service in _services.take(10))
+            _ServiceTile(service: service),
         ];
     }
   }
@@ -184,7 +185,11 @@ class _ServiceTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 22),
+          const Icon(
+            Icons.location_on_outlined,
+            color: AppColors.primary,
+            size: 22,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -258,10 +263,7 @@ class _InfoBox extends StatelessWidget {
           Icon(icon, color: color, size: 20),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 13, color: color),
-            ),
+            child: Text(text, style: TextStyle(fontSize: 13, color: color)),
           ),
         ],
       ),
