@@ -495,6 +495,13 @@ class _InicioState extends State<Inicio> {
     );
   }
 
+  Future<void> _abrirMiPerfil() async {
+    Navigator.pop(context);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => MiPerfilPage(datos: widget.datos)),
+    );
+  }
+
   Future<void> _editarInformacion() async {
     Navigator.pop(context);
     final actualizada = await Navigator.of(context).push<bool>(
@@ -524,10 +531,16 @@ class _InicioState extends State<Inicio> {
         'vecino_bio',
         'vecino_rol',
         'vecino_xp',
+        'vecino_xp_semana',
         'vecino_stars',
         'vecino_favores',
         'vecino_herramientas',
         'vecino_hambre',
+        'vecino_favores_completados',
+        'vecino_eventos',
+        'vecino_reconocimientos',
+        'vecino_racha',
+        'vecino_insignias',
       ]) {
         await preferences.remove(key);
       }
@@ -585,6 +598,11 @@ class _InicioState extends State<Inicio> {
               subtitle: Text(widget.datos.insignias.join(', ')),
             ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('Mi perfil'),
+            onTap: _abrirMiPerfil,
+          ),
           ListTile(
             leading: const Icon(Icons.edit_outlined),
             title: const Text('Editar información'),
