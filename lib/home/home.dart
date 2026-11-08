@@ -23,6 +23,8 @@ import '../features/emergency/domain/emergency_alert.dart';
 import 'peru_locations.dart';
 import 'user_profile.dart';
 import '../features/economia/domain/entities/nivel_xp.dart';
+import '../features/mascota/data/repositories/local_mascota_repository.dart';
+import '../features/mascota/presentation/pages/mascota_page.dart';
 
 part 'login.dart';
 part 'mi_perfil.dart';
@@ -984,101 +986,105 @@ class _InicioState extends State<Inicio> {
     ),
   );
 
-  Future<void> _alimentarMascota() async {
-    final nuevaHambre = (hambre - .20).clamp(0.0, 1.0).toDouble();
-    setState(() => hambre = nuevaHambre);
-    widget.datos.hambre = nuevaHambre;
-    final auth = context.read<AuthGateway?>();
-    final store = context.read<UserProfileStore?>();
-    final uid = auth?.currentUid;
-    if (store != null && uid != null) {
-      try {
-        await store.save(uid, widget.datos.toProfile());
-      } catch (error) {
-        debugPrint('No se pudo guardar el estado de la mascota: $error');
-      }
-    }
+  void _abrirMascota() {
+    final uid = context.read<AuthGateway?>()?.currentUid ?? 'usr_local';
+    final repo = LocalMascotaRepository(preferences: widget.datos.preferencias);
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MascotaPage(
+          uid: uid,
+          mascotaRepository: repo,
+          fichasActuales: widget.datos.fichas,
+          onFichasActualizadas: (nuevasFichas) {
+            setState(() {
+              widget.datos.fichas = nuevasFichas;
+            });
+            widget.datos.preferencias.setInt('vecino_fichas', nuevasFichas);
+          },
+        ),
+      ),
+    );
   }
 
-  Widget _mascota() => tarjeta(
-    radius: 18,
-    border: true,
-    child: SizedBox(
-      key: _mascotaTutorial,
-      height: 139,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 78,
-              height: 84,
-              decoration: BoxDecoration(
-                color: const Color(0xfffbe8d1),
-                borderRadius: BorderRadius.circular(19),
+  Widget _mascota() {
+    final desbloqueada = widget.datos.mascotaDesbloqueada;
+    return tarjeta(
+      radius: 18,
+      border: true,
+      onTap: desbloqueada ? _abrirMascota : null,
+      child: SizedBox(
+        key: _mascotaTutorial,
+        height: 125,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 78,
+                height: 84,
+                decoration: BoxDecoration(
+                  color: desbloqueada ? const Color(0xfffbe8d1) : const Color(0xfff0f0f0),
+                  borderRadius: BorderRadius.circular(19),
+                ),
+                alignment: Alignment.center,
+                child: desbloqueada
+                    ? Image.asset(
+                        'assets/mascota/cuy-logo.png',
+                        width: 58,
+                        height: 58,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const Icon(Icons.pets, size: 40, color: orange),
+                      )
+                    : const Icon(Icons.lock_outline, size: 36, color: muted),
               ),
-              alignment: Alignment.center,
-              child: widget.datos.mascotaDesbloqueada
-                  ? icono('Firulais', 61)
-                  : const Icon(Icons.lock_outline, size: 38, color: muted),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  label(
-                    widget.datos.mascotaDesbloqueada
-                        ? 'Firulais'
-                        : 'Mascota bloqueada',
-                    17,
-                    bold: true,
-                  ),
-                  const SizedBox(height: 7),
-                  if (widget.datos.mascotaDesbloqueada) ...[
-                    label('Mascota comunitaria · Hambre', 11, color: muted),
-                    const SizedBox(height: 7),
-                    LinearProgressIndicator(
-                      value: hambre,
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(4),
-                      backgroundColor: const Color(0xffefdfca),
-                      color: const Color(0xffc96631),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    label(
+                      desbloqueada ? 'Mi Cuy' : 'Mascota bloqueada',
+                      17,
+                      bold: true,
                     ),
-                    const SizedBox(height: 7),
-                    tarjeta(
-                      color: const Color(0xfffbe1c4),
-                      radius: 12,
-                      onTap: hambre == 0 ? null : _alimentarMascota,
-                      child: SizedBox(
-                        width: 186,
-                        height: 33,
-                        child: Center(
-                          child: label(
-                            hambre == 0
-                                ? 'Firulais está satisfecho'
-                                : 'Alimentar',
-                            12,
-                            bold: true,
-                            color: orange,
+                    const SizedBox(height: 5),
+                    if (desbloqueada) ...[
+                      label('Compañero barrial · Toca para visitarlo', 11, color: muted),
+                      const SizedBox(height: 8),
+                      tarjeta(
+                        color: const Color(0xfffbe1c4),
+                        radius: 12,
+                        onTap: _abrirMascota,
+                        child: SizedBox(
+                          width: 160,
+                          height: 30,
+                          child: Center(
+                            child: label(
+                              'Visitar a mi Cuy',
+                              12,
+                              bold: true,
+                              color: orange,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ] else
-                    label(
-                      'Alcanza el nivel 25 para desbloquearla',
-                      12,
-                      color: muted,
-                    ),
-                ],
+                    ] else
+                      label(
+                        'Alcanza el nivel 2 (210 XP) para desbloquear a tu Cuy',
+                        12,
+                        color: muted,
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _acceso(int index) {
     final (titulo, asset, tono, _) = accesos[index];

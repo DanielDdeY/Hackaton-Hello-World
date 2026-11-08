@@ -14,8 +14,8 @@ const _pasos = [
     'Descubre cuántos favores completaste, qué herramientas prestaste y cuántos puntos ganaste este mes.',
   ),
   (
-    'Mascota comunitaria',
-    'Aquí ves la mascota de tu barrio. Desde el nivel 25 puedes tocar Alimentar para cuidarla.',
+    'Tu Mascota: El Cuy',
+    'Tu compañero del barrio. Al alcanzar el nivel 2 podrás visitarlo, abrir cajas de sorpresas y personalizarlo con accesorios.',
   ),
   (
     'Oficios y favores',
