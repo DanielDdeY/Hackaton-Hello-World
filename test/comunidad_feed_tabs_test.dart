@@ -97,32 +97,59 @@ Future<void> _tap(WidgetTester tester, String label) async {
 }
 
 void main() {
-  testWidgets('Favores muestra la recompensa y conserva la oferta de ayuda', (
+  testWidgets('Favores reserva el contacto y la recompensa para el detalle', (
     tester,
   ) async {
     final repository = _Feed()
       ..favors = const [
         HelpItem(
           id: 'mudanza',
+          title: 'Mudanza',
           description: 'Ayuda para mover cajas',
           authorName: 'Ana',
           hasReward: true,
           rewardDescription: 'Un almuerzo',
+          contactPhone: '987654321',
         ),
         HelpItem(
           id: 'parque',
+          title: 'Limpieza',
           description: 'Limpiar el parque',
           authorName: 'Luis',
         ),
       ];
     await _open(tester, repository);
-    expect(find.text('Con recompensa', findRichText: true), findsOneWidget);
-    expect(find.text('Recompensa: Un almuerzo'), findsOneWidget);
-    expect(find.text('Sin recompensa', findRichText: true), findsOneWidget);
-    expect(
-      find.text('+10 XP (Al confirmar la ayuda)', findRichText: true),
-      findsNWidgets(2),
+    expect(find.text('Con recompensa', findRichText: true), findsNWidgets(2));
+    expect(find.textContaining('Un almuerzo'), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    expect(find.text('WhatsApp'), findsNothing);
+    expect(find.byType(SelectableText), findsNothing);
+    final digitalReward = find.text(
+      '+10 XP · +5 monedas (Al confirmar la ayuda)',
+      findRichText: true,
     );
+    expect(digitalReward, findsNothing);
+    final sheet = find.byType(DraggableScrollableSheet);
+
+    await _tap(tester, 'Mudanza');
+    expect(sheet, findsOneWidget);
+    expect(find.text('Un almuerzo'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsOneWidget);
+    expect(
+      tester.widget<SelectableText>(find.byType(SelectableText)).data,
+      '+51 987654321',
+    );
+    expect(digitalReward, findsNothing);
+    Navigator.of(tester.element(sheet)).pop();
+    await tester.pumpAndSettle();
+
+    await _tap(tester, 'Limpieza');
+    expect(sheet, findsOneWidget);
+    expect(digitalReward, findsOneWidget);
+    expect(find.text('No indicado'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsNothing);
+    Navigator.of(tester.element(sheet)).pop();
+    await tester.pumpAndSettle();
     expect(find.text('Ayudar'), findsNWidgets(2));
 
     await tester.tap(find.text('Ayudar').first);

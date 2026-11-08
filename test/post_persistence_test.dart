@@ -164,6 +164,7 @@ void main() {
     final help = _map(
       HelpPostData(
         description: 'Mudanza',
+        contactPhone: '987654321',
         neededBy: DateTime(2027, 2, 18),
         peopleCount: 2,
         hasReward: true,
@@ -172,14 +173,15 @@ void main() {
     );
     expect(help['details'], {
       'description': 'Mudanza',
+      'contactPhone': '987654321',
       'requiredDate': Timestamp.fromDate(DateTime.utc(2027, 2, 18)),
       'peopleNeeded': 2,
       'cuposTotales': 2,
       'cuposTomados': 0,
       'ayudantes': const <String>[],
       'tamano': 'medio',
-      'fichasRecompensa': 15,
-      'xpRecompensa': 30,
+      'fichasRecompensa': 0,
+      'xpRecompensa': 0,
       'estado': 'abierto',
       'hasReward': true,
     });
@@ -187,6 +189,7 @@ void main() {
     final cleared = _map(
       const HelpPostData(
         description: 'Mudanza',
+        contactPhone: '987654321',
         coordinates: _cachedPoint,
         addressEditedByUser: true,
       ),
@@ -316,7 +319,11 @@ void main() {
       );
       await expectLater(
         repo.publish(
-          const HelpPostData(description: 'Mudanza', photoPath: 'test.jpg'),
+          const HelpPostData(
+            description: 'Mudanza',
+            contactPhone: '987654321',
+            photoPath: 'test.jpg',
+          ),
           authorId: 'owner',
           cancellation: PostCancellation(),
         ),

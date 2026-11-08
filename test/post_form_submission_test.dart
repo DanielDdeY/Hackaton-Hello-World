@@ -314,6 +314,14 @@ void main() {
       await tester.enterText(description, 'Necesito ayuda con una mudanza');
       await tester.pumpAndSettle();
       await _tap(tester, find.text('Publicar'));
+      expect(find.text('Ingresa un número de celular.'), findsOneWidget);
+      expect(repository.drafts, isEmpty);
+      await tester.enterText(
+        _input('Celular de WhatsApp (Obligatorio)'),
+        '987654321',
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Publicar'));
       expect(repository.drafts, isEmpty);
       expect(find.text('Publicando…'), findsOneWidget);
 
@@ -334,6 +342,9 @@ void main() {
         'Necesito ayuda con una mudanza',
       );
 
+      // The longer form scrolls the footer under the transient error snackbar.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
       await _tap(tester, find.text('Publicar'));
       await tester.pumpAndSettle();
       expect(repository.drafts, hasLength(2));
@@ -353,6 +364,10 @@ void main() {
     location.capture.completeError(const LocationUnavailableException());
     await tester.pumpAndSettle();
     await tester.enterText(_input('Descripción (Obligatorio)'), 'Mudanza');
+    await tester.enterText(
+      _input('Celular de WhatsApp (Obligatorio)'),
+      '987654321',
+    );
     await tester.pumpAndSettle();
     await _tap(tester, find.text('Agregar foto'));
     await tester.pumpAndSettle();
