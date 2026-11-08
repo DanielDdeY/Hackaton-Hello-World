@@ -17,15 +17,18 @@ service firebase.storage {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    function communityMatches() {
+    function hasNearbyAlert(alertId) {
       return request.auth != null
+        && firestore.exists(
+          /databases/(default)/documents/users/$(request.auth.uid)/nearby_emergency_alerts/$(alertId)
+        )
         && firestore.get(
-          /databases/(default)/documents/users/$(request.auth.uid)
-        ).data.communityId == resource.metadata.communityId;
+          /databases/(default)/documents/users/$(request.auth.uid)/nearby_emergency_alerts/$(alertId)
+        ).data.status == 'active';
     }
 
     match /incident_photos/{uid}/{alertId}/{fileName} {
-      allow read: if communityMatches();
+      allow read: if owns(uid) || hasNearbyAlert(alertId);
       allow write: if owns(uid)
         && firestore.get(
           /databases/(default)/documents/emergency_alerts/$(alertId)

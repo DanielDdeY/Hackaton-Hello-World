@@ -135,6 +135,11 @@ const metadata = (path) => ({ storagePath: path, downloadUrl: photoUrl(path) + '
 
 const alertUrl = (id) => firestore + '/v1/' + documents + '/emergency_alerts/' + id;
 const missingAlertId = 'sos-' + randomUUID();
+const communityPostUrl = (id) => firestore + '/v1/' + documents + '/community_posts/' + id;
+await request(communityPostUrl(missingAlertId), {
+  headers: firestoreAuth(owner),
+  status: 404,
+});
 await request(alertUrl(missingAlertId), {
   headers: firestoreAuth(owner),
   status: 404,
@@ -142,11 +147,18 @@ await request(alertUrl(missingAlertId), {
 await writeDocument('users', owner.uid, {
   communityId: { stringValue: 'test-district' },
 }, owner);
+await request(firestore + '/v1/' + documents + '/users/' + owner.uid, {
+  headers: firestoreAuth(owner),
+});
+await request(firestore + '/v1/' + documents + '/users/' + owner.uid, {
+  headers: firestoreAuth(stranger),
+  status: 403,
+});
 await writeDocument('emergency_alerts', missingAlertId, {
   reporterUid: { stringValue: owner.uid },
   location: { geoPointValue: { latitude: -12.0464, longitude: -77.0428 } },
   communityId: { stringValue: 'test-district' },
-  radiusMeters: { integerValue: '500' },
+  radiusMeters: { integerValue: '200' },
   status: { stringValue: 'active' },
 }, owner, { transforms: ['createdAt', 'updatedAt'] });
 await request(alertUrl(missingAlertId), { headers: firestoreAuth(owner) });

@@ -15,7 +15,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/create_post/domain/services/auth_gateway.dart';
-import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import '../features/create_post/domain/services/photo_picker.dart';
 import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import '../features/emergency/data/firebase_emergency_alert_repository.dart';
@@ -67,14 +66,14 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
     if (nombre.isEmpty || _guardando) return;
 
     setState(() => _guardando = true);
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
     try {
       await widget.datos.guardarPerfil(
         nombre,
         _bio.text.trim(),
         widget.datos.foto,
       );
-      final auth = context.read<AuthGateway?>();
-      final store = context.read<UserProfileStore?>();
       final uid = auth?.currentUid;
       if (store != null && uid != null) {
         await store.save(uid, widget.datos.toProfile());
@@ -410,10 +409,215 @@ class _InicioState extends State<Inicio> {
     );
   }
 
-  void _abrirFormularioEmergencia() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const EmergencyForm()),
+  Future<void> _editarInformacion() async {
+    Navigator.pop(context);
+    final actualizada = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _EditarInformacionPage(datos: widget.datos),
+      ),
     );
+    if (mounted && actualizada == true) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tu información se actualizó.')),
+      );
+    }
+  }
+
+  Future<void> _cerrarSesion() async {
+    final auth = context.read<AuthGateway?>();
+    try {
+      await auth?.signOut();
+      final preferences = widget.datos.preferencias;
+      for (final key in [
+        'vecino_departamento',
+        'vecino_provincia',
+        'vecino_distrito',
+        'vecino_nombre',
+        'vecino_telefono',
+        'vecino_bio',
+        'vecino_rol',
+        'vecino_xp',
+        'vecino_stars',
+        'vecino_favores',
+        'vecino_herramientas',
+        'vecino_hambre',
+      ]) {
+        await preferences.remove(key);
+      }
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        widget.onSignedOut?.call();
+      }
+    } catch (error) {
+      debugPrint('No se pudo cerrar sesión: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo cerrar sesión.')),
+        );
+      }
+    }
+  }
+
+  Widget _drawer() => Drawer(
+    child: SafeArea(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(widget.datos.nombre),
+            accountEmail: Text(widget.datos.rol),
+            currentAccountPicture: _avatarVecino(
+              widget.datos.iniciales,
+              widget.datos.foto,
+              25,
+            ),
+            decoration: const BoxDecoration(color: orange),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Editar información'),
+            onTap: _editarInformacion,
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Cerrar sesión'),
+            onTap: _cerrarSesion,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> confirmarSos() async {
+    if (_sosSending) return;
+    setState(() => _sosSending = true);
+    var sosStage = 'ubicación GPS';
+    try {
+      final preferences = widget.datos.preferencias;
+      final auth = context.read<AuthGateway?>();
+      final photoPicker = context.read<PhotoPicker>();
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw StateError('Activa el GPS para enviar una alerta SOS.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError('Se necesita permiso de ubicación para enviar SOS.');
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+
+      sosStage = 'autenticación';
+      if (auth == null) {
+        throw StateError('No se pudo iniciar sesión para enviar el SOS.');
+      }
+      final uid = await auth.ensureSignedIn();
+      final localCommunityId = widget.datos.distrito.trim().toLowerCase();
+      sosStage = 'lectura del perfil de comunidad';
+      final profileRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid);
+      final profile = await profileRef.get();
+      final savedCommunityId = profile.data()?['communityId'] as String? ?? '';
+      final communityId = savedCommunityId.trim().isNotEmpty
+          ? savedCommunityId.trim()
+          : localCommunityId;
+      if (communityId.isEmpty) {
+        throw StateError(
+          'Completa tu distrito en el perfil antes de activar el SOS.',
+        );
+      }
+      if (savedCommunityId.trim().isEmpty) {
+        sosStage = 'guardado del distrito en tu perfil';
+        await profileRef.set({
+          'communityId': communityId,
+        }, SetOptions(merge: true));
+      }
+
+      final alertId =
+          _pendingSosId ??
+          preferences.getString('sos_pending_alert_id') ??
+          FirebaseFirestore.instance.collection('emergency_alerts').doc().id;
+      _pendingSosId = alertId;
+      await preferences.setString('sos_pending_alert_id', alertId);
+      final alertRepository = FirebaseEmergencyAlertRepository();
+      sosStage = 'creación de la alerta SOS';
+      await alertRepository.create(
+        alertId: alertId,
+        reporterUid: uid,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        communityId: communityId,
+      );
+
+      sosStage = 'formulario de emergencia';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xffb71c1c),
+          content: Text('SOS activo. Describe la emergencia.'),
+        ),
+      );
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => EmergencyForm(
+            sosAlertId: alertId,
+            sosRepository: FirebaseEmergencyPostRepository(
+              alertId: alertId,
+              photoPicker: photoPicker,
+              firestore: FirebaseFirestore.instance,
+              storage: FirebaseStorage.instance,
+            ),
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+      sosStage = 'verificación de la publicación SOS';
+      final post = await FirebaseFirestore.instance
+          .collection('community_posts')
+          .doc(alertId)
+          .get();
+      if (!post.exists) {
+        await alertRepository.close(alertId, EmergencyAlertStatus.cancelled);
+      }
+      _pendingSosId = null;
+      await preferences.remove('sos_pending_alert_id');
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'SOS Firebase failure at $sosStage: ${error.code} ${error.message}',
+      );
+      if (mounted) {
+        _showSosError(
+          'Firebase rechazó el SOS durante $sosStage (${error.code}).',
+        );
+      }
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        _showSosError(
+          error.reason == AuthFailureReason.anonymousDisabled
+              ? 'Firebase no tiene habilitado el acceso anónimo.'
+              : 'No se pudo iniciar sesión para enviar el SOS.',
+        );
+      }
+    } on StateError catch (error) {
+      if (mounted) _showSosError(error.message.toString());
+    } on Exception catch (error) {
+      if (mounted) {
+        _showSosError('No se pudo activar el SOS. Inténtalo de nuevo. $error');
+      }
+    } finally {
+      if (mounted) setState(() => _sosSending = false);
+    }
   }
 
   void _showSosError(String message) {
@@ -555,7 +759,7 @@ class _InicioState extends State<Inicio> {
         tarjeta(
           color: const Color(0xffb72f29),
           radius: 15,
-          onTap: _abrirFormularioEmergencia,
+          onTap: confirmarSos,
           child: SizedBox(
             key: _sosTutorial,
             width: 82,

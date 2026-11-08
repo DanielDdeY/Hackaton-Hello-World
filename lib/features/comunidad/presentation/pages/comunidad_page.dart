@@ -5,6 +5,7 @@ import '../../data/mocks/mock_comunidad_feed_repository.dart';
 import '../../data/mocks/mock_comunidad_repository.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
 import '../../domain/repositories/comunidad_repository.dart';
+import '../../../community/presentation/community_sos_section.dart';
 import '../controllers/comunidad_controller.dart';
 import '../tabs/eventos_tab.dart';
 import '../tabs/favores_tab.dart';
@@ -83,13 +84,23 @@ class _ComunidadVistaState extends State<_ComunidadVista>
           tabs: _tabs,
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          const FavoresTab(),
-          ServiciosTab(repository: widget.feed),
-          EventosTab(repository: widget.feed),
-          const VecinosTab(),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: CommunitySosSection(),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                const FavoresTab(),
+                ServiciosTab(repository: widget.feed),
+                EventosTab(repository: widget.feed),
+                const VecinosTab(),
+              ],
+            ),
+          ),
         ],
       ),
     );

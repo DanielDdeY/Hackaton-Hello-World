@@ -150,7 +150,7 @@ void main() {
         'Eventos',
         'Vecinos',
       ]);
-      expect(find.text('Hoy'), findsNothing);
+      expect(find.text('Alertas SOS cercanas'), findsOneWidget);
     });
   });
 }

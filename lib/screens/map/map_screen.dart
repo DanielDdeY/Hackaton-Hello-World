@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'data/map_location_provider.dart';
 import 'data/map_places_repository.dart';
+import 'data/emergency_map_repository.dart';
 import 'models/map_place.dart';
 import 'utils/map_geo.dart';
 import 'widgets/location_permission_view.dart';
@@ -32,7 +33,12 @@ import 'widgets/places_list_sheet.dart';
 /// Para previsualizar la pantalla antes de enlazarla en `main.dart`, usa:
 /// `home: const MapScreen()`.
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key, this.repository, this.locationProvider});
+  const MapScreen({
+    super.key,
+    this.repository,
+    this.locationProvider,
+    this.emergencyRepository,
+  });
 
   /// Fuente de datos. Si es `null` se usan los datos de ejemplo.
   final MapPlacesRepository? repository;
@@ -40,6 +46,7 @@ class MapScreen extends StatefulWidget {
   /// Fuente de la ubicación del usuario. Si es `null` se usa
   /// [GeolocatorLocationProvider].
   final MapLocationProvider? locationProvider;
+  final EmergencyMapRepository? emergencyRepository;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -52,8 +59,10 @@ class _MapScreenState extends State<MapScreen> {
 
   late final MapPlacesRepository _repository;
   late final MapLocationProvider _locationProvider;
+  late final EmergencyMapRepository _emergencyRepository;
   final TextEditingController _searchController = TextEditingController();
   StreamSubscription<List<MapPlace>>? _subscription;
+  StreamSubscription<List<EmergencyMapAlert>>? _emergencySubscription;
   StreamSubscription<LocationResult>? _locationSubscription;
   final MapController _mapController = MapController();
 
@@ -66,8 +75,10 @@ class _MapScreenState extends State<MapScreen> {
   bool _locationLoading = true;
 
   List<MapPlace> _places = const [];
+  List<EmergencyMapAlert> _emergencyAlerts = const [];
   bool _loading = true;
   Object? _error;
+  Object? _emergencyError;
   String _query = '';
   _PlaceFilter _filter = _PlaceFilter.all;
 
@@ -76,16 +87,39 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _repository = widget.repository ?? MockMapPlacesRepository();
     _locationProvider = widget.locationProvider ?? GeolocatorLocationProvider();
+    _emergencyRepository =
+        widget.emergencyRepository ?? const EmptyEmergencyMapRepository();
     _subscribe();
+    _subscribeEmergencyAlerts();
     _resolveLocation();
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _emergencySubscription?.cancel();
     _locationSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _subscribeEmergencyAlerts() {
+    _emergencySubscription?.cancel();
+    _emergencySubscription = _emergencyRepository.watchAlerts().listen(
+      (alerts) {
+        if (!mounted) return;
+        setState(() {
+          _emergencyAlerts = alerts
+              .where((alert) => alert.status == 'active')
+              .toList(growable: false);
+          _emergencyError = null;
+        });
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+        setState(() => _emergencyError = error);
+      },
+    );
   }
 
   void _subscribe() {
@@ -223,7 +257,10 @@ class _MapScreenState extends State<MapScreen> {
         .toList(growable: false);
   }
 
-  List<Marker> _markersFor(List<MapPlace> places) {
+  List<Marker> _markersFor(
+    List<MapPlace> places,
+    List<EmergencyMapAlert> alerts,
+  ) {
     return [
       for (final place in places)
         Marker(
@@ -240,14 +277,79 @@ class _MapScreenState extends State<MapScreen> {
               color: place.isBusiness
                   ? Colors.orange.shade700
                   : Colors.blue.shade700,
-              shadows: const [
-                Shadow(color: Colors.black45, blurRadius: 6),
-              ],
+              shadows: const [Shadow(color: Colors.black45, blurRadius: 6)],
+            ),
+          ),
+        ),
+      for (final alert in alerts)
+        Marker(
+          point: alert.location,
+          width: 44,
+          height: 44,
+          child: GestureDetector(
+            onTap: () => _showEmergencyDetails(alert),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xffb71c1c),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black38, blurRadius: 5),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
           ),
         ),
       if (_userLocation != null) _userMarker(_userLocation!),
     ];
+  }
+
+  Future<void> _showEmergencyDetails(EmergencyMapAlert alert) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(
+          Icons.warning_amber_rounded,
+          color: Color(0xffb71c1c),
+          size: 32,
+        ),
+        title: Text(alert.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(alert.type.toUpperCase()),
+            if (alert.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(alert.description),
+            ] else ...[
+              const SizedBox(height: 8),
+              const Text('El vecino está completando los detalles del SOS.'),
+            ],
+            const SizedBox(height: 8),
+            const Text(
+              'Alerta activa · radio de 200 m',
+              style: TextStyle(
+                color: Color(0xffb71c1c),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Punto azul con halo que indica la posición del usuario.
@@ -427,9 +529,18 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                   borderStrokeWidth: 2,
                 ),
+                for (final alert in _emergencyAlerts)
+                  CircleMarker(
+                    point: alert.location,
+                    radius: alert.radiusMeters,
+                    useRadiusInMeter: true,
+                    color: const Color(0xffb71c1c).withValues(alpha: 0.13),
+                    borderColor: const Color(0xffb71c1c),
+                    borderStrokeWidth: 2.5,
+                  ),
               ],
             ),
-            MarkerLayer(markers: _markersFor(visiblePlaces)),
+            MarkerLayer(markers: _markersFor(visiblePlaces, _emergencyAlerts)),
             RichAttributionWidget(
               attributions: [
                 const TextSourceAttribution('OpenStreetMap contributors'),
@@ -449,6 +560,20 @@ class _MapScreenState extends State<MapScreen> {
                 _buildSearchField(theme),
                 const SizedBox(height: 10),
                 _buildFilters(theme),
+                if (_emergencyError != null) ...[
+                  const SizedBox(height: 8),
+                  Material(
+                    color: const Color(0xfffff1f0),
+                    borderRadius: BorderRadius.circular(12),
+                    child: const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Text(
+                        'No se pudieron cargar las alertas SOS cercanas.',
+                        style: TextStyle(color: Color(0xffb71c1c)),
+                      ),
+                    ),
+                  ),
+                ],
                 if (_isLastKnown) ...[
                   const SizedBox(height: 10),
                   _buildLastKnownBanner(theme),

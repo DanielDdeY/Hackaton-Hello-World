@@ -60,53 +60,91 @@ class _CommunityFeedPageState extends State<CommunityFeedPage> {
         );
       }
 
-      final posts = FirebaseFirestore.instance
-          .collection('community_posts')
-          .where('communityId', isEqualTo: communityId)
-          .orderBy('createdAt', descending: true)
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        return const _FeedMessage(
+          icon: Icons.lock_outline,
+          message: 'Inicia sesión para ver las alertas de tu zona.',
+        );
+      }
+      final alerts = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('nearby_emergency_alerts')
+          .where('status', isEqualTo: 'active')
+          .snapshots();
+      final ownAlerts = FirebaseFirestore.instance
+          .collection('emergency_alerts')
+          .where('reporterUid', isEqualTo: uid)
+          .where('status', isEqualTo: 'active')
           .snapshots();
       return Column(
         children: [
           _NearbyAlertsConsent(communityId: communityId),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: posts,
+              stream: alerts,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return const _FeedMessage(
                     icon: Icons.cloud_off_outlined,
-                    message: 'No se pudieron cargar las publicaciones.',
+                    message: 'No se pudieron cargar las alertas cercanas.',
                   );
                 }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final documents = [...snapshot.data!.docs]
-                  ..sort((a, b) {
-                    final aPriority = a.data()['priority'] as int? ?? 0;
-                    final bPriority = b.data()['priority'] as int? ?? 0;
-                    if (aPriority != bPriority) {
-                      return bPriority.compareTo(aPriority);
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: ownAlerts,
+                  builder: (context, ownSnapshot) {
+                    if (ownSnapshot.hasError) {
+                      return const _FeedMessage(
+                        icon: Icons.cloud_off_outlined,
+                        message: 'No se pudieron cargar tus alertas SOS.',
+                      );
                     }
-                    final aDate = a.data()['createdAt'] as Timestamp?;
-                    final bDate = b.data()['createdAt'] as Timestamp?;
-                    return (bDate?.millisecondsSinceEpoch ?? 0).compareTo(
-                      aDate?.millisecondsSinceEpoch ?? 0,
+                    if (!ownSnapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final byId = <String, Map<String, dynamic>>{
+                      for (final document in snapshot.data!.docs)
+                        document.id: {
+                          ...document.data(),
+                          'alertId': document.id,
+                          'category': 'emergency',
+                        },
+                      for (final document in ownSnapshot.data!.docs)
+                        document.id: {
+                          ...document.data(),
+                          'alertId': document.id,
+                          'category': 'emergency',
+                          'detailsPending': false,
+                        },
+                    };
+                    final posts = byId.values.toList()
+                      ..sort((a, b) {
+                        final aDate = a['createdAt'] as Timestamp?;
+                        final bDate = b['createdAt'] as Timestamp?;
+                        return (bDate?.millisecondsSinceEpoch ?? 0).compareTo(
+                          aDate?.millisecondsSinceEpoch ?? 0,
+                        );
+                      });
+                    if (posts.isEmpty) {
+                      return const _FeedMessage(
+                        icon: Icons.notifications_none_outlined,
+                        message:
+                            'Aún no hay alertas SOS activas a menos de 200 m.',
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: posts.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) =>
+                          _CommunityPostCard(data: posts[index]),
                     );
-                  });
-                if (documents.isEmpty) {
-                  return const _FeedMessage(
-                    icon: Icons.groups_outlined,
-                    message: 'Aún no hay publicaciones en tu comunidad.',
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: documents.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 12),
-                  itemBuilder: (context, index) =>
-                      _CommunityPostCard(data: documents[index].data()),
+                  },
                 );
               },
             ),
@@ -217,7 +255,7 @@ class _NearbyAlertsConsentState extends State<_NearbyAlertsConsent>
         title: const Text('Alertas vecinales cercanas'),
         content: const Text(
           'Si aceptas, guardaremos tu ubicación mientras usas la app y '
-          'enviaremos una notificación cuando ocurra un SOS a menos de 500 m. '
+          'enviaremos una notificación cuando ocurra un SOS a menos de 200 m. '
           'Tu ubicación exacta no se muestra en la comunidad.',
         ),
         actions: [
@@ -369,7 +407,9 @@ class _NearbyAlertsConsentState extends State<_NearbyAlertsConsent>
       return const Card(
         margin: EdgeInsets.fromLTRB(16, 8, 16, 0),
         child: ListTile(
-          title: Text('Las alertas push no están disponibles en esta plataforma.'),
+          title: Text(
+            'Las alertas push no están disponibles en esta plataforma.',
+          ),
         ),
       );
     }
@@ -396,7 +436,7 @@ class _NearbyAlertsConsentState extends State<_NearbyAlertsConsent>
               Icons.notifications_active_outlined,
               color: Color(0xffb71c1c),
             ),
-            title: const Text('Recibir alertas SOS a 500 m'),
+            title: const Text('Recibir alertas SOS a 200 m'),
             subtitle: Text(
               _updating
                   ? 'Actualizando…'
@@ -423,6 +463,7 @@ class _CommunityPostCard extends StatelessWidget {
     final photoPath = data['photoPath'] as String?;
     final description = data['description'] as String? ?? '';
     final type = data['emergencyType'] as String? ?? 'Emergencia';
+    final detailsPending = data['detailsPending'] == true;
     return Card(
       color: isEmergency && isActive ? const Color(0xfffff1f0) : null,
       shape: RoundedRectangleBorder(
@@ -459,11 +500,18 @@ class _CommunityPostCard extends StatelessWidget {
               ),
             if (isEmergency) const SizedBox(height: 8),
             Text(
-              data['title'] as String? ?? 'Aviso vecinal',
+              data['title'] as String? ?? 'Alerta SOS cercana',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (detailsPending) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'El vecino está completando los detalles del reporte.',
+                style: TextStyle(color: Color(0xffb71c1c)),
+              ),
+            ],
             if (description.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(description),

@@ -7,12 +7,14 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:hackaton_hello_world/screens/map/data/map_location_provider.dart';
 import 'package:hackaton_hello_world/screens/map/data/map_places_repository.dart';
+import 'package:hackaton_hello_world/screens/map/data/emergency_map_repository.dart';
 import 'package:hackaton_hello_world/screens/map/map_screen.dart';
 import 'package:hackaton_hello_world/screens/map/models/map_place.dart';
 import 'package:hackaton_hello_world/screens/map/widgets/location_permission_view.dart';
 
 void main() {
   const userLocation = LatLng(40.4168, -3.7038);
+  const alertLocation = LatLng(40.4147, -3.7003);
 
   // A ~300 m del usuario.
   final nearPlace = MapPlace(
@@ -57,6 +59,44 @@ void main() {
         .markers;
     expect(markers, hasLength(2));
     expect(markers.any((marker) => marker.point == userLocation), isTrue);
+  });
+
+  testWidgets('muestra la alarma SOS y su radio rojo de 200 m', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          emergencyRepository: _FakeEmergencyRepository([
+            const EmergencyMapAlert(
+              id: 'sos-1',
+              location: alertLocation,
+              radiusMeters: 200,
+              title: 'Accidente de tránsito',
+              type: 'accident',
+              status: 'active',
+              description: 'Choque en la avenida',
+            ),
+          ]),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final circles = tester.widget<CircleLayer>(find.byType(CircleLayer));
+    expect(circles.circles, hasLength(2));
+    expect(
+      circles.circles.any(
+        (circle) =>
+            circle.point == alertLocation &&
+            circle.radius == 200 &&
+            circle.useRadiusInMeter,
+      ),
+      isTrue,
+    );
+    expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
   });
 
   testWidgets('bloquea el mapa sin permiso y lo desbloquea al concederlo', (
@@ -120,12 +160,9 @@ void main() {
       MaterialApp(
         home: MapScreen(
           repository: _FakeRepository(const []),
-          locationProvider: _FakeLocationProvider(
-            [
-              const LocationResult.success(userLocation, isLastKnown: true),
-            ],
-            watchStream: updates.stream,
-          ),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation, isLastKnown: true),
+          ], watchStream: updates.stream),
         ),
       ),
     );
@@ -133,18 +170,12 @@ void main() {
 
     // Arranca con la última ubicación guardada: el mapa se ve y se avisa.
     expect(find.byType(FlutterMap), findsOneWidget);
-    expect(
-      find.text('Mostrando tu última ubicación conocida'),
-      findsOneWidget,
-    );
+    expect(find.text('Mostrando tu última ubicación conocida'), findsOneWidget);
 
     // Llega una posición en vivo: el aviso desaparece.
     updates.add(const LocationResult.success(userLocation));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Mostrando tu última ubicación conocida'),
-      findsNothing,
-    );
+    expect(find.text('Mostrando tu última ubicación conocida'), findsNothing);
   });
 
   testWidgets('si el GPS se corta, el mapa sigue con el último punto', (
@@ -157,31 +188,22 @@ void main() {
       MaterialApp(
         home: MapScreen(
           repository: _FakeRepository(const []),
-          locationProvider: _FakeLocationProvider(
-            [const LocationResult.success(userLocation)],
-            watchStream: updates.stream,
-          ),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ], watchStream: updates.stream),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.byType(FlutterMap), findsOneWidget);
-    expect(
-      find.text('Mostrando tu última ubicación conocida'),
-      findsNothing,
-    );
+    expect(find.text('Mostrando tu última ubicación conocida'), findsNothing);
 
     // El GPS se apaga: se queda en el último punto y aparece el aviso.
-    updates.add(
-      const LocationResult.success(userLocation, isLastKnown: true),
-    );
+    updates.add(const LocationResult.success(userLocation, isLastKnown: true));
     await tester.pumpAndSettle();
     expect(find.byType(FlutterMap), findsOneWidget);
-    expect(
-      find.text('Mostrando tu última ubicación conocida'),
-      findsOneWidget,
-    );
+    expect(find.text('Mostrando tu última ubicación conocida'), findsOneWidget);
   });
 }
 
@@ -211,4 +233,13 @@ class _FakeRepository implements MapPlacesRepository {
 
   @override
   Stream<List<MapPlace>> watchPlaces() => Stream.value(_places);
+}
+
+class _FakeEmergencyRepository implements EmergencyMapRepository {
+  _FakeEmergencyRepository(this._alerts);
+
+  final List<EmergencyMapAlert> _alerts;
+
+  @override
+  Stream<List<EmergencyMapAlert>> watchAlerts() => Stream.value(_alerts);
 }

@@ -38,6 +38,7 @@ import 'home/home.dart';
 import 'home/user_profile.dart';
 import 'screens/map/data/map_location_provider.dart'
     show GeolocatorLocationProvider;
+import 'screens/map/data/firebase_emergency_map_repository.dart';
 import 'screens/map/map_screen.dart';
 
 void main() async {
@@ -217,11 +218,9 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    // Inicio, Mapa y Comunidad gestionan sus propios encabezados.
+    // Mapa y Comunidad gestionan sus propios AppBars superiores
     final ocultarAppBar =
-        _selected == _Destination.home ||
-        _selected == _Destination.map ||
-        _selected == _Destination.community;
+        _selected == _Destination.map || _selected == _Destination.community;
 
     return Scaffold(
       appBar: ocultarAppBar
@@ -235,7 +234,12 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
         children: [
           MiBarrioHome(homeOnly: true, onSignedOut: widget.onSignedOut),
           _mapVisited
-              ? const MapScreen()
+              ? MapScreen(
+                  emergencyRepository: FirebaseEmergencyMapRepository(
+                    firestore: FirebaseFirestore.instance,
+                    auth: FirebaseAuth.instance,
+                  ),
+                )
               : _PlaceholderPage(description: _Destination.map.description),
           const ComunidadPage(),
 
