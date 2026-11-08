@@ -1,12 +1,44 @@
 rules_version = '2';
 
-// MODO HACKATON: acceso totalmente abierto.
-// Cualquier cliente (con o sin sesión) puede leer y subir archivos de
-// cualquier ruta. No usar estas reglas en producción.
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if true;
+    match /posts/{uid}/{postId}/{fileName} {
+      allow read: if request.auth != null;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    function owns(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function hasNearbyAlert(alertId) {
+      return request.auth != null
+        && firestore.exists(
+          /databases/(default)/documents/users/$(request.auth.uid)/nearby_emergency_alerts/$(alertId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)/nearby_emergency_alerts/$(alertId)
+        ).data.status == 'active';
+    }
+
+    match /incident_photos/{uid}/{alertId}/{fileName} {
+      allow read: if owns(uid) || hasNearbyAlert(alertId);
+      allow write: if owns(uid)
+        && firestore.get(
+          /databases/(default)/documents/emergency_alerts/$(alertId)
+        ).data.reporterUid == request.auth.uid
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)')
+        && request.resource.metadata.communityId ==
+          firestore.get(
+            /databases/(default)/documents/users/$(request.auth.uid)
+          ).data.communityId;
     }
   }
 }

@@ -253,6 +253,7 @@ class _EntradaState extends State<_Entrada> {
             'Sin conexión. Inténtalo nuevamente.',
           AuthFailureReason.tooManyRequests =>
             'Demasiados intentos. Espera unos minutos.',
+          AuthFailureReason.anonymousDisabled => 'Activa el proveedor Anónimo en Firebase Console: Authentication > Proveedores de acceso.',
           _ => 'No se pudo preparar el código de prueba.',
         });
       }
@@ -296,8 +297,7 @@ class _EntradaState extends State<_Entrada> {
             profile = await store.loadByPhone(
               _telefonoVerificado,
               fallbackName: 'Vecino',
-              fallbackBio:
-                  'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+              fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
               fallbackDepartment: '',
               fallbackProvince: '',
               fallbackDistrict: '',

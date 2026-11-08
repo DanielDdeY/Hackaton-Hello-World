@@ -188,10 +188,10 @@ final class FirestoreUserProfileStore implements UserProfileStore {
 
   @override
   Future<void> save(String uid, UserProfile profile) async {
-    await _firestore.collection('users').doc(uid).set(
-      profile.toMap(),
-      SetOptions(merge: true),
-    );
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .set(profile.toMap(), SetOptions(merge: true));
     if (profile.phoneNumber.isEmpty) return;
     try {
       await _firestore.collection('phoneIndex').doc(profile.phoneNumber).set({
