@@ -1,11 +1,11 @@
 {
-    "name": "hackaton_hello_world",
-    "short_name": "hackaton_hello_world",
+    "name": "AyniVeci",
+    "short_name": "AyniVeci",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "AyniVeci - Tu comunidad de vecinos",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
