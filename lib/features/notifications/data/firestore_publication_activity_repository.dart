@@ -41,7 +41,8 @@ final class FirestorePublicationActivityRepository
       if (postData!['authorId'] == uid) {
         return _ServiceRequestOutcome.ownService;
       }
-      if ((await transaction.get(request)).exists) {
+      final current = (await transaction.get(request)).data();
+      if (current != null && current['completedAt'] is! Timestamp) {
         return _ServiceRequestOutcome.duplicate;
       }
 
@@ -64,6 +65,79 @@ final class FirestorePublicationActivityRepository
       _ServiceRequestOutcome.ownService =>
         throw PublicationActivityFailure.ownService,
     };
+  }
+
+  @override
+  Stream<List<ServiceRequest>> watchServiceRequests(
+    String postId, {
+    required bool asProvider,
+  }) {
+    final uid = _auth.currentUid;
+    if (uid == null || uid.isEmpty) {
+      return Stream.error(PublicationActivityFailure.noSession);
+    }
+    final requests = _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('serviceRequests');
+    if (asProvider) {
+      return requests
+          .orderBy('requestedAt', descending: true)
+          .snapshots()
+          .map(
+            (snapshot) => [
+              for (final doc in snapshot.docs) _readRequest(doc.id, doc.data()),
+            ],
+          );
+    }
+    return requests.doc(uid).snapshots().map((doc) {
+      final data = doc.data();
+      return [if (data != null) _readRequest(uid, data)];
+    });
+  }
+
+  static ServiceRequest _readRequest(String uid, Map<String, dynamic> data) =>
+      ServiceRequest(
+        requesterUid: uid,
+        requesterName: _text(data['requesterName']) ?? 'Vecino',
+        completionOperationId: data['providerCompletedAt'] is Timestamp
+            ? _text(data['completionOperationId'])
+            : null,
+        isCompleted: data['completedAt'] is Timestamp,
+      );
+
+  @override
+  Future<void> markServiceDelivered({
+    required String postId,
+    required String requesterUid,
+  }) async {
+    final uid = _auth.currentUid;
+    if (uid == null || uid.isEmpty) throw PublicationActivityFailure.noSession;
+    final post = _firestore.collection('posts').doc(postId);
+    final requests = post.collection('serviceRequests');
+    final request = requests.doc(requesterUid);
+    final operationId = requests.doc().id;
+    final failure = await _firestore
+        .runTransaction<PublicationActivityFailure?>((transaction) async {
+          final data = (await transaction.get(post)).data();
+          if (data?['category'] != 'service' ||
+              data?['status'] != 'active' ||
+              data?['authorId'] != uid ||
+              requesterUid == uid) {
+            return PublicationActivityFailure.serviceUnavailable;
+          }
+          final current = (await transaction.get(request)).data();
+          if (current == null) {
+            return PublicationActivityFailure.requestUnavailable;
+          }
+          if (current['providerCompletedAt'] is Timestamp) return null;
+          transaction.update(request, {
+            'providerCompletedAt': FieldValue.serverTimestamp(),
+            'completionOperationId': operationId,
+          });
+          return null;
+        });
+    if (failure != null) throw failure;
   }
 }
 

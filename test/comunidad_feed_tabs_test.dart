@@ -6,9 +6,14 @@ import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunida
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/comunidad_feed_items.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/comunidad_page.dart';
+import 'package:hackaton_hello_world/features/comunidad/presentation/widgets/service_completion_section.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/news_post_data.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/service_category.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/service_post_data.dart';
+import 'package:hackaton_hello_world/features/create_post/domain/services/auth_gateway.dart';
+import 'package:hackaton_hello_world/features/economy/domain/models/economy_result.dart';
+import 'package:hackaton_hello_world/features/economy/domain/services/economy_engine.dart';
+import 'package:hackaton_hello_world/features/notifications/domain/publication_activity.dart';
 import 'package:provider/provider.dart';
 
 class _Feed implements ComunidadFeedRepository {
@@ -96,7 +101,121 @@ Future<void> _tap(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+class _ServiceAuth implements AuthGateway {
+  const _ServiceAuth(this.currentUid);
+
+  @override
+  final String currentUid;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ServiceWorkflow implements PublicationActivityRepository, EconomyEngine {
+  final _changes = StreamController<List<ServiceRequest>>.broadcast();
+  ServiceRequest request = const ServiceRequest(
+    requesterUid: 'client',
+    requesterName: 'Ana',
+  );
+  String? confirmedOperation;
+  int? confirmedRating;
+
+  @override
+  Stream<List<ServiceRequest>> watchServiceRequests(
+    String postId, {
+    required bool asProvider,
+  }) async* {
+    yield [request];
+    yield* _changes.stream;
+  }
+
+  @override
+  Future<void> markServiceDelivered({
+    required String postId,
+    required String requesterUid,
+  }) async {
+    request = ServiceRequest(
+      requesterUid: requesterUid,
+      requesterName: request.requesterName,
+      completionOperationId: 'operation-test-0001',
+    );
+    _changes.add([request]);
+  }
+
+  @override
+  Future<EconomyResult> confirmService({
+    required String postId,
+    required int rating,
+    required String operationId,
+  }) async {
+    confirmedOperation = operationId;
+    confirmedRating = rating;
+    request = ServiceRequest(
+      requesterUid: request.requesterUid,
+      requesterName: request.requesterName,
+      completionOperationId: operationId,
+      isCompleted: true,
+    );
+    _changes.add([request]);
+    return const EconomyResult(
+      confirmationId: 'completed',
+      period: '2026-11',
+      slot: 1,
+      coins: EconomyResult.serviceCoins,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  testWidgets('el proveedor entrega y el cliente confirma la misma solicitud', (
+    tester,
+  ) async {
+    final workflow = _ServiceWorkflow();
+    addTearDown(workflow._changes.close);
+    Future<void> open(String uid) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          key: ValueKey(uid),
+          providers: [
+            Provider<AuthGateway>.value(value: _ServiceAuth(uid)),
+            Provider<PublicationActivityRepository>.value(value: workflow),
+            Provider<EconomyEngine>.value(value: workflow),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: ServiceCompletionSection(
+                item: ServiceItem(
+                  id: 'repair',
+                  title: 'Reparación',
+                  information: 'Visita técnica',
+                  category: ServiceCategory.technology,
+                  authorId: 'provider',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await open('client');
+    expect(find.text('Confirmar recepción'), findsNothing);
+    await open('provider');
+    await _tap(tester, 'Trabajo realizado');
+    expect(find.text('Esperando confirmación del cliente'), findsOneWidget);
+    expect(workflow.confirmedOperation, isNull);
+    await open('client');
+    await _tap(tester, 'Confirmar recepción');
+    await _tap(tester, '4 estrellas');
+    expect(workflow.confirmedOperation, 'operation-test-0001');
+    expect(workflow.confirmedRating, 4);
+    expect(find.text('Recepción confirmada'), findsOneWidget);
+  });
+
   testWidgets('Favores reserva el contacto y la recompensa para el detalle', (
     tester,
   ) async {
@@ -170,7 +289,10 @@ void main() {
     await _tap(tester, 'Servicios');
     expect(find.text('S/ 25.00'), findsOneWidget);
     expect(
-      find.text('+15 XP cliente (+25 XP proveedor)', findRichText: true),
+      find.text(
+        '+15 XP cliente (+25 XP proveedor · 5 monedas c/u)',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     await _tap(tester, 'Reparación de laptops');

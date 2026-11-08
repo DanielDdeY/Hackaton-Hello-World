@@ -237,6 +237,7 @@ final class ServiceEconomyEngine implements EconomyEngine {
           period: receipt['period'] as String,
           slot: receipt['slot'] as int,
           alreadyApplied: true,
+          coins: (receipt['coins'] as num?)?.toInt() ?? 0,
         );
       }
       final post = await tx.get('posts/$postId');
@@ -253,6 +254,13 @@ final class ServiceEconomyEngine implements EconomyEngine {
       }
       if (provider == client) {
         throw const EconomyFailure(EconomyFailureReason.selfConfirmation);
+      }
+      final requestPath = 'posts/$postId/serviceRequests/$client';
+      final request = await tx.get(requestPath);
+      if (request?['providerCompletedAt'] == null ||
+          request?['completionOperationId'] != operationId ||
+          request?['completedAt'] != null) {
+        throw const EconomyFailure(EconomyFailureReason.serviceNotDelivered);
       }
       final clientPath = 'users/$client';
       final providerPath = 'users/$provider';
@@ -286,7 +294,7 @@ final class ServiceEconomyEngine implements EconomyEngine {
         'operationId': operationId,
         'createdAt': timestamp,
       };
-      // All reads above, all six writes below. Firestore retries on conflicts.
+      // The completion and both rewards share one transaction.
       tx.update(
         clientPath,
         _reward(clientData!, EconomyResult.serviceClientXp, period, id, timestamp),
@@ -296,6 +304,12 @@ final class ServiceEconomyEngine implements EconomyEngine {
         'reviewCount': count + 1,
         'averageStars': (average * count + rating) / (count + 1),
       });
+      tx.increment('$clientPath/private/account', 'availableCoins', EconomyResult.serviceCoins);
+      tx.increment('$providerPath/private/account', 'availableCoins', EconomyResult.serviceCoins);
+      tx.update(requestPath, {
+        'completedAt': timestamp,
+        'confirmationId': id,
+      });
       tx.create('serviceConfirmations/$id', confirmation);
       tx.create(receiptPath, {
         'confirmationId': id,
@@ -304,11 +318,13 @@ final class ServiceEconomyEngine implements EconomyEngine {
         'period': period,
         'slot': slot,
         'rating': rating,
+        'coins': EconomyResult.serviceCoins,
         'createdAt': timestamp,
       });
       tx.create(
         '$clientPath/movimientos/$id',
-        _movement(
+        {
+          ..._movement(
           id,
           client,
           provider,
@@ -317,11 +333,14 @@ final class ServiceEconomyEngine implements EconomyEngine {
           'service_used_client',
           EconomyResult.serviceClientXp,
           timestamp,
-        ),
+          ),
+          'deltaCoins': EconomyResult.serviceCoins,
+        },
       );
       tx.create(
         '$providerPath/movimientos/$id',
-        _movement(
+        {
+          ..._movement(
           id,
           provider,
           client,
@@ -330,9 +349,16 @@ final class ServiceEconomyEngine implements EconomyEngine {
           'service_provided',
           EconomyResult.serviceProviderXp,
           timestamp,
-        ),
+          ),
+          'deltaCoins': EconomyResult.serviceCoins,
+        },
       );
-      return EconomyResult(confirmationId: id, period: period, slot: slot);
+      return EconomyResult(
+        confirmationId: id,
+        period: period,
+        slot: slot,
+        coins: EconomyResult.serviceCoins,
+      );
     });
   }
 

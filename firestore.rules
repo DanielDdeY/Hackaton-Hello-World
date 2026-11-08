@@ -183,15 +183,49 @@ service cloud.firestore {
 
       allow get: if owns(uid) || isServiceOwner();
       allow list: if isServiceOwner();
-      allow create: if owns(uid)
-        && servicePost().category == 'service' && servicePost().status == 'active'
-        && nonBlank(servicePost().authorId) && servicePost().authorId != uid
-        && request.resource.data.keys().hasOnly(['requestedAt', 'requesterName'])
-        && request.resource.data.requestedAt == request.time
-        && (!('requesterName' in request.resource.data)
-          || (nonBlank(request.resource.data.requesterName)
-            && request.resource.data.requesterName.size() <= 100));
-      allow update, delete: if false;
+      function validNewRequest() {
+        let post = servicePost();
+        let data = request.resource.data;
+        return owns(uid) && post.category == 'service' && post.status == 'active'
+          && nonBlank(post.authorId) && post.authorId != uid
+          && data.keys().hasOnly(['requestedAt', 'requesterName'])
+          && data.requestedAt == request.time
+          && (!('requesterName' in data)
+            || (nonBlank(data.requesterName) && data.requesterName.size() <= 100));
+      }
+
+      function providerMarksDelivered() {
+        let after = request.resource.data;
+        return isServiceOwner() && servicePost().status == 'active'
+          && request.auth.uid != uid
+          && resource.data.get('providerCompletedAt', null) == null
+          && resource.data.get('completedAt', null) == null
+          && after.diff(resource.data).affectedKeys().hasOnly([
+            'providerCompletedAt', 'completionOperationId'
+          ])
+          && after.providerCompletedAt == request.time
+          && validServiceOperation(after.completionOperationId);
+      }
+
+      function clientCompletesRequest() {
+        let after = request.resource.data;
+        let id = after.get('confirmationId', '');
+        let confirmation = /databases/$(database)/documents/serviceConfirmations/$(id);
+        return owns(uid) && id != ''
+          && resource.data.providerCompletedAt is timestamp
+          && resource.data.get('completedAt', null) == null
+          && after.diff(resource.data).affectedKeys().hasOnly(['completedAt', 'confirmationId'])
+          && after.completedAt == request.time
+          && !exists(confirmation)
+          && getAfter(confirmation).data.clientUid == uid
+          && getAfter(confirmation).data.postId == postId
+          && getAfter(confirmation).data.operationId == resource.data.completionOperationId;
+      }
+
+      allow create: if validNewRequest();
+      allow update: if (resource.data.get('completedAt', null) is timestamp && validNewRequest())
+        || providerMarksDelivered() || clientCompletesRequest();
+      allow delete: if false;
     }
 
     match /posts/{postId}/attendance/{uid} {
@@ -302,6 +336,10 @@ service cloud.firestore {
       return period + '_' + client + '_' + provider + '_' + string(slot);
     }
 
+    function validServiceOperation(operation) {
+      return operation is string && operation.matches('^[A-Za-z0-9_-]{16,80}$');
+    }
+
     function serviceRewardUpdate(uid) {
       let before = resource.data;
       let after = request.resource.data;
@@ -337,8 +375,11 @@ service cloud.firestore {
       let provider = data.providerUid;
       let operation = data.operationId;
       let first = confirmationKey(data.period, client, provider, 1);
-      let clientAfter = getAfter(/databases/$(database)/documents/users/$(client)).data;
-      let providerAfter = getAfter(/databases/$(database)/documents/users/$(provider)).data;
+      let postId = data.postId;
+      let requestPath = /databases/$(database)/documents/posts/$(postId)/serviceRequests/$(client);
+      let before = get(requestPath).data;
+      let after = getAfter(requestPath).data;
+      let receipt = getAfter(/databases/$(database)/documents/users/$(client)/serviceOperations/$(operation)).data;
       return signedIn() && client == request.auth.uid && client != provider
         && data.keys().hasOnly([
           'id', 'clientUid', 'providerUid', 'postId', 'period',
@@ -347,18 +388,16 @@ service cloud.firestore {
         && data.id == id && data.slot in [1, 2] && data.slot is int
         && data.rating is int && data.rating >= 1 && data.rating <= 5
         && data.period == currentPeriod() && data.createdAt == request.time
-        && operation is string && operation.matches('^[A-Za-z0-9_-]{16,80}$')
+        && validServiceOperation(operation)
         && id == confirmationKey(data.period, client, provider, data.slot)
         && validServiceOwner(data.postId, provider)
         && (data.slot == 1 || exists(/databases/$(database)/documents/serviceConfirmations/$(first)))
-        && !exists(/databases/$(database)/documents/users/$(client)/serviceOperations/$(operation))
-        && getAfter(/databases/$(database)/documents/users/$(client)/serviceOperations/$(operation)).data.confirmationId == id
-        && clientAfter.lastServiceConfirmation == id
-        && providerAfter.lastServiceConfirmation == id
-        && clientAfter.xp == get(/databases/$(database)/documents/users/$(client)).data.xp + 15
-        && providerAfter.xp == get(/databases/$(database)/documents/users/$(provider)).data.xp + 25
-        && getAfter(/databases/$(database)/documents/users/$(client)/movimientos/$(id)).data.confirmationId == id
-        && getAfter(/databases/$(database)/documents/users/$(provider)/movimientos/$(id)).data.confirmationId == id;
+        && before.providerCompletedAt is timestamp && before.completionOperationId == operation
+        && before.get('completedAt', null) == null
+        && after.confirmationId == id && after.completedAt == request.time
+        && receipt.confirmationId == id && receipt.createdAt == request.time
+        && getAfter(activityMovement(client, id)).data.createdAt == request.time
+        && getAfter(activityMovement(provider, id)).data.createdAt == request.time;
     }
 
     function validServiceOwner(postId, provider) {
@@ -370,6 +409,9 @@ service cloud.firestore {
       let confirmation = getAfter(/databases/$(database)/documents/serviceConfirmations/$(id)).data;
       let client = uid == confirmation.clientUid;
       let gain = client ? 15 : 25;
+      let user = /databases/$(database)/documents/users/$(uid);
+      let after = getAfter(user).data;
+      let account = /databases/$(database)/documents/users/$(uid)/private/account;
       return signedIn() && request.auth.uid == confirmation.clientUid
         && uid in [confirmation.clientUid, confirmation.providerUid]
         && !exists(/databases/$(database)/documents/serviceConfirmations/$(id))
@@ -381,7 +423,10 @@ service cloud.firestore {
         && data.counterpartyUid == (client ? confirmation.providerUid : confirmation.clientUid)
         && data.type == (client ? 'service_used_client' : 'service_provided')
         && data.sourceId == confirmation.postId && data.period == confirmation.period
-        && data.deltaXpTotal == gain && data.deltaXpMonth == gain && data.deltaCoins == 0
+        && data.deltaXpTotal == gain && data.deltaXpMonth == gain && data.deltaCoins == 5
+        && after.lastServiceConfirmation == id && after.updatedAt == request.time
+        && after.xp == get(user).data.xp + gain
+        && getAfter(account).data.availableCoins == get(account).data.availableCoins + 5
         && data.status == 'released' && data.createdAt == request.time;
     }
 
@@ -391,11 +436,22 @@ service cloud.firestore {
       return owns(uid) && confirmation.clientUid == uid && confirmation.operationId == operation
         && !exists(/databases/$(database)/documents/serviceConfirmations/$(id))
         && data.keys().hasOnly([
-          'confirmationId', 'postId', 'providerUid', 'period', 'slot', 'rating', 'createdAt'
+          'confirmationId', 'postId', 'providerUid', 'period', 'slot', 'rating', 'coins', 'createdAt'
         ])
         && data.postId == confirmation.postId && data.providerUid == confirmation.providerUid
         && data.period == confirmation.period && data.slot == confirmation.slot
-        && data.rating == confirmation.rating && data.createdAt == request.time;
+        && data.rating == confirmation.rating && data.coins == 5
+        && data.createdAt == request.time;
+    }
+
+    function serviceCoinsUpdate(uid) {
+      let id = getAfter(/databases/$(database)/documents/users/$(uid)).data.get('lastServiceConfirmation', '');
+      let confirmation = /databases/$(database)/documents/serviceConfirmations/$(id);
+      let data = getAfter(confirmation).data;
+      return signedIn() && id != '' && !exists(confirmation)
+        && data.clientUid == request.auth.uid && uid in [data.clientUid, data.providerUid]
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableCoins'])
+        && request.resource.data.availableCoins == resource.data.availableCoins + 5;
     }
 
     function activityMovement(uid, id) {
@@ -541,7 +597,7 @@ service cloud.firestore {
                 get(/databases/$(database)/documents/users/$(uid)).data.get('availableCoins',
                   get(/databases/$(database)/documents/users/$(uid)).data.get('monedasDisponibles', 0)))
           );
-        allow update: if activityCoinsUpdate(uid) || owns(uid)
+        allow update: if serviceCoinsUpdate(uid) || activityCoinsUpdate(uid) || owns(uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phoneNumber', 'email'])
           && request.resource.data.phoneNumber is string && request.resource.data.email is string;
       }
