@@ -301,6 +301,37 @@ await write(otherServiceId, {
 await write(newsId, news, owner);
 await write(eventId, event, owner);
 
+const serviceRequests = docUrl(serviceId) + '/serviceRequests';
+const strangerRequest = serviceRequests + '/' + stranger.uid;
+async function sendServiceRequest(postId, uid, session, status = 200) {
+  await request(firestore + '/v1/' + documents + ':commit', {
+    method: 'POST',
+    headers: firestoreAuth(session),
+    status,
+    json: {
+      writes: [{
+        update: {
+          name: documents + '/posts/' + postId + '/serviceRequests/' + uid,
+          fields: fields({ requesterName: 'Vecino' }),
+        },
+        updateTransforms: [{ fieldPath: 'requestedAt', setToServerValue: 'REQUEST_TIME' }],
+      }],
+    },
+  });
+}
+await request(strangerRequest, { headers: firestoreAuth(stranger), status: 404 });
+await sendServiceRequest(serviceId, stranger.uid, stranger);
+await sendServiceRequest(serviceId, stranger.uid, stranger, 403);
+await sendServiceRequest(serviceId, owner.uid, owner, 403);
+await sendServiceRequest(serviceId, owner.uid, stranger, 403);
+await sendServiceRequest(eventId, stranger.uid, stranger, 403);
+await request(strangerRequest, { headers: firestoreAuth(stranger) });
+const receivedRequests = await request(serviceRequests, { headers: firestoreAuth(owner) });
+assert.equal((await receivedRequests.json()).documents.length, 1);
+await request(serviceRequests, { headers: firestoreAuth(stranger), status: 403 });
+const unrelated = await signIn();
+await request(strangerRequest, { headers: firestoreAuth(unrelated), status: 403 });
+
 async function readFeed(category, session, { serviceCategory, status = 200 } = {}) {
   const equalTo = (fieldPath, value) => ({
     fieldFilter: { field: { fieldPath }, op: 'EQUAL', value: encode(value) },
@@ -375,4 +406,4 @@ await request(ownerMovimientoUrl, {
   status: 403,
 });
 
-console.log('Reglas de Firestore y Storage verificadas con dos sesiones anónimas locales.');
+console.log('Reglas de Firestore y Storage verificadas con sesiones anónimas locales.');
