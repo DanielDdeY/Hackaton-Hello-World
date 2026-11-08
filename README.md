@@ -57,8 +57,12 @@ Google; en web usa el popup de Firebase.
 
 El Home guarda el perfil de cada usuario en `users/{uid}` de Firestore:
 nombre, ubicación, XP, estrellas, favores, herramientas y estado de la
-mascota. Publica las reglas con `firebase deploy --only firestore:rules`
-para permitir únicamente el acceso del usuario a su propio perfil.
+mascota.
+
+> **Modo hackatón:** `firestore.rules` y `storage.rules` están abiertas
+> (`allow read, write: if true`) para que cualquier cliente pueda leer y
+> escribir sin bloqueos. Es útil para la demo, pero **no debe usarse en
+> producción**: cualquiera con la URL del proyecto puede modificar los datos.
 
 El registro con celular usa un código de prueba fijo: `123456`. Un teléfono
 nuevo solicita nombres y apellidos antes del código; un teléfono existente
@@ -77,12 +81,10 @@ Para verificar las reglas de acceso en el proyecto de demostración:
 npx.cmd --yes firebase-tools emulators:exec --only auth,firestore,storage --project demo-hackaton-hello-world "node test/firebase_rules_test.mjs"
 ```
 
-Antes de usar el proyecto remoto, revisa las reglas que tenga desplegadas y
-confirma que estén habilitados Auth anónimo, Firestore y el bucket de Storage.
-Si ya hay reglas para otros módulos, integra los bloques de publicaciones con
-esas reglas antes de desplegar.
-Una vez revisados esos cambios, el despliegue de reglas e índices se hace desde
-la raíz del proyecto:
+Antes de usar el proyecto remoto, confirma que estén habilitados Auth anónimo,
+Firestore y el bucket de Storage. Las reglas actuales reemplazan cualquier
+bloque anterior por acceso abierto total (modo hackatón).
+El despliegue de reglas e índices se hace desde la raíz del proyecto:
 
 ```powershell
 npx.cmd --yes firebase-tools deploy --project hackaton-hello-world --only firestore:rules,firestore:indexes,storage
