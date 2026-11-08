@@ -240,6 +240,7 @@ final class FirestoreComunidadFeedRepository
 
     return ServiceItem(
       id: id,
+      authorId: _text(data['authorId']),
       title: title,
       information: information,
       category: ServiceCategory.values.firstWhere(

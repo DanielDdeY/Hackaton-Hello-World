@@ -154,6 +154,29 @@ service cloud.firestore {
         || validConfirmation();
     }
 
+    match /posts/{postId}/serviceRequests/{uid} {
+      function servicePost() {
+        return get(/databases/$(database)/documents/posts/$(postId)).data;
+      }
+
+      function isServiceOwner() {
+        return signedIn() && servicePost().category == 'service'
+          && servicePost().authorId == request.auth.uid;
+      }
+
+      allow get: if owns(uid) || isServiceOwner();
+      allow list: if isServiceOwner();
+      allow create: if owns(uid)
+        && servicePost().category == 'service' && servicePost().status == 'active'
+        && nonBlank(servicePost().authorId) && servicePost().authorId != uid
+        && request.resource.data.keys().hasOnly(['requestedAt', 'requesterName'])
+        && request.resource.data.requestedAt == request.time
+        && (!('requesterName' in request.resource.data)
+          || (nonBlank(request.resource.data.requesterName)
+            && request.resource.data.requesterName.size() <= 100));
+      allow update, delete: if false;
+    }
+
     match /posts/{postId}/attendance/{uid} {
       allow read: if signedIn();
       allow create, update: if owns(uid)

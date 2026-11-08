@@ -49,6 +49,8 @@ import 'features/economy/domain/services/service_economy_engine.dart';
 import 'firebase_options.dart';
 import 'home/home.dart';
 import 'home/user_profile.dart';
+import 'features/notifications/data/firestore_publication_activity_repository.dart';
+import 'features/notifications/domain/publication_activity.dart';
 import 'screens/map/data/map_location_provider.dart'
     show GeolocatorLocationProvider;
 import 'screens/map/data/firebase_emergency_map_repository.dart';
@@ -83,6 +85,10 @@ void main() async {
   runApp(
     MyApp(
       authGateway: auth,
+      publicationActivityRepository: FirestorePublicationActivityRepository(
+        firestore: firestore,
+        auth: auth,
+      ),
       recognitionRepository: FirestoreRecognitionRepository(
         auth: auth,
         authorNames: authorNames,
@@ -132,6 +138,7 @@ class MyApp extends StatelessWidget {
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
     this.authGateway,
+    this.publicationActivityRepository,
     this.recognitionRepository,
     this.userRepository,
     this.economyEngine,
@@ -151,6 +158,7 @@ class MyApp extends StatelessWidget {
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
   final AuthGateway? authGateway;
+  final PublicationActivityRepository? publicationActivityRepository;
   final RecognitionRepository? recognitionRepository;
   final UserRepository? userRepository;
   final EconomyEngine? economyEngine;
@@ -167,6 +175,9 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<AuthGateway?>.value(value: authGateway),
+        Provider<PublicationActivityRepository?>.value(
+          value: publicationActivityRepository,
+        ),
         Provider<RecognitionRepository?>.value(value: recognitionRepository),
         Provider<UserRepository?>.value(value: userRepository),
         Provider<EconomyEngine?>.value(value: economyEngine),

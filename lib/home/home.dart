@@ -32,6 +32,8 @@ import 'user_profile.dart';
 import '../features/economia/domain/entities/nivel_xp.dart';
 import '../features/mascota/data/repositories/local_mascota_repository.dart';
 import '../features/mascota/presentation/pages/mascota_page.dart';
+import '../features/notifications/domain/publication_activity.dart';
+import '../features/notifications/presentation/publication_notifications_sheet.dart';
 
 part 'login.dart';
 part 'mi_perfil.dart';
@@ -1072,13 +1074,16 @@ class _InicioState extends State<Inicio> {
         label('AYNI VECI', 13, bold: true, color: orange),
         InkWell(
           key: _campanaTutorial,
-          onTap: () => detalle(
-            'Notificaciones',
-            'Aquí aparecerán los avisos de tu grupo.',
+          onTap: () => showPublicationNotifications(
+            context,
+            context.read<PublicationActivityRepository?>(),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: icono('Notificaciones', 22),
+          child: Tooltip(
+            message: 'Notificaciones',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: icono('Notificaciones', 22),
+            ),
           ),
         ),
       ],
