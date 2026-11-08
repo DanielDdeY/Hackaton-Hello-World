@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../economy/domain/models/economy_result.dart';
+import '../../economy/domain/services/economy_engine.dart';
+import '../../economy/presentation/economy_failure_messages.dart';
 import '../services/backpack_checklist_store.dart';
 import '../services/mochila_estado.dart';
 import 'help_section_card.dart';
@@ -46,30 +50,52 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
 
   Future<void> _reclamarBono() async {
     if (_reclamando || _bonoReclamado) return;
+    final engine = context.read<EconomyEngine?>();
+    final messenger = ScaffoldMessenger.of(context);
+    if (engine == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Inicia sesión para reclamar el bono.')),
+      );
+      return;
+    }
     setState(() => _reclamando = true);
     try {
-      await MochilaVerificacion.reclamarBono();
-      if (mounted) {
-        setState(() {
-          _bonoReclamado = true;
-          _reclamando = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '¡Bono de preparación reclamado! +50 fichas y +100 XP 🎉',
-            ),
-            backgroundColor: Color(0xFF2E7D32),
+      // Las fichas y el XP las fija el motor; aqui nunca se envian montos.
+      final result = await engine.award(
+        source: EconomySource.backpackVerified,
+        sourceId: MochilaVerificacion.sourceId,
+        operationId: engine.newOperationId(),
+      );
+      await MochilaVerificacion.marcarReclamado();
+      if (!mounted) return;
+      setState(() {
+        _bonoReclamado = true;
+        _reclamando = false;
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.alreadyApplied
+                ? 'Tu bono de preparación ya estaba reclamado.'
+                : '¡Bono de preparación reclamado! '
+                      '+${EconomyResult.backpackCoins} fichas y '
+                      '+${EconomyResult.backpackXp} XP 🎉',
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _reclamando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al reclamar bono: $e')),
-        );
-      }
+          backgroundColor: const Color(0xFF2E7D32),
+        ),
+      );
+    } on EconomyFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _reclamando = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(economyFailureMessage(error))),
+      );
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _reclamando = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No se pudo reclamar el bono. Reintenta.')),
+      );
     }
   }
 
@@ -140,7 +166,7 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
               Expanded(
                 child: Text(
                   estaCompleta
-                      ? 'Validado por Jefe de Grupo'
+                      ? 'Mochila completa'
                       : '$checkedCount de ${_items.length} elementos listos',
                   style: TextStyle(
                     fontSize: 13,
@@ -176,7 +202,9 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
                         child: Text(
                           _reclamando
                               ? 'Reclamando bono…'
-                              : 'Reclamar bono de preparación (+50 fichas, +100 XP)',
+                              : 'Reclamar bono de preparación '
+                                  '(+${EconomyResult.backpackCoins} fichas, '
+                                  '+${EconomyResult.backpackXp} XP)',
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),

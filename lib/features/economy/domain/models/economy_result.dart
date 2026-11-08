@@ -46,6 +46,9 @@ final class EconomyResult {
   static const eventXp = 10;
   static const eventCoins = 3;
   static const favorXp = 10;
+  // Bono unico de la mochila: debe coincidir con firestore.rules (validBackpackBonus).
+  static const backpackXp = 100;
+  static const backpackCoins = 50;
 
   final String confirmationId;
   final String period;
