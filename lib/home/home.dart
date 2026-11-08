@@ -230,6 +230,149 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
   );
 }
 
+class _EditarUbicacionPage extends StatefulWidget {
+  const _EditarUbicacionPage({required this.datos});
+
+  final _DatosBarrio datos;
+
+  @override
+  State<_EditarUbicacionPage> createState() => _EditarUbicacionPageState();
+}
+
+class _EditarUbicacionPageState extends State<_EditarUbicacionPage> {
+  String? _departamentoSeleccionado;
+  String? _provinciaSeleccionada;
+  String? _distritoSeleccionado;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _departamentoSeleccionado = widget.datos.departamento.isNotEmpty
+        ? widget.datos.departamento
+        : null;
+    _provinciaSeleccionada = widget.datos.provincia.isNotEmpty
+        ? widget.datos.provincia
+        : null;
+    _distritoSeleccionado = widget.datos.distrito.isNotEmpty
+        ? widget.datos.distrito
+        : null;
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Editar ubicación'),
+      actions: [
+        TextButton(
+          onPressed: _guardando ? null : _guardar,
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          'Actualiza tu ubicación para conectar con tu comunidad.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 20),
+        _selectorUbicacion(
+          context,
+          'Departamento',
+          _departamentoSeleccionado,
+          peruLocations.keys,
+          (valor) {
+            setState(() {
+              _departamentoSeleccionado = valor;
+              _provinciaSeleccionada = null;
+              _distritoSeleccionado = null;
+            });
+          },
+        ),
+        const SizedBox(height: 14),
+        _selectorUbicacion(
+          context,
+          'Provincia',
+          _provinciaSeleccionada,
+          _departamentoSeleccionado == null
+              ? const <String>[]
+              : peruLocations[_departamentoSeleccionado]!.keys,
+          (valor) {
+            setState(() {
+              _provinciaSeleccionada = valor;
+              _distritoSeleccionado = null;
+            });
+          },
+        ),
+        const SizedBox(height: 14),
+        _selectorUbicacion(
+          context,
+          'Distrito',
+          _distritoSeleccionado,
+          _departamentoSeleccionado == null || _provinciaSeleccionada == null
+              ? const <String>[]
+              : peruLocations[_departamentoSeleccionado]![_provinciaSeleccionada]!,
+          (valor) {
+            setState(() {
+              _distritoSeleccionado = valor;
+            });
+          },
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: _guardando ? null : _guardar,
+          icon: _guardando
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_guardando ? 'Guardando...' : 'Guardar cambios'),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _guardar() async {
+    if (_departamentoSeleccionado == null ||
+        _provinciaSeleccionada == null ||
+        _distritoSeleccionado == null ||
+        _guardando) return;
+
+    setState(() => _guardando = true);
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
+    try {
+      await widget.datos.guardarUbicacion(
+        _departamentoSeleccionado!,
+        _provinciaSeleccionada!,
+        _distritoSeleccionado!,
+      );
+      final uid = auth?.currentUid;
+      if (store != null && uid != null) {
+        await store.save(uid, widget.datos.toProfile());
+      }
+      if (mounted) Navigator.pop(context, true);
+    } on FirebaseException catch (error) {
+      debugPrint('No se pudo actualizar la ubicación: ${error.code}');
+      _mostrarError();
+    } catch (error) {
+      debugPrint('No se pudo actualizar la ubicación: $error');
+      _mostrarError();
+    }
+  }
+
+  void _mostrarError() {
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo actualizar la ubicación.')),
+    );
+  }
+}
+
 class MiBarrioHome extends StatelessWidget {
   const MiBarrioHome({
     super.key,
@@ -592,6 +735,21 @@ class _InicioState extends State<Inicio> {
     }
   }
 
+  Future<void> _editarUbicacion() async {
+    Navigator.pop(context);
+    final actualizada = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _EditarUbicacionPage(datos: widget.datos),
+      ),
+    );
+    if (mounted && actualizada == true) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tu ubicación se actualizó.')),
+      );
+    }
+  }
+
   Future<void> _cerrarSesion() async {
     final auth = context.read<AuthGateway?>();
     try {
@@ -688,6 +846,11 @@ class _InicioState extends State<Inicio> {
             leading: const Icon(Icons.edit_outlined),
             title: const Text('Editar información'),
             onTap: _editarInformacion,
+          ),
+          ListTile(
+            leading: const Icon(Icons.location_on_outlined),
+            title: const Text('Editar ubicación'),
+            onTap: _editarUbicacion,
           ),
           ListTile(
             leading: const Icon(Icons.health_and_safety_outlined),

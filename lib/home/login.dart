@@ -137,6 +137,23 @@ class _DatosBarrio extends ChangeNotifier {
       debugPrint('No se pudo guardar el perfil: $e');
     }
   }
+
+  Future<void> guardarUbicacion(
+      String nuevoDepartamento,
+      String nuevaProvincia,
+      String nuevoDistrito) async {
+    departamento = nuevoDepartamento;
+    provincia = nuevaProvincia;
+    distrito = nuevoDistrito;
+    notifyListeners();
+    try {
+      await preferencias.setString('vecino_departamento', departamento);
+      await preferencias.setString('vecino_provincia', provincia);
+      await preferencias.setString('vecino_distrito', distrito);
+    } catch (e) {
+      debugPrint('No se pudo guardar la ubicación: $e');
+    }
+  }
 }
 
 class _Entrada extends StatefulWidget {
