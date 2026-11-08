@@ -1,10 +1,9 @@
 import '../entities/evento_comunitario.dart';
 import '../entities/favor.dart';
-import '../entities/resumen_hoy.dart';
 import '../entities/vecino_ranking.dart';
 
 abstract class ComunidadRepository {
-  Future<ResumenHoy> obtenerResumenHoy();
+  String get usuarioActualId;
 
   Future<List<Favor>> obtenerFavores({
     CategoriaFavor? categoria,

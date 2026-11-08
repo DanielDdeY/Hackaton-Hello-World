@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../domain/entities/evento_comunitario.dart';
 import '../../domain/entities/favor.dart';
-import '../../domain/entities/resumen_hoy.dart';
 import '../../domain/entities/vecino_ranking.dart';
 import '../../domain/repositories/comunidad_repository.dart';
 
@@ -19,14 +17,8 @@ class ComunidadController extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
-  ResumenHoy? _resumenHoy;
-  ResumenHoy? get resumenHoy => _resumenHoy;
-
   List<Favor> _favores = [];
   List<Favor> get favores => _favores;
-
-  List<EventoComunitario> _eventos = [];
-  List<EventoComunitario> get eventos => _eventos;
 
   List<VecinoRanking> _ranking = [];
   List<VecinoRanking> get ranking => _ranking;
@@ -53,9 +45,7 @@ class ComunidadController extends ChangeNotifier {
 
     try {
       await Future.wait([
-        cargarResumenHoy(),
         cargarFavores(),
-        cargarEventos(),
         cargarRanking(_ambitoRanking),
         cargarBuenVecino(),
       ]);
@@ -65,11 +55,6 @@ class ComunidadController extends ChangeNotifier {
       _cargando = false;
       notifyListeners();
     }
-  }
-
-  Future<void> cargarResumenHoy() async {
-    _resumenHoy = await repository.obtenerResumenHoy();
-    notifyListeners();
   }
 
   Future<void> cargarFavores() async {
@@ -96,7 +81,6 @@ class ComunidadController extends ChangeNotifier {
     try {
       await repository.aceptarFavor(favorId);
       await cargarFavores();
-      await cargarResumenHoy();
     } catch (e) {
       _error = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
@@ -108,7 +92,6 @@ class ComunidadController extends ChangeNotifier {
     try {
       await repository.marcarTerminado(favorId);
       await cargarFavores();
-      await cargarResumenHoy();
     } catch (e) {
       _error = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
@@ -120,36 +103,6 @@ class ComunidadController extends ChangeNotifier {
     try {
       await repository.confirmarYCalificar(favorId, calificacion);
       await cargarFavores();
-      await cargarResumenHoy();
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<void> cargarEventos() async {
-    _eventos = await repository.obtenerEventos();
-    notifyListeners();
-  }
-
-  Future<void> responderEvento(String eventoId, RespuestaEvento respuesta) async {
-    try {
-      await repository.responderEvento(eventoId, respuesta);
-      await cargarEventos();
-      await cargarResumenHoy();
-    } catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      rethrow;
-    }
-  }
-
-  Future<void> verificarAsistencia(String eventoId, String codigo) async {
-    try {
-      await repository.verificarAsistencia(eventoId, codigo);
-      await cargarEventos();
-      await cargarResumenHoy();
     } catch (e) {
       _error = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
@@ -184,4 +137,3 @@ class ComunidadController extends ChangeNotifier {
     notifyListeners();
   }
 }
-
