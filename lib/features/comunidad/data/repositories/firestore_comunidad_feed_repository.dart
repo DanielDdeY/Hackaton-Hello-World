@@ -25,6 +25,53 @@ final class FirestoreComunidadFeedRepository
   Stream<List<HelpItem>> watchFavors() => _watchPosts('help', _readHelp);
 
   @override
+  Stream<HelpParticipation> watchHelpParticipation(HelpItem favor) async* {
+    final uid = await _auth.ensureSignedIn();
+    final offers = _helpOffers(favor.id);
+    if (uid == favor.authorId) {
+      yield* offers.snapshots().map(
+        (snapshot) => HelpParticipation(
+          offers: [
+            for (final doc in snapshot.docs)
+              HelpOffer(
+                uid: doc.id,
+                name:
+                    _text(doc.data()['helperName']) ??
+                    'Vecino · ${doc.id.substring(doc.id.length > 6 ? doc.id.length - 6 : 0)}',
+                isConfirmed: doc.data()['confirmedAt'] is Timestamp,
+              ),
+          ],
+        ),
+      );
+    } else {
+      yield* offers
+          .doc(uid)
+          .snapshots()
+          .map(
+            (snapshot) => HelpParticipation(
+              hasOffered: snapshot.exists,
+              isConfirmed: snapshot.data()?['confirmedAt'] is Timestamp,
+            ),
+          );
+    }
+  }
+
+  @override
+  Future<void> offerHelp(String favorId) async {
+    final uid = await _auth.ensureSignedIn();
+    final profile = await _firestore.collection('users').doc(uid).get();
+    final name = _text(profile.data()?['name']) ?? _auth.currentDisplayName;
+    await _helpOffers(favorId).doc(uid).set({
+      'offeredAt': FieldValue.serverTimestamp(),
+      if (name != null && name.trim().isNotEmpty && name.length <= 100)
+        'helperName': name.trim(),
+    });
+  }
+
+  CollectionReference<Map<String, dynamic>> _helpOffers(String favorId) =>
+      _firestore.collection('posts').doc(favorId).collection('helpOffers');
+
+  @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) =>
       _watchPosts('service', _readService, serviceCategory: category);
 
@@ -88,81 +135,6 @@ final class FirestoreComunidadFeedRepository
     });
   }
 
-  @override
-  Future<void> postularAFavor(String postId) async {
-    final uid = await _auth.ensureSignedIn();
-    final postRef = _firestore.collection('posts').doc(postId);
-
-    await _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(postRef);
-      if (!snapshot.exists) throw StateError('El pedido de ayuda ya no existe.');
-      final data = snapshot.data() ?? {};
-      final details = Map<String, dynamic>.from(data['details'] as Map? ?? {});
-
-      final ayudantes = List<String>.from((details['ayudantes'] as List?)?.whereType<String>() ?? []);
-      if (ayudantes.contains(uid)) return;
-
-      final int cuposTotales = (details['cuposTotales'] as num?)?.toInt() ??
-          (details['peopleNeeded'] as num?)?.toInt() ?? 1;
-      int cuposTomados = (details['cuposTomados'] as num?)?.toInt() ?? 0;
-
-      if (cuposTomados >= cuposTotales) {
-        throw StateError('Todos los cupos de ayudantes han sido tomados.');
-      }
-
-      ayudantes.add(uid);
-      cuposTomados++;
-      final nuevoEstado = cuposTomados >= cuposTotales ? 'cuposLlenos' : 'abierto';
-
-      details['ayudantes'] = ayudantes;
-      details['cuposTomados'] = cuposTomados;
-      details['estado'] = nuevoEstado;
-
-      transaction.update(postRef, {
-        'details': details,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    });
-  }
-
-  @override
-  Future<void> marcarFavorTerminado(String postId) async {
-    await _auth.ensureSignedIn();
-    final postRef = _firestore.collection('posts').doc(postId);
-
-    await _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(postRef);
-      if (!snapshot.exists) return;
-      final data = snapshot.data() ?? {};
-      final details = Map<String, dynamic>.from(data['details'] as Map? ?? {});
-
-      details['estado'] = 'esperandoConfirmacion';
-      transaction.update(postRef, {
-        'details': details,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    });
-  }
-
-  @override
-  Future<void> confirmarFavor(String postId) async {
-    await _auth.ensureSignedIn();
-    final postRef = _firestore.collection('posts').doc(postId);
-
-    await _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(postRef);
-      if (!snapshot.exists) return;
-      final data = snapshot.data() ?? {};
-      final details = Map<String, dynamic>.from(data['details'] as Map? ?? {});
-
-      details['estado'] = 'completado';
-      transaction.update(postRef, {
-        'details': details,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    });
-  }
-
   CollectionReference<Map<String, dynamic>> _eventResponses(String eventId) =>
       _firestore.collection('posts').doc(eventId).collection('attendance');
 
@@ -189,15 +161,36 @@ final class FirestoreComunidadFeedRepository
       query = query.where(orderField, isGreaterThan: Timestamp.now());
     }
 
-    yield* query
-        .orderBy(orderField, descending: !upcoming)
-        .limit(_feedLimit)
-        .snapshots()
-        .map(
-          (snapshot) => [
-            for (final doc in snapshot.docs) ?decode(doc.id, doc.data()),
-          ],
-        );
+    try {
+      await for (final snapshot
+          in query
+              .orderBy(orderField, descending: !upcoming)
+              .limit(_feedLimit)
+              .snapshots()) {
+        yield [for (final doc in snapshot.docs) ?decode(doc.id, doc.data())];
+      }
+    } on FirebaseException catch (error) {
+      if (category != 'service' || error.code != 'failed-precondition') rethrow;
+
+      // Los filtros de igualdad pueden usar los índices simples mientras
+      // se crea el índice compuesto que incluye createdAt.
+      yield* query.snapshots().map((snapshot) {
+        final entries =
+            [
+              for (final doc in snapshot.docs)
+                if (doc.data()[orderField] case final Timestamp createdAt)
+                  (doc: doc, createdAt: createdAt),
+            ]..sort((a, b) {
+              final date = b.createdAt.compareTo(a.createdAt);
+              return date != 0 ? date : b.doc.id.compareTo(a.doc.id);
+            });
+        return entries
+            .map((entry) => decode(entry.doc.id, entry.doc.data()))
+            .whereType<T>()
+            .take(_feedLimit)
+            .toList(growable: false);
+      });
+    }
   }
 
   static HelpItem? _readHelp(String id, Map<String, dynamic> data) {
@@ -207,13 +200,11 @@ final class FirestoreComunidadFeedRepository
     if (description == null) return null;
 
     final people = details['peopleNeeded'];
-    final count = people is int && people > 0 ? people.clamp(1, 300) : 1;
-    final fichas = (details['fichasRecompensa'] as num?)?.toInt() ?? (count > 2 ? 30 : 15);
-    final xp = (details['xpRecompensa'] as num?)?.toInt() ?? (count > 2 ? 60 : 30);
-    final cuposTomados = (details['cuposTomados'] as num?)?.toInt() ?? 0;
-    final ayudantes = (details['ayudantes'] as List?)?.whereType<String>().toList() ?? const <String>[];
-    final estado = details['estado'] as String? ?? 'abierto';
-
+    final rewardDescription = _text(details['rewardDescription']);
+    final hasReward = switch (details['hasReward']) {
+      final bool enabled => enabled,
+      _ => rewardDescription != null,
+    };
     final location = data['location'];
     final autoLocation =
         location is Map &&
@@ -224,15 +215,12 @@ final class FirestoreComunidadFeedRepository
       id: id,
       description: description,
       authorName: _text(data['authorName']) ?? 'Vecino',
-      authorId: _text(data['authorId']),
       title: _text(details['title']),
       location: autoLocation ? null : _text(details['specificLocation']),
-      peopleNeeded: people is int && people > 0 ? count : null,
-      fichas: fichas,
-      xp: xp,
-      cuposTomados: cuposTomados,
-      ayudantes: ayudantes,
-      estado: estado,
+      peopleNeeded: people is int && people > 0 ? people : null,
+      authorId: _text(data['authorId']),
+      hasReward: hasReward,
+      rewardDescription: hasReward ? rewardDescription : null,
     );
   }
 

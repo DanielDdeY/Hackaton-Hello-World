@@ -4,7 +4,12 @@ enum TamanoFavor {
   grande('Grande', 'Varias horas', 40, 80),
   comunitario('Comunitario', 'Grupal', 30, 60);
 
-  const TamanoFavor(this.etiqueta, this.duracionAprox, this.monedasBase, this.xpBase);
+  const TamanoFavor(
+    this.etiqueta,
+    this.duracionAprox,
+    this.monedasBase,
+    this.xpBase,
+  );
 
   final String etiqueta;
   final String duracionAprox;
@@ -99,7 +104,8 @@ class Favor {
   final int xpRecompensa;
   final List<ParticipanteFavor> participantes;
 
-  bool get tieneCupo => cuposTomados < cuposTotales && estado == EstadoFavor.abierto;
+  bool get tieneCupo =>
+      cuposTomados < cuposTotales && estado == EstadoFavor.abierto;
   int get cuposDisponibles => cuposTotales - cuposTomados;
 
   Favor copyWith({
@@ -146,4 +152,3 @@ class Favor {
     );
   }
 }
-

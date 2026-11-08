@@ -8,34 +8,48 @@ final class HelpItem {
     required this.id,
     required this.description,
     required this.authorName,
-    this.authorId,
     this.title,
     this.location,
     this.peopleNeeded,
-    this.fichas = 15,
-    this.xp = 30,
-    this.cuposTomados = 0,
-    this.ayudantes = const [],
-    this.estado = 'abierto',
+    this.authorId,
+    this.hasReward = false,
+    this.rewardDescription,
   });
 
   final String id;
   final String description;
   final String authorName;
-  final String? authorId;
   final String? title;
   final String? location;
   final int? peopleNeeded;
-  final int fichas;
-  final int xp;
-  final int cuposTomados;
-  final List<String> ayudantes;
-  final String estado;
+  final String? authorId;
+  final bool hasReward;
+  final String? rewardDescription;
+}
 
-  bool get tieneCupo =>
-      (cuposTomados < (peopleNeeded ?? 1)) && estado == 'abierto';
-  int get cuposTotales => peopleNeeded ?? 1;
-  int get cuposDisponibles => (cuposTotales - cuposTomados).clamp(0, 300);
+final class HelpParticipation {
+  const HelpParticipation({
+    this.hasOffered = false,
+    this.isConfirmed = false,
+    this.offers,
+  });
+
+  final bool hasOffered;
+  final bool isConfirmed;
+  // Only the author can see all offers.
+  final List<HelpOffer>? offers;
+}
+
+final class HelpOffer {
+  const HelpOffer({
+    required this.uid,
+    required this.name,
+    required this.isConfirmed,
+  });
+
+  final String uid;
+  final String name;
+  final bool isConfirmed;
 }
 
 final class ServiceItem {

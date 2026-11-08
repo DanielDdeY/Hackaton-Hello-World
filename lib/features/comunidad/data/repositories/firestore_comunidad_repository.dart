@@ -18,7 +18,7 @@ class FirestoreComunidadRepository implements ComunidadRepository {
     this.usuarioActualNombre = 'Vecino Activo',
     this.distritoPorDefecto = 'Ate',
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _auth = auth,
+       _auth = auth, // ignore: prefer_initializing_formals
        _usuarioActualIdFallback = usuarioActualId;
 
   final FirebaseFirestore _firestore;
@@ -32,9 +32,12 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       _auth?.currentUser?.uid ?? _usuarioActualIdFallback;
 
   // Colecciones según la especificación de docs/comunidad-ayuda.md
-  CollectionReference<Map<String, dynamic>> get _favoresCol => _firestore.collection('favores');
-  CollectionReference<Map<String, dynamic>> get _eventosCol => _firestore.collection('eventos');
-  CollectionReference<Map<String, dynamic>> get _reportesCol => _firestore.collection('reportes');
+  CollectionReference<Map<String, dynamic>> get _favoresCol =>
+      _firestore.collection('favores');
+  CollectionReference<Map<String, dynamic>> get _eventosCol =>
+      _firestore.collection('eventos');
+  CollectionReference<Map<String, dynamic>> get _reportesCol =>
+      _firestore.collection('reportes');
 
   @override
   Future<List<Favor>> obtenerFavores({
@@ -42,7 +45,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
     TamanoFavor? tamano,
     bool soloConCupo = false,
   }) async {
-    Query<Map<String, dynamic>> query = _favoresCol.orderBy('creadoEn', descending: true);
+    Query<Map<String, dynamic>> query = _favoresCol.orderBy(
+      'creadoEn',
+      descending: true,
+    );
 
     if (categoria != null) {
       query = query.where('categoria', isEqualTo: categoria.name);
@@ -112,7 +118,9 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       }
 
       final nuevoTomados = cuposTomados + 1;
-      final nuevoEstado = nuevoTomados >= cuposTotales ? 'cuposLlenos' : 'enCurso';
+      final nuevoEstado = nuevoTomados >= cuposTotales
+          ? 'cuposLlenos'
+          : 'enCurso';
 
       transaction.update(docRef, {
         'cuposTomados': nuevoTomados,
@@ -161,7 +169,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   }
 
   @override
-  Future<void> responderEvento(String eventoId, RespuestaEvento respuesta) async {
+  Future<void> responderEvento(
+    String eventoId,
+    RespuestaEvento respuesta,
+  ) async {
     final docRef = _eventosCol.doc(eventoId);
     final asistenciaRef = docRef.collection('asistencias').doc(usuarioActualId);
 
@@ -173,7 +184,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
 
   @override
   Future<void> verificarAsistencia(String eventoId, String codigo) async {
-    final asistenciaRef = _eventosCol.doc(eventoId).collection('asistencias').doc(usuarioActualId);
+    final asistenciaRef = _eventosCol
+        .doc(eventoId)
+        .collection('asistencias')
+        .doc(usuarioActualId);
     await asistenciaRef.set({
       'respuesta': 'voy',
       'verificada': true,
@@ -219,6 +233,26 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       ranking = await _rankingDesdeUsuarios(distrito);
     }
 
+    if (ranking.isEmpty && slug == 'ate' && _demoSeedingAllowed) {
+      try {
+        await sembrarDatosSimulados();
+        final nuevoSnapshot = await _firestore
+            .collection('ranking')
+            .doc(slug)
+            .collection('posiciones')
+            .orderBy('xpPeriodo', descending: true)
+            .limit(50)
+            .get();
+        ranking = nuevoSnapshot.docs
+            .map((doc) => _mapearRanking(doc, distrito))
+            .toList();
+        if (ranking.isEmpty) {
+          ranking = await _rankingDesdeUsuarios(distrito);
+        }
+      } catch (e) {
+        debugPrint('No se pudo sembrar/leer datos simulados de Firestore: $e');
+      }
+    }
     return _incluirUsuarioActual(ranking);
   }
 
@@ -287,7 +321,7 @@ class FirestoreComunidadRepository implements ComunidadRepository {
 
   Future<List<VecinoRanking>> _rankingDesdeUsuarios(String distrito) async {
     final slug = _distritoSlug(distrito);
-    final snapshot = await _firestore.collection('users').limit(100).get();
+    final snapshot = await _firestore.collection('users').where('profileVersion', isEqualTo: 1).limit(100).get();
     final vecinos = <VecinoRanking>[];
     for (final document in snapshot.docs) {
       final data = document.data();
@@ -382,9 +416,13 @@ class FirestoreComunidadRepository implements ComunidadRepository {
 
   /// Siembra en Firestore los datos simulados de Ate tanto en la rama 'ranking'
   /// como en la rama 'users' para que cada vecino tenga su información completa.
+  bool get _demoSeedingAllowed => kDebugMode &&
+      const bool.fromEnvironment('ENABLE_DEMO_SEED') &&
+      _firestore.app.options.projectId == 'demo-hackaton-hello-world';
+
   Future<void> sembrarDatosSimulados({bool forzar = false}) async {
+    if (!_demoSeedingAllowed) return;
     const slug = 'ate';
-    const distrito = 'Ate';
     final rankCol = _firestore
         .collection('ranking')
         .doc(slug)
@@ -643,7 +681,8 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       ubicacionExacta: data['ubicacionExacta'],
       creadoEn: (data['creadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
       venceEn: (data['venceEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      monedasRecompensa: data['monedasRecompensa'] ?? TamanoFavor.medio.monedasBase,
+      monedasRecompensa:
+          data['monedasRecompensa'] ?? TamanoFavor.medio.monedasBase,
       xpRecompensa: data['xpRecompensa'] ?? TamanoFavor.medio.xpBase,
     );
   }

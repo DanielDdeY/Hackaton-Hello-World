@@ -44,7 +44,7 @@ async function projectEmergencyAlert(
   }
 
   const bounds = geohashQueryBounds(origin, radiusMeters);
-  const candidateSnapshots = await Promise.all(
+  const legacySnapshots = await Promise.all(
     bounds.map(([start, end]) =>
       db.collection("users")
         .where("communityId", "==", communityId)
@@ -56,15 +56,27 @@ async function projectEmergencyAlert(
     ),
   );
   const candidates = new Map(
-    candidateSnapshots.flatMap((snapshot) =>
+    legacySnapshots.flatMap((snapshot) =>
       snapshot.docs.map((document) => [document.id, document] as const),
     ),
   );
+  const privateSnapshots = await Promise.all(bounds.map(([start, end]) =>
+    db.collectionGroup("private")
+      .where("kind", "==", "proximity")
+      .where("communityId", "==", communityId)
+      .where("proximityEnabled", "==", true)
+      .orderBy("geohash").startAt(start).endAt(end).get()));
+  for (const snapshot of privateSnapshots) {
+    for (const document of snapshot.docs) {
+      const uid = document.ref.parent.parent?.id;
+      if (uid) candidates.set(uid, document);
+    }
+  }
   const now = Date.now();
-  const recipients: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+  const recipients: string[] = [];
 
-  for (const candidate of candidates.values()) {
-    if (candidate.id === reporterUid) continue;
+  for (const [uid, candidate] of candidates) {
+    if (uid === reporterUid) continue;
     const recipientLocation = candidate.get("location");
     const updatedAt = candidate.get("locationUpdatedAt") as Timestamp | undefined;
     if (
@@ -79,17 +91,17 @@ async function projectEmergencyAlert(
       recipientLocation.longitude,
     ];
     if (!isWithinRadius(origin, target, radiusMeters)) continue;
-    recipients.push(candidate);
+    recipients.push(uid);
   }
 
   const createdAt = alert.createdAt ?? FieldValue.serverTimestamp();
   await Promise.all(
-    [reporterUid, ...recipients.map((recipient) => recipient.id)].map(
+    [reporterUid, ...recipients].map(
       async (uid) => {
         const profile = candidates.get(uid) ??
           await db.collection("users").doc(uid).get();
         if (!profile.exists) return;
-        const projection = profile.ref
+        const projection = db.collection("users").doc(uid)
           .collection("nearby_emergency_alerts")
           .doc(alertId);
         await projection.set(
@@ -181,7 +193,10 @@ export const onEmergencyAlertClosed = onDocumentUpdated(
           });
           const uid = projection.ref.parent.parent?.id;
           if (!uid) return;
-          const profile = await db.collection("users").doc(uid).get();
+          const privateProfile = await db.collection("users").doc(uid)
+            .collection("private").doc("proximity").get();
+          const profile = privateProfile.exists ? privateProfile
+            : await db.collection("users").doc(uid).get();
           const token = profile.get("fcmToken") as string | undefined;
           if (!token) return;
           try {

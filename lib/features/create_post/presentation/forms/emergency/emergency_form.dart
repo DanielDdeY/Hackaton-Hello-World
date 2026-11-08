@@ -51,7 +51,7 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
   static const _selectedRed = Color(0xFF8C211D);
   static const _typeRows = [
     [EmergencyType.robbery, EmergencyType.accident],
-    [EmergencyType.tragedy, EmergencyType.health],
+    [EmergencyType.disaster, EmergencyType.health],
   ];
 
   final _formKey = GlobalKey<FormState>();

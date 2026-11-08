@@ -7,15 +7,24 @@ import 'package:latlong2/latlong.dart';
 import '../../emergency/data/active_sos_alerts.dart';
 import '../../emergency/domain/emergency_type_labels.dart';
 
-class CommunitySosSection extends StatelessWidget {
+class CommunitySosSection extends StatefulWidget {
   const CommunitySosSection({super.key, this.alerts, this.onOpenMap});
 
   final Stream<List<Map<String, dynamic>>>? alerts;
   final void Function(LatLng? location)? onOpenMap;
 
   @override
+  State<CommunitySosSection> createState() => _CommunitySosSectionState();
+}
+
+class _CommunitySosSectionState extends State<CommunitySosSection> {
+  final Set<String> _dismissed = {};
+
+  String? _alertId(Map<String, dynamic> alert) => alert['alertId'] as String?;
+
+  @override
   Widget build(BuildContext context) {
-    final alertsStream = alerts ?? ActiveSosAlerts().watch();
+    final alertsStream = widget.alerts ?? ActiveSosAlerts().watch();
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: alertsStream,
@@ -23,14 +32,26 @@ class CommunitySosSection extends StatelessWidget {
         final sorted = snapshot.hasData
             ? sortSosAlerts(snapshot.data!)
             : const <Map<String, dynamic>>[];
+        final activeIds = <String>{};
+        for (final alert in sorted) {
+          final id = _alertId(alert);
+          if (id != null) activeIds.add(id);
+        }
+        _dismissed.removeWhere((id) => !activeIds.contains(id));
+        final visible = sorted
+            .where((alert) => !_dismissed.contains(_alertId(alert)))
+            .toList(growable: false);
+        if (sorted.isNotEmpty && visible.isEmpty) {
+          return const SizedBox.shrink();
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SosHeader(count: sorted.length),
+            _SosHeader(count: visible.length),
             const SizedBox(height: 8),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
-              child: _body(context, snapshot, sorted),
+              child: _body(context, snapshot, sorted, visible),
             ),
             const SizedBox(height: 12),
           ],
@@ -43,6 +64,7 @@ class CommunitySosSection extends StatelessWidget {
     BuildContext context,
     AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
     List<Map<String, dynamic>> sorted,
+    List<Map<String, dynamic>> visible,
   ) {
     if (snapshot.hasError) {
       return const _CompactMessage(
@@ -66,15 +88,16 @@ class CommunitySosSection extends StatelessWidget {
       );
     }
     return Column(
-      key: ValueKey('sos-list-${sorted.length}'),
+      key: ValueKey('sos-list-${visible.length}'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var index = 0; index < sorted.length; index++) ...[
+        for (var index = 0; index < visible.length; index++) ...[
           if (index > 0) const SizedBox(height: 8),
           _SosAlertCard(
-            alert: sorted[index],
+            alert: visible[index],
             initiallyExpanded: index == 0,
-            onOpenMap: onOpenMap,
+            onOpenMap: widget.onOpenMap,
+            onDismiss: (id) => setState(() => _dismissed.add(id)),
           ),
         ],
       ],
@@ -177,11 +200,13 @@ class _PulsingDot extends StatelessWidget {
 class _SosAlertCard extends StatefulWidget {
   const _SosAlertCard({
     required this.alert,
+    required this.onDismiss,
     this.initiallyExpanded = true,
     this.onOpenMap,
   });
 
   final Map<String, dynamic> alert;
+  final ValueChanged<String> onDismiss;
   final bool initiallyExpanded;
   final void Function(LatLng? location)? onOpenMap;
 
@@ -247,6 +272,21 @@ class _SosAlertCardState extends State<_SosAlertCard> {
                           : Icons.keyboard_arrow_down,
                       color: const Color(0xffb71c1c),
                     ),
+                  IconButton(
+                    onPressed: () {
+                      final id = alert['alertId'] as String?;
+                      if (id != null) widget.onDismiss(id);
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    tooltip: 'Ocultar aviso SOS',
+                    color: const Color(0xffb71c1c),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 28,
+                      height: 28,
+                    ),
+                  ),
                 ],
               ),
             ),

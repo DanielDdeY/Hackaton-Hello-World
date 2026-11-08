@@ -1,5 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../features/create_post/data/services/firebase_auth_gateway.dart';
+import '../features/create_post/domain/services/auth_gateway.dart';
+import '../features/economy/data/firestore_user_repository.dart';
+import '../features/economy/domain/models/app_user.dart';
+import '../features/economy/domain/repositories/user_repository.dart';
+import '../features/economy/domain/services/period_provider.dart';
 
 import '../features/economia/domain/entities/nivel_xp.dart';
 
@@ -34,6 +41,7 @@ final class UserProfile {
     required String fallbackDepartment,
     required String fallbackProvince,
     required String fallbackDistrict,
+    Map<String, dynamic> privateAccount = const {},
   }) {
     final data = document.data() ?? const <String, dynamic>{};
     final stats = data['stats'] is Map
@@ -41,7 +49,10 @@ final class UserProfile {
         : const <String, dynamic>{};
     return UserProfile(
       name: _string(data['name'], fallbackName),
-      phoneNumber: _string(data['phoneNumber'], ''),
+      phoneNumber: _string(
+        privateAccount['phoneNumber'] ?? data['phoneNumber'],
+        '',
+      ),
       role: _string(data['role'], 'Vecino'),
       bio: _string(data['bio'], fallbackBio),
       department: _string(data['department'], fallbackDepartment),
@@ -214,18 +225,39 @@ abstract interface class UserProfileStore {
 }
 
 final class FirestoreUserProfileStore implements UserProfileStore {
-  FirestoreUserProfileStore(this._firestore);
+  FirestoreUserProfileStore(
+    this._firestore, {
+    AuthGateway? auth,
+    UserRepository? users,
+  }) : _auth =
+           auth ??
+           FirebaseAuthGateway(FirebaseAuth.instanceFor(app: _firestore.app)) {
+    _users =
+        users ??
+        FirestoreUserRepository(
+          firestore: _firestore,
+          auth: _auth,
+          periods: SystemPeriodProvider(),
+        );
+  }
 
   final FirebaseFirestore _firestore;
+  final AuthGateway _auth;
+  late final UserRepository _users;
+
+  Future<String?> _ownPhone() async {
+    final uid = _auth.currentUid;
+    if (uid == null) return null;
+    final ref = _firestore.collection('users').doc(uid);
+    final account = await ref.collection('private').doc('account').get();
+    if (account.exists) return account.data()?['phoneNumber'] as String?;
+    final legacy = await ref.get();
+    return legacy.data()?['phoneNumber'] as String?;
+  }
 
   @override
-  Future<bool> phoneExists(String phoneNumber) async {
-    final document = await _firestore
-        .collection('phoneIndex')
-        .doc(phoneNumber)
-        .get();
-    return document.exists;
-  }
+  Future<bool> phoneExists(String phoneNumber) async =>
+      phoneNumber.isNotEmpty && await _ownPhone() == phoneNumber;
 
   @override
   Future<UserProfile?> loadByPhone(
@@ -236,12 +268,8 @@ final class FirestoreUserProfileStore implements UserProfileStore {
     required String fallbackProvince,
     required String fallbackDistrict,
   }) async {
-    final index = await _firestore
-        .collection('phoneIndex')
-        .doc(phoneNumber)
-        .get();
-    final uid = index.data()?['uid'];
-    if (uid is! String || uid.isEmpty) return null;
+    final uid = _auth.currentUid;
+    if (uid == null || !await phoneExists(phoneNumber)) return null;
     return load(
       uid,
       fallbackName: fallbackName,
@@ -261,8 +289,13 @@ final class FirestoreUserProfileStore implements UserProfileStore {
     required String fallbackProvince,
     required String fallbackDistrict,
   }) async {
-    final document = await _firestore.collection('users').doc(uid).get();
+    final ref = _firestore.collection('users').doc(uid);
+    final document = await ref.get();
     if (!document.exists) return null;
+    final account = uid == _auth.currentUid
+        ? (await ref.collection('private').doc('account').get()).data() ??
+              <String, dynamic>{}
+        : <String, dynamic>{};
     return UserProfile.fromDocument(
       document,
       fallbackName: fallbackName,
@@ -270,22 +303,32 @@ final class FirestoreUserProfileStore implements UserProfileStore {
       fallbackDepartment: fallbackDepartment,
       fallbackProvince: fallbackProvince,
       fallbackDistrict: fallbackDistrict,
+      privateAccount: account,
     );
   }
 
   @override
   Future<void> save(String uid, UserProfile profile) async {
-    await _firestore
-        .collection('users')
-        .doc(uid)
-        .set(profile.toMap(), SetOptions(merge: true));
-    if (profile.phoneNumber.isEmpty) return;
-    try {
-      await _firestore.collection('phoneIndex').doc(profile.phoneNumber).set({
-        'uid': uid,
-      }, SetOptions(merge: true));
-    } catch (error) {
-      debugPrint('No se pudo actualizar el índice del teléfono: $error');
-    }
+    await _users.ensureUser(uid: uid, name: profile.name);
+    final ref = _firestore.collection('users').doc(uid);
+    final batch = _firestore.batch();
+    // Profile edits and feeding the pet must never replay old economic values.
+    batch.update(ref, {
+      'name': profile.name,
+      'firstName': profile.name.trim().split(RegExp(r'\s+')).first,
+      'lastName': profile.name.trim().split(RegExp(r'\s+')).skip(1).join(' '),
+      'role': profile.role,
+      'bio': profile.bio,
+      'department': profile.department,
+      'province': profile.province,
+      'district': profile.district,
+      'districtKey': districtKey(profile.district),
+      'petHunger': profile.petHunger,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(ref.collection('private').doc('account'), {
+      'phoneNumber': profile.phoneNumber,
+    });
+    await batch.commit();
   }
 }

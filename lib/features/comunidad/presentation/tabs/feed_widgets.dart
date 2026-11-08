@@ -1,5 +1,71 @@
 import 'package:flutter/material.dart';
 
+class RewardBadge extends StatelessWidget {
+  const RewardBadge({
+    super.key,
+    required this.label,
+    this.detail,
+    this.highlighted = true,
+  });
+
+  final String label;
+  final String? detail;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final foreground = highlighted
+        ? const Color(0xFF7A4A00)
+        : colors.onSurfaceVariant;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 168),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: highlighted ? const Color(0xFFFFF3CD) : colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: highlighted ? const Color(0xFFFFB703) : colors.outlineVariant,
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 4,
+        children: [
+          Icon(
+            Icons.stars_rounded,
+            size: 16,
+            color: highlighted ? const Color(0xFFD48B00) : foreground,
+          ),
+          Flexible(
+            child: Text.rich(
+              TextSpan(
+                style: TextStyle(color: foreground),
+                children: [
+                  TextSpan(
+                    text: label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (detail != null)
+                    TextSpan(
+                      text: ' ($detail)',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class FeedMessage extends StatelessWidget {
   const FeedMessage(this.message, {super.key, this.onRetry});
 

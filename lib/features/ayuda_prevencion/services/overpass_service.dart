@@ -56,7 +56,9 @@ abstract final class OverpassService {
         lastError = e;
       }
     }
-    throw OverpassException('No se pudo consultar el directorio cercano: $lastError');
+    throw OverpassException(
+      'No se pudo consultar el directorio cercano: $lastError',
+    );
   }
 
   static String _buildQuery(double lat, double lon) {
@@ -71,7 +73,11 @@ out center tags;
 ''';
   }
 
-  static List<NearbyService> _parse(String body, double userLat, double userLon) {
+  static List<NearbyService> _parse(
+    String body,
+    double userLat,
+    double userLon,
+  ) {
     final decoded = jsonDecode(body) as Map<String, dynamic>;
     final elements = decoded['elements'] as List<dynamic>? ?? [];
 
@@ -85,17 +91,20 @@ out center tags;
 
       // `way` no tiene lat/lon propio: se usa `center`.
       final center = map['center'] as Map<String, dynamic>?;
-      final lat = (map['lat'] as num?)?.toDouble() ??
+      final lat =
+          (map['lat'] as num?)?.toDouble() ??
           (center?['lat'] as num?)?.toDouble();
-      final lon = (map['lon'] as num?)?.toDouble() ??
+      final lon =
+          (map['lon'] as num?)?.toDouble() ??
           (center?['lon'] as num?)?.toDouble();
       if (lat == null || lon == null) continue;
 
-      final phone = (tags['phone'] ??
-              tags['contact:phone'] ??
-              tags['contact:mobile'] ??
-              tags['emergency:phone'])
-          as String?;
+      final phone =
+          (tags['phone'] ??
+                  tags['contact:phone'] ??
+                  tags['contact:mobile'] ??
+                  tags['emergency:phone'])
+              as String?;
 
       results.add(
         NearbyService(
@@ -118,7 +127,8 @@ out center tags;
     const r = 6371000.0; // radio de la Tierra en metros
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_toRadians(lat1)) *
             math.cos(_toRadians(lat2)) *
             math.sin(dLon / 2) *

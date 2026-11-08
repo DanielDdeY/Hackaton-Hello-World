@@ -22,7 +22,9 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
   @override
   void initState() {
     super.initState();
-    _items = {for (final item in BackpackChecklistStore.defaultItems) item: false};
+    _items = {
+      for (final item in BackpackChecklistStore.defaultItems) item: false,
+    };
     _load();
   }
 
@@ -91,9 +93,9 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
                     Text(
                       'Mochila de Emergencia',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.text,
-                          ),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     _PillBadge(

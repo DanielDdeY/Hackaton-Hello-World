@@ -62,7 +62,9 @@ class EmergencyContactTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Material(
-            color: contact.canCall ? AppColors.primary : AppColors.secondaryText,
+            color: contact.canCall
+                ? AppColors.primary
+                : AppColors.secondaryText,
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),

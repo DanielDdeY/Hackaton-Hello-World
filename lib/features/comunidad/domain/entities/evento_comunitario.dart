@@ -10,11 +10,7 @@ enum TipoEvento {
   final String etiqueta;
 }
 
-enum RespuestaEvento {
-  ninguna,
-  voy,
-  meInteresa;
-}
+enum RespuestaEvento { ninguna, voy, meInteresa }
 
 class EventoComunitario {
   const EventoComunitario({
@@ -79,4 +75,3 @@ class EventoComunitario {
     );
   }
 }
-

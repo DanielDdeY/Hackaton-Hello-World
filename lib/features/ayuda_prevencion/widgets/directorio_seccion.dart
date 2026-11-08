@@ -26,9 +26,9 @@ class DirectorioSeccion extends StatelessWidget {
                     Text(
                       'Directorio de Emergencia',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.text,
-                          ),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
                     ),
                     const Text(
                       '(Disponible Offline)',

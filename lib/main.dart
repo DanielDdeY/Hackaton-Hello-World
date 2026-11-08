@@ -37,6 +37,12 @@ import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/domain/services/post_repository.dart';
 import 'features/create_post/domain/services/service_category_classifier.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
+import 'features/economy/data/firestore_economy_store.dart';
+import 'features/economy/data/firestore_user_repository.dart';
+import 'features/economy/domain/repositories/user_repository.dart';
+import 'features/economy/domain/services/economy_engine.dart';
+import 'features/economy/domain/services/period_provider.dart';
+import 'features/economy/domain/services/service_economy_engine.dart';
 import 'firebase_options.dart';
 import 'home/home.dart';
 import 'home/user_profile.dart';
@@ -53,7 +59,17 @@ void main() async {
   );
   final auth = FirebaseAuthGateway(FirebaseAuth.instanceFor(app: firebaseApp));
   final firestore = FirebaseFirestore.instanceFor(app: firebaseApp);
-  final profileStore = FirestoreUserProfileStore(firestore);
+  final periods = SimulatablePeriodProvider();
+  final users = FirestoreUserRepository(
+    firestore: firestore,
+    auth: auth,
+    periods: periods,
+  );
+  final profileStore = FirestoreUserProfileStore(
+    firestore,
+    auth: auth,
+    users: users,
+  );
   final comunidadRepository = FirestoreComunidadRepository(
     firestore: firestore,
     auth: FirebaseAuth.instanceFor(app: firebaseApp),
@@ -63,6 +79,14 @@ void main() async {
   runApp(
     MyApp(
       authGateway: auth,
+      periodProvider: periods,
+      userRepository: users,
+      economyEngine: ServiceEconomyEngine(
+        store: FirestoreEconomyStore(firestore),
+        auth: auth,
+        periods: periods,
+        writesEnabled: () => !periods.isSimulating,
+      ),
       comunidadRepository: comunidadRepository,
       comunidadFeedRepository: FirestoreComunidadFeedRepository(
         firestore: firestore,
@@ -98,12 +122,16 @@ class MyApp extends StatelessWidget {
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
     this.authGateway,
+    this.userRepository,
+    this.economyEngine,
+    PeriodProvider? periodProvider,
     this.profileStore,
     this.postRepository,
     ComunidadRepository? comunidadRepository,
     ComunidadFeedRepository? comunidadFeedRepository,
     ServiceCategoryClassifier? serviceCategoryClassifier,
-  }) : comunidadRepository = comunidadRepository ?? MockComunidadRepository(),
+  }) : periodProvider = periodProvider ?? SystemPeriodProvider(),
+       comunidadRepository = comunidadRepository ?? MockComunidadRepository(),
        comunidadFeedRepository =
            comunidadFeedRepository ?? MockComunidadFeedRepository(),
        serviceCategoryClassifier =
@@ -112,6 +140,9 @@ class MyApp extends StatelessWidget {
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
   final AuthGateway? authGateway;
+  final UserRepository? userRepository;
+  final EconomyEngine? economyEngine;
+  final PeriodProvider periodProvider;
   final UserProfileStore? profileStore;
   final PostRepository? postRepository;
   final ComunidadRepository comunidadRepository;
@@ -120,9 +151,26 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final periods = periodProvider;
     return MultiProvider(
       providers: [
         Provider<AuthGateway?>.value(value: authGateway),
+        Provider<UserRepository?>.value(value: userRepository),
+        Provider<EconomyEngine?>.value(value: economyEngine),
+        if (periods case final Listenable changes)
+          InheritedProvider<PeriodProvider>.value(
+            value: periods,
+            startListening: (context, _) {
+              final notify = context.markNeedsNotifyDependents;
+              changes.addListener(notify);
+              return () => changes.removeListener(notify);
+            },
+          )
+        else
+          Provider<PeriodProvider>.value(value: periods),
+        ChangeNotifierProvider<SimulatablePeriodProvider?>.value(
+          value: periods is SimulatablePeriodProvider ? periods : null,
+        ),
         Provider<UserProfileStore?>.value(value: profileStore),
         Provider<PostRepository?>.value(value: postRepository),
         Provider<LocationProvider>.value(value: locationProvider),
@@ -163,12 +211,36 @@ class _AppGate extends StatefulWidget {
 class _AppGateState extends State<_AppGate> {
   bool _authenticated = false;
 
+  void _completeAuthentication() {
+    setState(() => _authenticated = true);
+    unawaited(_ensureUser());
+  }
+
+  Future<void> _ensureUser() async {
+    final auth = context.read<AuthGateway?>();
+    final users = context.read<UserRepository?>();
+    final uid = auth?.currentUid;
+    if (users == null || uid == null) return;
+    try {
+      await users.ensureUser(uid: uid, name: auth?.currentDisplayName ?? 'Vecino');
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No se pudo sincronizar tu progreso.'),
+          action: SnackBarAction(
+            label: 'Reintentar',
+            onPressed: () => unawaited(_ensureUser()),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_authenticated) {
-      return MiBarrioHome(
-        onAuthenticated: () => setState(() => _authenticated = true),
-      );
+      return MiBarrioHome(onAuthenticated: _completeAuthentication);
     }
     return _NeighborhoodShell(
       onSignedOut: () {

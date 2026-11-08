@@ -7,16 +7,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /phoneIndex/{phoneNumber} {
-      allow read: if true;
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['uid'])
-        && request.resource.data.uid == request.auth.uid;
-      allow update: if signedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
-        && request.resource.data.uid == request.auth.uid;
-      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
-    }
+    match /phoneIndex/{phoneNumber} { allow read, write: if false; }
 
     function signedIn() {
       return request.auth != null;
@@ -132,6 +123,45 @@ service cloud.firestore {
       }
     }
 
+    match /posts/{postId}/helpOffers/{uid} {
+      function favor() {
+        return get(/databases/$(database)/documents/posts/$(postId)).data;
+      }
+
+      allow get: if owns(uid) || (signedIn() && favor().authorId == request.auth.uid);
+      allow list: if signedIn() && favor().authorId == request.auth.uid;
+      function validOffer() {
+        let after = request.resource.data;
+        return owns(uid) && favor().category == 'help'
+          && favor().status == 'active' && favor().authorId != uid
+          && after.keys().hasOnly(['offeredAt', 'helperName'])
+          && after.offeredAt == request.time
+          && (!('helperName' in after)
+            || (nonBlank(after.helperName) && after.helperName.size() <= 100));
+      }
+
+      function validConfirmation() {
+        let movement = activityMovement(uid, 'favor_completed_' + postId);
+        return signedIn() && favor().authorId == request.auth.uid
+          && resource.data.get('confirmedAt', null) == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedAt'])
+          && request.resource.data.confirmedAt == request.time
+          && !exists(movement) && getAfter(movement).data.type == 'favor_completed';
+      }
+
+      allow create: if validOffer();
+      allow update: if (resource.data.get('confirmedAt', null) == null && validOffer())
+        || validConfirmation();
+    }
+
+    match /posts/{postId}/attendance/{uid} {
+      allow read: if signedIn();
+      allow create, update: if owns(uid)
+        && get(/databases/$(database)/documents/posts/$(postId)).data.category == 'event'
+        && request.resource.data.keys().hasOnly(['response', 'updatedAt'])
+        && request.resource.data.response in ['going', 'notGoing']
+        && request.resource.data.updatedAt == request.time;
+    }
     function owns(uid) {
       return signedIn() && request.auth.uid == uid;
     }
@@ -140,43 +170,301 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)).data.communityId;
     }
 
-    match /users/{uid} {
-      allow read: if owns(uid);
+    function currentPeriod() {
+      let lima = request.time - duration.value(5, 'h');
+      return string(lima.year()) + '-' + (lima.month() < 10 ? '0' : '') + string(lima.month());
+    }
 
-      allow create: if owns(uid)
-        && (!('communityId' in request.resource.data.keys()) || request.resource.data.communityId is string)
-        && request.resource.data.keys().hasOnly([
-          'communityId', 'proximityEnabled', 'location', 'geohash',
-          'locationUpdatedAt', 'fcmToken', 'platform',
-          'fichas', 'xp', 'stars', 'badges', 'mochilaPreparada', 'updatedAt'
+    function sanitized(data) {
+      return !data.keys().hasAny([
+        'phoneNumber', 'telefono', 'email', 'availableCoins', 'monedasDisponibles',
+        'location', 'geohash', 'locationUpdatedAt', 'proximityEnabled', 'fcmToken', 'platform', 'level'
+      ]);
+    }
+
+    function validEconomy(data) {
+      return data.profileVersion == 1 && sanitized(data)
+        && data.xp is number && data.xp >= 0
+        && data.monthlyXp is number && data.monthlyXp >= 0
+        && data.rankingPeriod is string
+        && data.averageStars is number && data.averageStars >= 0 && data.averageStars <= 5
+        && data.reviewCount is int && data.reviewCount >= 0
+        && data.name is string && data.districtKey is string;
+    }
+
+    function profileUpdateAllowed() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let stored = before.get('rankingPeriod', '');
+      let period = currentPeriod();
+      return validEconomy(after)
+        && after.xp == before.get('xp', 0)
+        && after.averageStars == before.get('averageStars', 0)
+        && after.reviewCount == before.get('reviewCount', 0)
+        && ((stored < period && after.rankingPeriod == period && after.monthlyXp == 0)
+          || (stored >= period && after.rankingPeriod == stored
+            && after.monthlyXp == before.get('monthlyXp', 0)))
+        && after.diff(before).affectedKeys().hasOnly([
+          'name', 'firstName', 'lastName', 'role', 'bio', 'department', 'province',
+          'district', 'districtKey', 'petHunger', 'communityId', 'updatedAt',
+          'profileVersion', 'xp', 'monthlyXp', 'rankingPeriod', 'averageStars', 'reviewCount',
+          'phoneNumber', 'telefono', 'email', 'availableCoins', 'monedasDisponibles',
+          'location', 'geohash', 'locationUpdatedAt', 'proximityEnabled', 'fcmToken', 'platform', 'level'
         ]);
+    }
 
-      allow update: if owns(uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'communityId', 'proximityEnabled', 'location', 'geohash',
-          'locationUpdatedAt', 'fcmToken', 'platform',
-          'fichas', 'xp', 'stars', 'badges', 'mochilaPreparada', 'updatedAt'
+    function confirmationKey(period, client, provider, slot) {
+      return period + '_' + client + '_' + provider + '_' + string(slot);
+    }
+
+    function serviceRewardUpdate(uid) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let id = after.lastServiceConfirmation;
+      let confirmation = getAfter(/databases/$(database)/documents/serviceConfirmations/$(id)).data;
+      let isClient = uid == confirmation.clientUid;
+      let gain = isClient ? 15 : 25;
+      let period = currentPeriod();
+      let monthBase = before.rankingPeriod == period ? before.monthlyXp : 0;
+      return signedIn() && confirmation.clientUid == request.auth.uid
+        && uid in [confirmation.clientUid, confirmation.providerUid]
+        && !exists(/databases/$(database)/documents/serviceConfirmations/$(id))
+        && confirmation.period == period
+        && validEconomy(before) && validEconomy(after)
+        && before.rankingPeriod <= period && after.rankingPeriod == period
+        && after.xp == before.xp + gain
+        && after.monthlyXp == monthBase + gain
+        && after.updatedAt == request.time
+        && after.diff(before).affectedKeys().hasOnly([
+          'xp', 'monthlyXp', 'rankingPeriod', 'lastServiceConfirmation',
+          'averageStars', 'reviewCount', 'updatedAt'
         ])
-        && (
-          !('communityId' in request.resource.data.keys())
-          || request.resource.data.communityId == resource.data.communityId
-          || (
-            !('communityId' in resource.data.keys())
-            || (
-              resource.data.communityId is string
-              && resource.data.communityId.matches('^\\s*$')
-            )
-          ) && (
-            request.resource.data.communityId is string
-            && request.resource.data.communityId.matches('.*\\S.*')
-          )
-        );
+        && (isClient
+          ? (after.reviewCount == before.reviewCount && after.averageStars == before.averageStars)
+          : (after.reviewCount == before.reviewCount + 1
+            && math.abs(after.averageStars -
+              (before.averageStars * 1.0 * before.reviewCount + confirmation.rating) /
+                (before.reviewCount + 1)) < 0.000000001));
+    }
+
+    function validServiceConfirmation(id, data) {
+      let client = data.clientUid;
+      let provider = data.providerUid;
+      let operation = data.operationId;
+      let first = confirmationKey(data.period, client, provider, 1);
+      let clientAfter = getAfter(/databases/$(database)/documents/users/$(client)).data;
+      let providerAfter = getAfter(/databases/$(database)/documents/users/$(provider)).data;
+      return signedIn() && client == request.auth.uid && client != provider
+        && data.keys().hasOnly([
+          'id', 'clientUid', 'providerUid', 'postId', 'period',
+          'slot', 'rating', 'operationId', 'createdAt'
+        ])
+        && data.id == id && data.slot in [1, 2] && data.slot is int
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.period == currentPeriod() && data.createdAt == request.time
+        && operation is string && operation.matches('^[A-Za-z0-9_-]{16,80}$')
+        && id == confirmationKey(data.period, client, provider, data.slot)
+        && validServiceOwner(data.postId, provider)
+        && (data.slot == 1 || exists(/databases/$(database)/documents/serviceConfirmations/$(first)))
+        && !exists(/databases/$(database)/documents/users/$(client)/serviceOperations/$(operation))
+        && getAfter(/databases/$(database)/documents/users/$(client)/serviceOperations/$(operation)).data.confirmationId == id
+        && clientAfter.lastServiceConfirmation == id
+        && providerAfter.lastServiceConfirmation == id
+        && clientAfter.xp == get(/databases/$(database)/documents/users/$(client)).data.xp + 15
+        && providerAfter.xp == get(/databases/$(database)/documents/users/$(provider)).data.xp + 25
+        && getAfter(/databases/$(database)/documents/users/$(client)/movimientos/$(id)).data.confirmationId == id
+        && getAfter(/databases/$(database)/documents/users/$(provider)/movimientos/$(id)).data.confirmationId == id;
+    }
+
+    function validServiceOwner(postId, provider) {
+      let post = get(/databases/$(database)/documents/posts/$(postId)).data;
+      return post.category == 'service' && post.status == 'active' && post.authorId == provider;
+    }
+
+    function validServiceMovement(uid, id, data) {
+      let confirmation = getAfter(/databases/$(database)/documents/serviceConfirmations/$(id)).data;
+      let client = uid == confirmation.clientUid;
+      let gain = client ? 15 : 25;
+      return signedIn() && request.auth.uid == confirmation.clientUid
+        && uid in [confirmation.clientUid, confirmation.providerUid]
+        && !exists(/databases/$(database)/documents/serviceConfirmations/$(id))
+        && data.keys().hasOnly([
+          'id', 'confirmationId', 'uid', 'counterpartyUid', 'type', 'sourceId',
+          'deltaXpTotal', 'deltaXpMonth', 'deltaCoins', 'period', 'status', 'createdAt'
+        ])
+        && data.id == id && data.confirmationId == id && data.uid == uid
+        && data.counterpartyUid == (client ? confirmation.providerUid : confirmation.clientUid)
+        && data.type == (client ? 'service_used_client' : 'service_provided')
+        && data.sourceId == confirmation.postId && data.period == confirmation.period
+        && data.deltaXpTotal == gain && data.deltaXpMonth == gain && data.deltaCoins == 0
+        && data.status == 'released' && data.createdAt == request.time;
+    }
+
+    function validServiceReceipt(uid, operation, data) {
+      let id = data.confirmationId;
+      let confirmation = getAfter(/databases/$(database)/documents/serviceConfirmations/$(id)).data;
+      return owns(uid) && confirmation.clientUid == uid && confirmation.operationId == operation
+        && !exists(/databases/$(database)/documents/serviceConfirmations/$(id))
+        && data.keys().hasOnly([
+          'confirmationId', 'postId', 'providerUid', 'period', 'slot', 'rating', 'createdAt'
+        ])
+        && data.postId == confirmation.postId && data.providerUid == confirmation.providerUid
+        && data.period == confirmation.period && data.slot == confirmation.slot
+        && data.rating == confirmation.rating && data.createdAt == request.time;
+    }
+
+    function activityMovement(uid, id) {
+      return /databases/$(database)/documents/users/$(uid)/movimientos/$(id);
+    }
+
+    function activityXpChange(before, after, movement) {
+      let period = currentPeriod();
+      let monthBase = before.rankingPeriod == period ? before.monthlyXp : 0;
+      return validEconomy(before) && validEconomy(after)
+        && before.rankingPeriod <= period && after.rankingPeriod == period
+        && movement.period == period
+        && after.xp == before.xp + movement.deltaXpTotal
+        && after.monthlyXp == monthBase + movement.deltaXpMonth
+        && after.updatedAt == request.time
+        && after.diff(before).affectedKeys().hasOnly([
+          'xp', 'monthlyXp', 'rankingPeriod', 'lastActivityReward', 'updatedAt'
+        ]);
+    }
+
+    function activityRewardUpdate(uid) {
+      let after = request.resource.data;
+      let id = after.get('lastActivityReward', '');
+      let movement = activityMovement(uid, id);
+      return id != '' && !exists(movement)
+        && activityXpChange(resource.data, after, getAfter(movement).data);
+    }
+
+    function validFavorReward(uid, postId, post, data) {
+      let offer = /databases/$(database)/documents/posts/$(postId)/helpOffers/$(uid);
+      return signedIn() && request.auth.uid == post.authorId && uid != post.authorId
+        && data.counterpartyUid == post.authorId && data.deltaCoins == 0
+        && get(offer).data.get('confirmedAt', null) == null
+        && getAfter(offer).data.confirmedAt == request.time;
+    }
+
+    function validEventReward(uid, postId, post, data) {
+      let attendance = get(/databases/$(database)/documents/posts/$(postId)/attendance/$(uid)).data;
+      let account = /databases/$(database)/documents/users/$(uid)/private/account;
+      return owns(uid) && post.authorId != uid && data.counterpartyUid == uid
+        && attendance.response == 'going' && attendance.updatedAt <= post.details.startsAt
+        && data.deltaCoins == 3
+        && getAfter(account).data.availableCoins == get(account).data.availableCoins + 3;
+    }
+
+    function validActivityMovement(uid, id, data) {
+      let postId = data.sourceId;
+      let post = get(/databases/$(database)/documents/posts/$(postId)).data;
+      let user = /databases/$(database)/documents/users/$(uid);
+      let after = getAfter(user).data;
+      return data.keys().hasOnly([
+          'id', 'confirmationId', 'uid', 'counterpartyUid', 'type', 'sourceId',
+          'deltaXpTotal', 'deltaXpMonth', 'deltaCoins', 'period', 'status', 'createdAt'
+        ])
+        && data.id == id && data.confirmationId == id && data.uid == uid
+        && id == data.type + '_' + postId && after.lastActivityReward == id
+        && data.deltaXpTotal == 10 && data.deltaXpMonth == 10
+        && data.status == 'released' && data.createdAt == request.time
+        && post.status == 'active' && activityXpChange(get(user).data, after, data)
+        && ((data.type == 'favor_completed' && post.category == 'help'
+            && validFavorReward(uid, postId, post, data))
+          || (data.type == 'event_attended' && post.category == 'event'
+            && validEventReward(uid, postId, post, data)));
+    }
+
+    function eventCoinsUpdate(uid) {
+      let id = getAfter(/databases/$(database)/documents/users/$(uid)).data.get('lastActivityReward', '');
+      let movement = activityMovement(uid, id);
+      let after = request.resource.data;
+      return owns(uid) && id != '' && !exists(movement)
+        && getAfter(movement).data.type == 'event_attended'
+        && after.diff(resource.data).affectedKeys().hasOnly(['availableCoins'])
+        && after.availableCoins == resource.data.availableCoins + 3;
+    }
+
+
+    match /users/{uid} {
+      // Old documents remain owner-only until the atomic privacy migration.
+      allow read: if signedIn() && (owns(uid) || resource.data.get('profileVersion', 0) == 1);
+      allow create: if owns(uid) && (
+        // Minimal SOS bootstrap, with no economy and no public visibility.
+        (request.resource.data.keys().hasOnly(['communityId'])
+          && request.resource.data.communityId is string)
+        || (validEconomy(request.resource.data)
+          && request.resource.data.keys().hasOnly([
+            'name', 'xp', 'monthlyXp', 'rankingPeriod', 'profileVersion', 'districtKey',
+            'averageStars', 'reviewCount', 'createdAt', 'updatedAt'
+          ])
+          && request.resource.data.xp == 20
+          && request.resource.data.monthlyXp == 20
+          && request.resource.data.rankingPeriod == currentPeriod()
+          && request.resource.data.averageStars == 0
+          && request.resource.data.reviewCount == 0
+          && request.resource.data.createdAt == request.time
+          && getAfter(/databases/$(database)/documents/users/$(uid)/private/account).data.availableCoins == 10)
+      );
+      allow update: if serviceRewardUpdate(uid) || activityRewardUpdate(uid) || owns(uid) && (
+        profileUpdateAllowed()
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['communityId'])
+          && request.resource.data.communityId is string)
+      );
+
+      match /private/account {
+        allow read: if owns(uid);
+        allow create: if owns(uid)
+          && request.resource.data.keys().hasOnly(['phoneNumber', 'email', 'availableCoins'])
+          && request.resource.data.phoneNumber is string
+          && request.resource.data.email is string
+          && request.resource.data.availableCoins is number
+          && request.resource.data.availableCoins >= 0
+          && (
+            (!exists(/databases/$(database)/documents/users/$(uid))
+              && getAfter(/databases/$(database)/documents/users/$(uid)).data.xp == 20
+              && request.resource.data.availableCoins == 10)
+            || (exists(/databases/$(database)/documents/users/$(uid))
+              && request.resource.data.availableCoins ==
+                get(/databases/$(database)/documents/users/$(uid)).data.get('availableCoins',
+                  get(/databases/$(database)/documents/users/$(uid)).data.get('monedasDisponibles', 0)))
+          );
+        allow update: if eventCoinsUpdate(uid) || owns(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phoneNumber', 'email'])
+          && request.resource.data.phoneNumber is string && request.resource.data.email is string;
+      }
+
+      match /private/proximity {
+        allow read: if owns(uid);
+        allow create, update: if owns(uid)
+          && request.resource.data.keys().hasOnly([
+            'kind', 'uid', 'communityId', 'proximityEnabled', 'location', 'geohash',
+            'locationUpdatedAt', 'fcmToken', 'platform'
+          ])
+          && request.resource.data.kind == 'proximity'
+          && request.resource.data.uid == uid
+          && request.resource.data.communityId == getAfter(/databases/$(database)/documents/users/$(uid)).data.communityId;
+        allow delete: if owns(uid);
+      }
+
+      match /movimientos/{movementId} {
+        allow read: if owns(uid);
+        allow create: if validServiceMovement(uid, movementId, request.resource.data)
+          || validActivityMovement(uid, movementId, request.resource.data);
+        allow update, delete: if false;
+      }
+
+      match /serviceOperations/{operationId} {
+        allow read: if owns(uid);
+        allow create: if validServiceReceipt(uid, operationId, request.resource.data);
+        allow update, delete: if false;
+      }
 
       match /nearby_emergency_alerts/{alertId} {
         allow read: if owns(uid);
         allow write: if false;
       }
-
       match /notification_devices/{deviceId} {
         allow read, write: if owns(uid);
       }
@@ -184,13 +472,18 @@ service cloud.firestore {
       match /mascota/{docId} {
         allow read, write: if owns(uid);
       }
-
-      match /movimientos/{movId} {
-        allow read: if owns(uid);
-        allow create: if owns(uid);
-        allow update, delete: if false;
-      }
     }
+
+    match /ranking/{district}/posiciones/{uid} { allow read: if signedIn(); }
+    match /stats/{district}/buenVecino/{id} { allow read: if signedIn(); }
+    match /serviceConfirmations/{id} {
+      allow get: if signedIn() && (
+        !exists(/databases/$(database)/documents/serviceConfirmations/$(id))
+        || request.auth.uid in [resource.data.clientUid, resource.data.providerUid]);
+      allow create: if validServiceConfirmation(id, request.resource.data);
+      allow list, update, delete: if false;
+    }
+
 
     match /emergency_alerts/{alertId} {
       allow create: if signedIn()

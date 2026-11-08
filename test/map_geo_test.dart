@@ -85,10 +85,7 @@ void main() {
       );
       final constrained = constraint.constrain(cameraAt(far));
 
-      expect(
-        distanceMeters(center, constrained!.center),
-        closeTo(1000, 1),
-      );
+      expect(distanceMeters(center, constrained!.center), closeTo(1000, 1));
     });
   });
 }

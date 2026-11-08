@@ -1,20 +1,17 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 
+import '../../../economy/domain/models/economy_result.dart';
+import '../../../economy/domain/services/economy_engine.dart';
+import '../../../economy/presentation/economy_failure_messages.dart';
 import '../../domain/entities/comunidad_feed_items.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
 import 'feed_widgets.dart';
 
 class FavoresTab extends StatefulWidget {
-  const FavoresTab({
-    super.key,
-    required this.repository,
-    this.currentUserId,
-  });
+  const FavoresTab({super.key, required this.repository});
 
   final ComunidadFeedRepository repository;
-  final String? currentUserId;
 
   @override
   State<FavoresTab> createState() => _FavoresTabState();
@@ -32,15 +29,6 @@ class _FavoresTabState extends State<FavoresTab>
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.repository, widget.repository)) {
       _favors = widget.repository.watchFavors();
-    }
-  }
-
-  String? get _resolvedUserId {
-    if (widget.currentUserId != null) return widget.currentUserId;
-    try {
-      return FirebaseAuth.instance.currentUser?.uid;
-    } catch (_) {
-      return null;
     }
   }
 
@@ -77,11 +65,14 @@ class _FavoresTabState extends State<FavoresTab>
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, index) => _HelpCard(
-            item: items[index],
-            repository: widget.repository,
-            currentUserId: _resolvedUserId,
-          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _HelpCard(
+              key: ValueKey(item.id),
+              item: item,
+              repository: widget.repository,
+            );
+          },
         );
       },
     );
@@ -89,47 +80,129 @@ class _FavoresTabState extends State<FavoresTab>
 }
 
 class _HelpCard extends StatefulWidget {
-  const _HelpCard({
-    required this.item,
-    required this.repository,
-    this.currentUserId,
-  });
+  const _HelpCard({super.key, required this.item, required this.repository});
 
   final HelpItem item;
   final ComunidadFeedRepository repository;
-  final String? currentUserId;
 
   @override
   State<_HelpCard> createState() => _HelpCardState();
 }
 
 class _HelpCardState extends State<_HelpCard> {
-  bool _isLoading = false;
+  late Stream<HelpParticipation> _participation = widget.repository
+      .watchHelpParticipation(widget.item);
+  bool _saving = false;
 
-  Future<void> _handleAction(
-    Future<void> Function() action,
-    String successMessage,
-  ) async {
-    if (_isLoading) return;
-    setState(() => _isLoading = true);
+  @override
+  void didUpdateWidget(covariant _HelpCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.item.authorId != widget.item.authorId) {
+      _participation = widget.repository.watchHelpParticipation(widget.item);
+    }
+  }
+
+  Future<void> _offerHelp() async {
+    if (_saving) return;
+    setState(() => _saving = true);
     try {
-      await action();
+      await widget.repository.offerHelp(widget.item.id);
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo registrar tu ayuda.')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmHelp(HelpOffer offer, EconomyEngine engine) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await engine.confirmFavor(postId: widget.item.id, helperUid: offer.uid);
+    } on EconomyFailure catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(successMessage)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(economyFailureMessage(error))));
       }
-    } catch (e) {
+    } on Exception {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          const SnackBar(content: Text('No se pudo confirmar la ayuda.')),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _buildParticipation() {
+    return StreamBuilder<HelpParticipation>(
+      stream: _participation,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return TextButton(
+            onPressed: () => setState(() {
+              _participation = widget.repository.watchHelpParticipation(
+                widget.item,
+              );
+            }),
+            child: const Text('Reintentar consulta de ayuda'),
+          );
+        }
+        final participation = snapshot.data;
+        if (participation?.offers case final offers?) {
+          if (offers.isEmpty) return const Text('Nadie ha ofrecido ayuda aún');
+          final engine = context.read<EconomyEngine?>();
+          return ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              offers.length == 1
+                  ? '1 persona ofreció ayuda'
+                  : '${offers.length} personas ofrecieron ayuda',
+            ),
+            children: [
+              for (final offer in offers)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(offer.name),
+                  subtitle: offer.isConfirmed
+                      ? const Text('Ayuda confirmada')
+                      : null,
+                  trailing: offer.isConfirmed
+                      ? const Icon(Icons.check)
+                      : TextButton(
+                          onPressed: _saving || engine == null
+                              ? null
+                              : () => _confirmHelp(offer, engine),
+                          child: const Text('Confirmar ayuda'),
+                        ),
+                ),
+            ],
+          );
+        }
+        final offered = participation?.hasOffered ?? false;
+        return FilledButton.tonalIcon(
+          onPressed: participation == null || offered || _saving
+              ? null
+              : _offerHelp,
+          icon: Icon(offered ? Icons.check : Icons.volunteer_activism_outlined),
+          label: Text(
+            _saving
+                ? 'Guardando…'
+                : participation?.isConfirmed == true
+                ? 'Ayuda confirmada · +${EconomyResult.favorXp} XP'
+                : offered
+                ? 'Ayuda ofrecida'
+                : 'Ayudar',
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -141,10 +214,6 @@ class _HelpCardState extends State<_HelpCard> {
     final peopleColor = people == null
         ? theme.colorScheme.onSurfaceVariant
         : theme.colorScheme.primary;
-
-    final uid = widget.currentUserId;
-    final isAuthor = uid != null && uid == item.authorId;
-    final isHelper = uid != null && item.ayudantes.contains(uid);
 
     return Card(
       child: Padding(
@@ -177,11 +246,23 @@ class _HelpCardState extends State<_HelpCard> {
                     ],
                   ),
                 ),
-                _PointsBadge(fichas: item.fichas, xp: item.xp),
+                RewardBadge(
+                  label: item.hasReward ? 'Con recompensa' : 'Sin recompensa',
+                  highlighted: item.hasReward,
+                ),
                 const ExcludeSemantics(child: Icon(Icons.more_vert, size: 20)),
               ],
             ),
             Text(item.description, style: theme.textTheme.bodyMedium),
+            const RewardBadge(
+              label: '+${EconomyResult.favorXp} XP',
+              detail: 'Al confirmar la ayuda',
+            ),
+            if (item.hasReward && item.rewardDescription != null)
+              Text(
+                'Recompensa: ${item.rewardDescription}',
+                style: theme.textTheme.bodySmall,
+              ),
             Row(
               spacing: 6,
               children: [
@@ -224,127 +305,10 @@ class _HelpCardState extends State<_HelpCard> {
                 ),
               ],
             ),
-            const Divider(height: 1),
-            // Acciones según estado y rol del usuario
-            _buildActions(context, isAuthor: isAuthor, isHelper: isHelper),
+            _buildParticipation(),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildActions(
-    BuildContext context, {
-    required bool isAuthor,
-    required bool isHelper,
-  }) {
-    final item = widget.item;
-    final theme = Theme.of(context);
-
-    if (item.estado == 'completado') {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 6,
-          children: [
-            Icon(Icons.check_circle, size: 16, color: Colors.green),
-            Text(
-              'Favor completado',
-              style: TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (isAuthor) {
-      if (item.estado == 'esperandoConfirmacion') {
-        return FilledButton.icon(
-          onPressed: _isLoading
-              ? null
-              : () => _handleAction(
-                    () => widget.repository.confirmarFavor(item.id),
-                    '¡Favor confirmado y agradecido!',
-                  ),
-          icon: const Icon(Icons.verified, size: 18),
-          label: Text(_isLoading ? 'Confirmando…' : 'Confirmar y agradecer'),
-        );
-      }
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          'Tu pedido de ayuda (${item.cuposTomados}/${item.cuposTotales} ayudantes)',
-          style: theme.textTheme.bodySmall,
-        ),
-      );
-    }
-
-    if (isHelper) {
-      return Wrap(
-        spacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Chip(
-            avatar: const Icon(Icons.volunteer_activism, size: 16),
-            label: const Text('Estás ayudando'),
-            backgroundColor:
-                theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-          ),
-          if (item.estado == 'esperandoConfirmacion')
-            const Text(
-              'Esperando confirmación',
-              style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
-            )
-          else
-            OutlinedButton.icon(
-              onPressed: _isLoading
-                  ? null
-                  : () => _handleAction(
-                        () => widget.repository.marcarFavorTerminado(item.id),
-                        'Marcado como terminado. Esperando al autor.',
-                      ),
-              icon: const Icon(Icons.done_all, size: 18),
-              label: Text(_isLoading ? 'Guardando…' : 'Marcar como terminado'),
-            ),
-        ],
-      );
-    }
-
-    // Usuario vecino (no autor, no ayudante todavía)
-    if (item.tieneCupo) {
-      return FilledButton.tonalIcon(
-        onPressed: _isLoading
-            ? null
-            : () => _handleAction(
-                  () => widget.repository.postularAFavor(item.id),
-                  '¡Te has postulado para ayudar!',
-                ),
-        icon: const Icon(Icons.handshake_outlined, size: 18),
-        label: Text(_isLoading ? 'Quiero ayudar' : 'Quiero ayudar'),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Text('Cupos completos', style: TextStyle(fontSize: 12)),
     );
   }
 
@@ -353,56 +317,5 @@ class _HelpCardState extends State<_HelpCard> {
     return firstLine.length <= 54
         ? firstLine.toString()
         : '${firstLine.take(54)}…';
-  }
-}
-
-class _PointsBadge extends StatelessWidget {
-  const _PointsBadge({required this.fichas, required this.xp});
-
-  final int fichas;
-  final int xp;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 130),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF3CD),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFFFB703), width: 0.8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 4,
-        children: [
-          SvgPicture.asset(
-            'assets/ficha.svg',
-            width: 14,
-            height: 14,
-          ),
-          Flexible(
-            child: Text.rich(
-              TextSpan(
-                style: const TextStyle(color: Color(0xFF7A4A00)),
-                children: [
-                  TextSpan(
-                    text: '+$fichas',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  TextSpan(
-                    text: ' ($xp XP)',
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

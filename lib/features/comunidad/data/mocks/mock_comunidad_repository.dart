@@ -25,8 +25,7 @@ class MockComunidadRepository implements ComunidadRepository {
       Favor(
         id: 'fav_01',
         titulo: 'Prestar escalera tijera de 2 metros',
-        descripcion:
-          'Necesito pintar el alero de la fachada. La devolveré limpia y el mismo día por la tarde.',
+        descripcion: 'Necesito pintar el alero de la fachada. La devolveré limpia y el mismo día por la tarde.',
         categoria: CategoriaFavor.herramientas,
         tamano: TamanoFavor.mini,
         estado: EstadoFavor.abierto,
@@ -46,8 +45,7 @@ class MockComunidadRepository implements ComunidadRepository {
       Favor(
         id: 'fav_02',
         titulo: 'Apoyo con compras pesadas en el mercado',
-        descripcion:
-          'Tengo dificultad para cargar bolsas pesadas de verduras y abarrotes. Sería acompañarme unas 3 cuadras.',
+        descripcion: 'Tengo dificultad para cargar bolsas pesadas de verduras y abarrotes. Sería acompañarme unas 3 cuadras.',
         categoria: CategoriaFavor.compras,
         tamano: TamanoFavor.medio,
         estado: EstadoFavor.abierto,
@@ -67,8 +65,7 @@ class MockComunidadRepository implements ComunidadRepository {
       Favor(
         id: 'fav_03',
         titulo: 'Jornada de pintado de mural vecinal',
-        descripcion:
-          'Vamos a recuperar la pared exterior del parque central. Se requiere apoyo con rodillos y brochas.',
+        descripcion: 'Vamos a recuperar la pared exterior del parque central. Se requiere apoyo con rodillos y brochas.',
         categoria: CategoriaFavor.limpieza,
         tamano: TamanoFavor.comunitario,
         estado: EstadoFavor.abierto,
@@ -108,8 +105,7 @@ class MockComunidadRepository implements ComunidadRepository {
       Favor(
         id: 'fav_04',
         titulo: 'Revisión y cambio de empaque de caño que gotea',
-        descripcion:
-          'El lavadero de la cocina tiene una fuga leve. Si algún vecino tiene llave inglesa y me da una mano.',
+        descripcion: 'El lavadero de la cocina tiene una fuga leve. Si algún vecino tiene llave inglesa y me da una mano.',
         categoria: CategoriaFavor.reparacion,
         tamano: TamanoFavor.medio,
         estado: EstadoFavor.enCurso,
@@ -140,8 +136,7 @@ class MockComunidadRepository implements ComunidadRepository {
       EventoComunitario(
         id: 'evt_01',
         titulo: 'Reunión Ordinaria de Junta Vecinal de Cuadra',
-        descripcion:
-          'Trataremos sobre las nuevas cámaras de seguridad de la esquina y la coordinación del simulacro.',
+        descripcion: 'Trataremos sobre las nuevas cámaras de seguridad de la esquina y la coordinación del simulacro.',
         tipo: TipoEvento.reunion,
         fecha: DateTime.now().add(const Duration(days: 1, hours: 4)),
         lugar: 'Local Comunal (Jr. Las Palmeras 230)',
@@ -155,8 +150,7 @@ class MockComunidadRepository implements ComunidadRepository {
       EventoComunitario(
         id: 'evt_02',
         titulo: 'Faena de arborización y limpieza en el pasaje',
-        descripcion:
-          'Colocaremos plantones y tierra de chacra en las jardineras comunitarias. Traer guantes y bolsas.',
+        descripcion: 'Colocaremos plantones y tierra de chacra en las jardineras comunitarias. Traer guantes y bolsas.',
         tipo: TipoEvento.faena,
         fecha: DateTime.now().add(const Duration(days: 3, hours: 2)),
         lugar: 'Pasaje San Martín con Los Pinos',
@@ -170,8 +164,7 @@ class MockComunidadRepository implements ComunidadRepository {
       EventoComunitario(
         id: 'evt_03',
         titulo: 'Taller de Primeros Auxilios y Mochila de Emergencia',
-        descripcion:
-          'Capacitación dictada por brigadistas voluntarios de INDECI. Aprenderemos técnicas de vendaje y RCP básico.',
+        descripcion: 'Capacitación dictada por brigadistas voluntarios de INDECI. Aprenderemos técnicas de vendaje y RCP básico.',
         tipo: TipoEvento.seguridad,
         fecha: DateTime.now().add(const Duration(days: 5)),
         lugar: 'Cancha deportiva Los Sauces',
@@ -547,7 +540,10 @@ class MockComunidadRepository implements ComunidadRepository {
   }
 
   @override
-  Future<void> responderEvento(String eventoId, RespuestaEvento respuesta) async {
+  Future<void> responderEvento(
+    String eventoId,
+    RespuestaEvento respuesta,
+  ) async {
     final idx = _eventos.indexWhere((e) => e.id == eventoId);
     if (idx == -1) return;
     final e = _eventos[idx];
@@ -623,4 +619,3 @@ class MockComunidadRepository implements ComunidadRepository {
     // Registra reporte para revisión
   }
 }
-
