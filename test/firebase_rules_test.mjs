@@ -361,11 +361,13 @@ await request(ownerMascotaUrl, {
 });
 
 const ownerMovimientoUrl = firestore + '/v1/' + documents + '/users/' + owner.uid + '/movimientos/mov-1';
+// El libro de movimientos es de solo lectura para el cliente: un bono escrito a mano se rechaza.
+// El bono real de la mochila se valida en service_economy_rules_test.mjs.
 await request(ownerMovimientoUrl, {
   method: 'PATCH',
   headers: firestoreAuth(owner),
   json: { fields: { fichas: { integerValue: '50' }, concepto: { stringValue: 'bonoMochila' } } },
-  status: 200,
+  status: 403,
 });
 await request(ownerMovimientoUrl, {
   method: 'DELETE',
