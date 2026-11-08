@@ -16,6 +16,7 @@ enum EconomyFailureReason {
   operationConflict,
   serviceNotFound,
   inactiveService,
+  serviceNotDelivered,
   userNotFound,
   profileNotReady,
   futurePeriod,
@@ -45,6 +46,7 @@ final class EconomyResult {
 
   static const serviceClientXp = 15;
   static const serviceProviderXp = 25;
+  static const serviceCoins = 5;
   static const eventXp = 10;
   static const eventCoins = 3;
   static const favorXp = HelpPostData.systemXp;

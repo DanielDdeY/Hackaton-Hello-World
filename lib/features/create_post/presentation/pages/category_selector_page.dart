@@ -27,7 +27,7 @@ class CategorySelectorPage extends StatelessWidget {
     (
       form: ServiceForm(),
       title: 'Servicios',
-      description: 'Oficios y Visto Bueno',
+      description: 'Oficios y productos del barrio',
       icon: Icons.handyman_outlined,
     ),
     (
