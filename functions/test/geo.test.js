@@ -12,7 +12,7 @@ test("distance uses geodesic meters", () => {
   assert.ok(Math.abs(distanceMeters(origin, pointAtMetersNorth(500)) - 500) < 1);
 });
 
-test("the radius includes 499m and excludes 501m", () => {
-  assert.equal(isWithinRadius(origin, pointAtMetersNorth(499), 500), true);
-  assert.equal(isWithinRadius(origin, pointAtMetersNorth(501), 500), false);
+test("the radius includes 199m and excludes 201m", () => {
+  assert.equal(isWithinRadius(origin, pointAtMetersNorth(199), 200), true);
+  assert.equal(isWithinRadius(origin, pointAtMetersNorth(201), 200), false);
 });

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../domain/entities/favor.dart';
 import '../../domain/entities/resumen_hoy.dart';
+import '../../../community/presentation/community_sos_section.dart';
 import '../controllers/comunidad_controller.dart';
 
 class HoyTab extends StatelessWidget {
@@ -29,6 +30,8 @@ class HoyTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
+          const CommunitySosSection(),
+
           // Banner de alerta comunitaria (RF-01 / RN-19)
           if (resumen.alertaActiva != null) ...[
             _BannerAlerta(alerta: resumen.alertaActiva!),
@@ -349,4 +352,3 @@ class _TarjetaVacia extends StatelessWidget {
     );
   }
 }
-

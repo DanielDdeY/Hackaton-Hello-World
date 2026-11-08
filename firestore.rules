@@ -2,11 +2,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == userId;
-    }
-
     match /phoneIndex/{phoneNumber} {
       allow read: if true;
       allow create: if signedIn()
@@ -132,7 +127,7 @@ service cloud.firestore {
         && request.resource.data.reporterUid == request.auth.uid
         && request.resource.data.communityId == userCommunity(request.auth.uid)
         && request.resource.data.status == 'active'
-        && request.resource.data.radiusMeters == 500
+        && request.resource.data.radiusMeters == 200
         && request.resource.data.location is latlng
         && request.resource.data.keys().hasOnly([
           'reporterUid', 'location', 'communityId', 'radiusMeters', 'status',
@@ -169,8 +164,13 @@ service cloud.firestore {
     }
 
     match /community_posts/{postId} {
-      allow read: if signedIn()
-        && resource.data.communityId == userCommunity(request.auth.uid);
+      allow get: if signedIn()
+        && (
+          !exists(/databases/$(database)/documents/community_posts/$(postId))
+          || resource.data.authorUid == request.auth.uid
+        );
+      allow list: if signedIn()
+        && resource.data.authorUid == request.auth.uid;
 
       allow create: if signedIn()
         && request.resource.data.authorUid == request.auth.uid

@@ -16,7 +16,10 @@ void main() {
 
     test('obtenerResumenHoy retorna estadísticas y favores cercanos', () async {
       final resumen = await repo.obtenerResumenHoy();
-      expect(resumen.estadisticasCuadra.porcentajeMochilaPreparada, greaterThan(0));
+      expect(
+        resumen.estadisticasCuadra.porcentajeMochilaPreparada,
+        greaterThan(0),
+      );
       expect(resumen.favoresCercanos, isNotEmpty);
     });
 
@@ -38,7 +41,9 @@ void main() {
       await repo.responderEvento(evento.id, RespuestaEvento.voy);
 
       final eventosActualizados = await repo.obtenerEventos();
-      final actualizado = eventosActualizados.firstWhere((e) => e.id == evento.id);
+      final actualizado = eventosActualizados.firstWhere(
+        (e) => e.id == evento.id,
+      );
       expect(actualizado.miRespuesta, equals(RespuestaEvento.voy));
     });
 
@@ -76,23 +81,31 @@ void main() {
       );
     });
 
-    test('confirmarYCalificar cambia el estado a completado con calificacion', () async {
-      await repo.confirmarYCalificar('fav_04', 5.0);
-      final favor = await repo.obtenerFavorPorId('fav_04');
-      expect(favor.estado, equals(EstadoFavor.completado));
-      expect(favor.participantes.first.calificacion, equals(5.0));
-    });
+    test(
+      'confirmarYCalificar cambia el estado a completado con calificacion',
+      () async {
+        await repo.confirmarYCalificar('fav_04', 5.0);
+        final favor = await repo.obtenerFavorPorId('fav_04');
+        expect(favor.estado, equals(EstadoFavor.completado));
+        expect(favor.participantes.first.calificacion, equals(5.0));
+      },
+    );
 
-    test('verificarAsistencia marca asistenciaVerificada en el evento', () async {
-      await repo.verificarAsistencia('evt_01', '1234');
-      final eventos = await repo.obtenerEventos();
-      final evento = eventos.firstWhere((e) => e.id == 'evt_01');
-      expect(evento.asistenciaVerificada, isTrue);
-    });
+    test(
+      'verificarAsistencia marca asistenciaVerificada en el evento',
+      () async {
+        await repo.verificarAsistencia('evt_01', '1234');
+        final eventos = await repo.obtenerEventos();
+        final evento = eventos.firstWhere((e) => e.id == 'evt_01');
+        expect(evento.asistenciaVerificada, isTrue);
+      },
+    );
   });
 
   group('Módulo de Comunidad - Pruebas de Interfaz UI', () {
-    testWidgets('ComunidadPage renderiza las 4 pestañas superiores', (tester) async {
+    testWidgets('ComunidadPage renderiza las 4 pestañas superiores', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Provider<MockComunidadRepository>(
@@ -106,10 +119,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hoy'), findsOneWidget);
+      expect(find.text('Alertas SOS cercanas'), findsOneWidget);
       expect(find.text('Favores'), findsOneWidget);
       expect(find.text('Eventos'), findsOneWidget);
       expect(find.text('Vecinos'), findsOneWidget);
     });
   });
 }
-

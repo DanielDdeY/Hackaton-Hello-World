@@ -28,7 +28,7 @@ class FirebaseEmergencyAlertRepository implements EmergencyAlertRepository {
       'reporterUid': reporterUid,
       'location': GeoPoint(latitude, longitude),
       'communityId': communityId,
-      'radiusMeters': 500,
+      'radiusMeters': emergencyAlertRadiusMeters,
       'status': EmergencyAlertStatus.active.name,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

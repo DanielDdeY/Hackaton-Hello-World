@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+const emergencyAlertRadiusMeters = 200;
+
 enum EmergencyAlertStatus { active, cancelled, resolved }
 
 class EmergencyAlert {
@@ -46,7 +48,7 @@ class EmergencyAlert {
       longitude: location.longitude,
       communityId: data['communityId'] as String? ?? '',
       status: status,
-      radiusMeters: data['radiusMeters'] as int? ?? 500,
+      radiusMeters: data['radiusMeters'] as int? ?? emergencyAlertRadiusMeters,
       title: data['title'] as String?,
       description: data['description'] as String?,
       emergencyType: data['emergencyType'] as String?,
