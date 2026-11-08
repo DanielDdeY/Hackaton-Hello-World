@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunidad_repository.dart';
-import 'package:hackaton_hello_world/features/comunidad/domain/entities/vecino_ranking.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/comunidad_page.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/vecino_detalle_page.dart';

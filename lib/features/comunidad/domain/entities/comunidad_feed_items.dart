@@ -11,6 +11,9 @@ final class HelpItem {
     this.title,
     this.location,
     this.peopleNeeded,
+    this.authorId,
+    this.hasReward = false,
+    this.rewardDescription,
   });
 
   final String id;
@@ -19,6 +22,17 @@ final class HelpItem {
   final String? title;
   final String? location;
   final int? peopleNeeded;
+  final String? authorId;
+  final bool hasReward;
+  final String? rewardDescription;
+}
+
+final class HelpParticipation {
+  const HelpParticipation({this.hasOffered = false, this.offerCount});
+
+  final bool hasOffered;
+  // Only the author can see the number of offers.
+  final int? offerCount;
 }
 
 final class ServiceItem {

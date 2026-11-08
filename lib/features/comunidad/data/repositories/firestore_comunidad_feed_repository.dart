@@ -25,6 +25,33 @@ final class FirestoreComunidadFeedRepository
   Stream<List<HelpItem>> watchFavors() => _watchPosts('help', _readHelp);
 
   @override
+  Stream<HelpParticipation> watchHelpParticipation(HelpItem favor) async* {
+    final uid = await _auth.ensureSignedIn();
+    final offers = _helpOffers(favor.id);
+    if (uid == favor.authorId) {
+      yield* offers.snapshots().map(
+        (snapshot) => HelpParticipation(offerCount: snapshot.size),
+      );
+    } else {
+      yield* offers
+          .doc(uid)
+          .snapshots()
+          .map((snapshot) => HelpParticipation(hasOffered: snapshot.exists));
+    }
+  }
+
+  @override
+  Future<void> offerHelp(String favorId) async {
+    final uid = await _auth.ensureSignedIn();
+    await _helpOffers(favorId)
+        .doc(uid)
+        .set({'offeredAt': FieldValue.serverTimestamp()});
+  }
+
+  CollectionReference<Map<String, dynamic>> _helpOffers(String favorId) =>
+      _firestore.collection('posts').doc(favorId).collection('helpOffers');
+
+  @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) =>
       _watchPosts('service', _readService, serviceCategory: category);
 
@@ -132,6 +159,11 @@ final class FirestoreComunidadFeedRepository
     if (description == null) return null;
 
     final people = details['peopleNeeded'];
+    final rewardDescription = _text(details['rewardDescription']);
+    final hasReward = switch (details['hasReward']) {
+      final bool enabled => enabled,
+      _ => rewardDescription != null,
+    };
     final location = data['location'];
     final autoLocation =
         location is Map &&
@@ -145,6 +177,9 @@ final class FirestoreComunidadFeedRepository
       title: _text(details['title']),
       location: autoLocation ? null : _text(details['specificLocation']),
       peopleNeeded: people is int && people > 0 ? people : null,
+      authorId: _text(data['authorId']),
+      hasReward: hasReward,
+      rewardDescription: hasReward ? rewardDescription : null,
     );
   }
 

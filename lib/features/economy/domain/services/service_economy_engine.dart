@@ -1,0 +1,359 @@
+import '../../../create_post/domain/services/auth_gateway.dart';
+import '../models/economy_result.dart';
+import '../repositories/economy_store.dart';
+import 'economy_engine.dart';
+import 'period_provider.dart';
+
+final class ServiceEconomyEngine implements EconomyEngine {
+  ServiceEconomyEngine({
+    required this.store,
+    required this.auth,
+    required this.periods,
+    bool Function()? writesEnabled,
+  }) : _writesEnabled = writesEnabled ?? (() => periods is! FakePeriodProvider);
+
+  final EconomyStore store;
+  final AuthGateway auth;
+  final PeriodProvider periods;
+  final bool Function() _writesEnabled;
+
+  @override
+  String newOperationId() => store.newOperationId();
+
+  @override
+  Future<EconomyResult> award({
+    required EconomySource source,
+    required String sourceId,
+    required String operationId,
+    int? rating,
+  }) {
+    return switch (source) {
+      EconomySource.serviceUse =>
+      rating == null
+          ? (throw const EconomyFailure(EconomyFailureReason.invalidRating))
+          : confirmService(
+        postId: sourceId,
+        rating: rating,
+        operationId: operationId,
+      ),
+      EconomySource.attendedEvent => _awardSingleUserActivity(
+        sourceId: sourceId,
+        operationId: operationId,
+        movementType: 'event_attended',
+        xp: EconomyResult.eventXp,
+        coins: EconomyResult.eventCoins,
+      ),
+      EconomySource.backpackVerified => _awardSingleUserActivity(
+        sourceId: sourceId,
+        operationId: operationId,
+        movementType: 'backpack_verified',
+        xp: 100,
+        coins: 50,
+      ),
+      EconomySource.completedFavor =>
+      throw const EconomyFailure(EconomyFailureReason.unsupportedSource),
+    };
+  }
+
+  Future<EconomyResult> _awardSingleUserActivity({
+    required String sourceId,
+    required String operationId,
+    required String movementType,
+    required int xp,
+    required int coins,
+  }) async {
+    if (!_writesEnabled()) {
+      throw const EconomyFailure(EconomyFailureReason.simulationActive);
+    }
+    final uid = auth.currentUid;
+    if (uid == null || uid.isEmpty) {
+      throw const EconomyFailure(EconomyFailureReason.noSession);
+    }
+    if (!RegExp(r'^[A-Za-z0-9_-]{16,80}$').hasMatch(operationId) ||
+        sourceId.isEmpty ||
+        sourceId.contains('/')) {
+      throw const EconomyFailure(EconomyFailureReason.invalidOperation);
+    }
+    final period = periods.currentPeriod;
+    final confirmationId = '${period}_${uid}_${movementType}_$sourceId';
+    final receiptPath = 'users/$uid/serviceOperations/$operationId';
+    final userPath = 'users/$uid';
+    final accountPath = 'users/$uid/private/account';
+    final movementPath = 'users/$uid/movimientos/$confirmationId';
+
+    return store.runTransaction((tx) async {
+      final receipt = await tx.get(receiptPath);
+      if (receipt != null) {
+        if (receipt['postId'] != sourceId) {
+          throw const EconomyFailure(EconomyFailureReason.operationConflict);
+        }
+        return EconomyResult(
+          confirmationId: receipt['confirmationId'] as String,
+          period: receipt['period'] as String,
+          slot: 1,
+          alreadyApplied: true,
+          clientXp: xp,
+          providerXp: 0,
+          coins: coins,
+        );
+      }
+
+      final existingMovement = await tx.get(movementPath);
+      if (existingMovement != null) {
+        return EconomyResult(
+          confirmationId: confirmationId,
+          period: period,
+          slot: 1,
+          alreadyApplied: true,
+          clientXp: xp,
+          providerXp: 0,
+          coins: coins,
+        );
+      }
+
+      final userData = await tx.get(userPath);
+      final accountData = await tx.get(accountPath);
+      _validateUser(userData, period);
+      final timestamp = store.serverTimestamp;
+      final currentCoins =
+          (accountData?['availableCoins'] as num?)?.toInt() ?? 0;
+
+      tx.update(
+        userPath,
+        _reward(userData!, xp, period, confirmationId, timestamp),
+      );
+      if (coins > 0 && accountData != null) {
+        tx.update(accountPath, {'availableCoins': currentCoins + coins});
+      }
+      tx.create(receiptPath, {
+        'confirmationId': confirmationId,
+        'postId': sourceId,
+        'providerUid': uid,
+        'period': period,
+        'slot': 1,
+        'rating': 5,
+        'createdAt': timestamp,
+      });
+      tx.create(movementPath, {
+        'id': confirmationId,
+        'confirmationId': confirmationId,
+        'uid': uid,
+        'counterpartyUid': uid,
+        'type': movementType,
+        'sourceId': sourceId,
+        'deltaXpTotal': xp,
+        'deltaXpMonth': xp,
+        'deltaCoins': coins,
+        'period': period,
+        'status': 'released',
+        'createdAt': timestamp,
+      });
+
+      return EconomyResult(
+        confirmationId: confirmationId,
+        period: period,
+        slot: 1,
+        clientXp: xp,
+        providerXp: 0,
+        coins: coins,
+      );
+    });
+  }
+
+  @override
+  Future<EconomyResult> confirmService({
+    required String postId,
+    required int rating,
+    required String operationId,
+  }) async {
+    if (!_writesEnabled()) {
+      throw const EconomyFailure(EconomyFailureReason.simulationActive);
+    }
+    final client = auth.currentUid;
+    if (client == null || client.isEmpty) {
+      throw const EconomyFailure(EconomyFailureReason.noSession);
+    }
+    if (rating < 1 || rating > 5) {
+      throw const EconomyFailure(EconomyFailureReason.invalidRating);
+    }
+    if (!RegExp(r'^[A-Za-z0-9_-]{16,80}$').hasMatch(operationId) ||
+        postId.isEmpty ||
+        postId.contains('/')) {
+      throw const EconomyFailure(EconomyFailureReason.invalidOperation);
+    }
+    final receiptPath = 'users/$client/serviceOperations/$operationId';
+    return store.runTransaction((tx) async {
+      // Check first, so a committed operation remains idempotent across months,
+      // or after a post was deleted. No fresh reward is issued in this branch.
+      final receipt = await tx.get(receiptPath);
+      if (receipt != null) {
+        if (receipt['postId'] != postId || receipt['rating'] != rating) {
+          throw const EconomyFailure(EconomyFailureReason.operationConflict);
+        }
+        return EconomyResult(
+          confirmationId: receipt['confirmationId'] as String,
+          period: receipt['period'] as String,
+          slot: receipt['slot'] as int,
+          alreadyApplied: true,
+        );
+      }
+      final post = await tx.get('posts/$postId');
+      if (post == null || post['category'] != 'service') {
+        throw const EconomyFailure(EconomyFailureReason.serviceNotFound);
+      }
+      if (post['status'] != 'active') {
+        throw const EconomyFailure(EconomyFailureReason.inactiveService);
+      }
+      // Never accept providerUid from the caller.
+      final provider = post['authorId'];
+      if (provider is! String || provider.isEmpty || provider.contains('/')) {
+        throw const EconomyFailure(EconomyFailureReason.serviceNotFound);
+      }
+      if (provider == client) {
+        throw const EconomyFailure(EconomyFailureReason.selfConfirmation);
+      }
+      final clientPath = 'users/$client';
+      final providerPath = 'users/$provider';
+      final clientData = await tx.get(clientPath);
+      final providerData = await tx.get(providerPath);
+      final period = periods.currentPeriod;
+      _validateUser(clientData, period);
+      _validateUser(providerData, period);
+      final firstId = confirmationId(period, client, provider, 1);
+      final secondId = confirmationId(period, client, provider, 2);
+      final first = await tx.get('serviceConfirmations/$firstId');
+      final second = await tx.get('serviceConfirmations/$secondId');
+      if (first != null && second != null) {
+        throw const EconomyFailure(
+          EconomyFailureReason.monthlyPairLimitReached,
+        );
+      }
+      final slot = first == null ? 1 : 2;
+      final id = slot == 1 ? firstId : secondId;
+      final timestamp = store.serverTimestamp;
+      final count = (providerData!['reviewCount'] as num).toInt();
+      final average = (providerData['averageStars'] as num).toDouble();
+      final confirmation = <String, dynamic>{
+        'id': id,
+        'clientUid': client,
+        'providerUid': provider,
+        'postId': postId,
+        'period': period,
+        'slot': slot,
+        'rating': rating,
+        'operationId': operationId,
+        'createdAt': timestamp,
+      };
+      // All reads above, all six writes below. Firestore retries on conflicts.
+      tx.update(
+        clientPath,
+        _reward(clientData!, EconomyResult.serviceClientXp, period, id, timestamp),
+      );
+      tx.update(providerPath, {
+        ..._reward(providerData, EconomyResult.serviceProviderXp, period, id, timestamp),
+        'reviewCount': count + 1,
+        'averageStars': (average * count + rating) / (count + 1),
+      });
+      tx.create('serviceConfirmations/$id', confirmation);
+      tx.create(receiptPath, {
+        'confirmationId': id,
+        'postId': postId,
+        'providerUid': provider,
+        'period': period,
+        'slot': slot,
+        'rating': rating,
+        'createdAt': timestamp,
+      });
+      tx.create(
+        '$clientPath/movimientos/$id',
+        _movement(
+          id,
+          client,
+          provider,
+          postId,
+          period,
+          'service_used_client',
+          EconomyResult.serviceClientXp,
+          timestamp,
+        ),
+      );
+      tx.create(
+        '$providerPath/movimientos/$id',
+        _movement(
+          id,
+          provider,
+          client,
+          postId,
+          period,
+          'service_provided',
+          EconomyResult.serviceProviderXp,
+          timestamp,
+        ),
+      );
+      return EconomyResult(confirmationId: id, period: period, slot: slot);
+    });
+  }
+
+  static String confirmationId(
+      String period,
+      String client,
+      String provider,
+      int slot,
+      ) => '${period}_${client}_${provider}_$slot';
+
+  void _validateUser(Map<String, dynamic>? data, String period) {
+    if (data == null) {
+      throw const EconomyFailure(EconomyFailureReason.userNotFound);
+    }
+    if (data['profileVersion'] != 1 ||
+        data['xp'] is! num ||
+        data['monthlyXp'] is! num ||
+        data['rankingPeriod'] is! String ||
+        data['averageStars'] is! num ||
+        data['reviewCount'] is! num) {
+      throw const EconomyFailure(EconomyFailureReason.profileNotReady);
+    }
+    if ((data['rankingPeriod'] as String).compareTo(period) > 0) {
+      throw const EconomyFailure(EconomyFailureReason.futurePeriod);
+    }
+  }
+
+  Map<String, dynamic> _reward(
+      Map<String, dynamic> data,
+      int xp,
+      String period,
+      String confirmation,
+      Object timestamp,
+      ) => {
+    'xp': (data['xp'] as num) + xp,
+    'monthlyXp':
+    (data['rankingPeriod'] == period ? data['monthlyXp'] as num : 0) + xp,
+    'rankingPeriod': period,
+    'lastServiceConfirmation': confirmation,
+    'updatedAt': timestamp,
+  };
+
+  Map<String, dynamic> _movement(
+      String id,
+      String uid,
+      String counterpart,
+      String postId,
+      String period,
+      String type,
+      int xp,
+      Object timestamp,
+      ) => {
+    'id': id,
+    'confirmationId': id,
+    'uid': uid,
+    'counterpartyUid': counterpart,
+    'type': type,
+    'sourceId': postId,
+    'deltaXpTotal': xp,
+    'deltaXpMonth': xp,
+    'deltaCoins': 0,
+    'period': period,
+    'status': 'released',
+    'createdAt': timestamp,
+  };
+}

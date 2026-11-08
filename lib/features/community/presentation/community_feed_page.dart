@@ -180,7 +180,7 @@ class _NearbyAlertsConsentState extends State<_NearbyAlertsConsent>
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return uid == null
         ? null
-        : FirebaseFirestore.instance.collection('users').doc(uid);
+        : FirebaseFirestore.instance.collection('users').doc(uid).collection('private').doc('proximity');
   }
 
   StreamSubscription<String>? _tokenSubscription;
@@ -348,6 +348,8 @@ class _NearbyAlertsConsentState extends State<_NearbyAlertsConsent>
       );
     }
     await profile.set({
+      'kind': 'proximity',
+      'uid': FirebaseAuth.instance.currentUser!.uid,
       'communityId': widget.communityId,
       'proximityEnabled': true,
       'location': GeoPoint(position.latitude, position.longitude),

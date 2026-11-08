@@ -13,11 +13,26 @@ final class MockComunidadFeedRepository implements ComunidadFeedRepository {
 
   final List<ServiceItem> _services;
   final List<HelpItem> _favors;
+  final _helpOffers = <String>{};
+  final _helpChanges = StreamController<String>.broadcast();
   final _responses = <String, EventAttendanceResponse>{};
   final _responseChanges = StreamController<String>.broadcast();
 
   @override
   Stream<List<HelpItem>> watchFavors() => Stream.value(_favors);
+
+  @override
+  Stream<HelpParticipation> watchHelpParticipation(HelpItem favor) async* {
+    yield HelpParticipation(hasOffered: _helpOffers.contains(favor.id));
+    yield* _helpChanges.stream
+        .where((id) => id == favor.id)
+        .map((id) => HelpParticipation(hasOffered: _helpOffers.contains(id)));
+  }
+
+  @override
+  Future<void> offerHelp(String favorId) async {
+    if (_helpOffers.add(favorId)) _helpChanges.add(favorId);
+  }
 
   @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) =>

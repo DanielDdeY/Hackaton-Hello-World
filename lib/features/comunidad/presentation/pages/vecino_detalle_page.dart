@@ -43,7 +43,8 @@ class _VecinoDetallePageState extends State<VecinoDetallePage> {
         builder: (context, snapshot) {
           final perfil =
               snapshot.data ?? VecinoPerfil.desdeRanking(widget.vecino);
-          final cargandoPerfil = snapshot.connectionState != ConnectionState.done;
+          final cargandoPerfil =
+              snapshot.connectionState != ConnectionState.done;
           final falloPerfil = snapshot.hasError || snapshot.data == null;
 
           if (falloPerfil && !cargandoPerfil) {
@@ -81,7 +82,7 @@ class _VecinoDetallePageState extends State<VecinoDetallePage> {
                 const SizedBox(height: 12),
                 Text(
                   'Se muestra la información del ranking porque no se pudo '
-                  'cargar el perfil completo.',
+                      'cargar el perfil completo.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -103,7 +104,6 @@ class _Cabecera extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -199,7 +199,7 @@ class _Cabecera extends StatelessWidget {
                 ),
               ),
               Text(
-                'en ${perfil.distrito}',
+                'en el barrio',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
                   fontSize: 10,
@@ -236,7 +236,11 @@ class _TarjetaProgreso extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.military_tech, size: 18, color: Color(0xFF006D77)),
+                const Icon(
+                  Icons.military_tech,
+                  size: 18,
+                  color: Color(0xFF006D77),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Nivel ${perfil.nivel}',
@@ -397,7 +401,11 @@ class _Insignias extends StatelessWidget {
           children: [
             const Row(
               children: [
-                Icon(Icons.workspace_premium, size: 18, color: Color(0xFFFFB703)),
+                Icon(
+                  Icons.workspace_premium,
+                  size: 18,
+                  color: Color(0xFFFFB703),
+                ),
                 SizedBox(width: 6),
                 Text(
                   'Insignias',
@@ -481,8 +489,8 @@ class _TarjetaRanking extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Puesto #${perfil.posicion} en el ranking de ${perfil.distrito} '
-                'con ${perfil.xpPeriodo} XP esta semana.',
+                'Puesto #${perfil.posicion} en el ranking del barrio '
+                    'con ${perfil.xpPeriodo} XP este mes.',
                 style: const TextStyle(fontSize: 13),
               ),
             ),
@@ -516,11 +524,11 @@ class _AccionReconocer extends StatelessWidget {
       onPressed: controller == null
           ? null
           : () => mostrarDialogoReconocimiento(
-              context,
-              controller,
-              destinoUid: perfil.uid,
-              destinoNombre: perfil.nombre,
-            ),
+        context,
+        controller,
+        destinoUid: perfil.uid,
+        destinoNombre: perfil.nombre,
+      ),
       icon: const Icon(Icons.thumb_up_alt_outlined, size: 18),
       label: const Text('Reconocer a este vecino'),
       style: FilledButton.styleFrom(
@@ -547,7 +555,11 @@ class _ChipInsignia extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.verified_outlined, size: 14, color: Color(0xFFB27B00)),
+          const Icon(
+            Icons.verified_outlined,
+            size: 14,
+            color: Color(0xFFB27B00),
+          ),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
