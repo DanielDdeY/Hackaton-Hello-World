@@ -174,6 +174,13 @@ void main() {
       'description': 'Mudanza',
       'requiredDate': Timestamp.fromDate(DateTime.utc(2027, 2, 18)),
       'peopleNeeded': 2,
+      'cuposTotales': 2,
+      'cuposTomados': 0,
+      'ayudantes': const <String>[],
+      'tamano': 'medio',
+      'fichasRecompensa': 15,
+      'xpRecompensa': 30,
+      'estado': 'abierto',
       'hasReward': true,
     });
     expect(help['location'], containsPair('source', 'gps_last_known'));

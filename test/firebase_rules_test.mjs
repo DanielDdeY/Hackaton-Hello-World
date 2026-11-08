@@ -307,4 +307,41 @@ assert.ok((await readFeed('news', stranger)).some((path) => path.endsWith('/' + 
 await readFeed('news', null, { status: [401, 403] });
 assert.ok((await readFeed('event', stranger)).some((path) => path.endsWith('/' + eventId)));
 
+const economiaConfigUrl = firestore + '/v1/' + documents + '/config/economia';
+await request(economiaConfigUrl, { headers: firestoreAuth(owner), status: [200, 404] });
+await request(economiaConfigUrl, { status: [401, 403] });
+await request(economiaConfigUrl, {
+  method: 'PATCH',
+  headers: firestoreAuth(owner),
+  json: { fields: { test: { booleanValue: true } } },
+  status: 403,
+});
+
+const ownerMascotaUrl = firestore + '/v1/' + documents + '/users/' + owner.uid + '/mascota/cuy';
+await request(ownerMascotaUrl, {
+  method: 'PATCH',
+  headers: firestoreAuth(owner),
+  json: { fields: { itemsDesbloqueados: { arrayValue: { values: [{ stringValue: 'sombrero' }] } } } },
+  status: 200,
+});
+await request(ownerMascotaUrl, {
+  method: 'PATCH',
+  headers: firestoreAuth(stranger),
+  json: { fields: { itemsDesbloqueados: { arrayValue: { values: [] } } } },
+  status: 403,
+});
+
+const ownerMovimientoUrl = firestore + '/v1/' + documents + '/users/' + owner.uid + '/movimientos/mov-1';
+await request(ownerMovimientoUrl, {
+  method: 'PATCH',
+  headers: firestoreAuth(owner),
+  json: { fields: { fichas: { integerValue: '50' }, concepto: { stringValue: 'bonoMochila' } } },
+  status: 200,
+});
+await request(ownerMovimientoUrl, {
+  method: 'DELETE',
+  headers: firestoreAuth(owner),
+  status: 403,
+});
+
 console.log('Reglas de Firestore y Storage verificadas con dos sesiones anónimas locales.');

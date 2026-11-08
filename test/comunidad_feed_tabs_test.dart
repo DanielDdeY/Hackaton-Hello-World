@@ -6,6 +6,7 @@ import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunida
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/comunidad_feed_items.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/comunidad_page.dart';
+import 'package:hackaton_hello_world/features/comunidad/presentation/tabs/favores_tab.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/news_post_data.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/service_category.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/service_post_data.dart';
@@ -16,6 +17,10 @@ class _Feed implements ComunidadFeedRepository {
   final serviceRequests = <ServiceCategory?>[];
   final events = StreamController<List<EventItem>>.broadcast();
   final news = StreamController<List<NewsItem>>.broadcast();
+  final favors = StreamController<List<HelpItem>>.broadcast();
+  final postuladoIds = <String>[];
+  final terminadoIds = <String>[];
+  final confirmadoIds = <String>[];
   int newsRequests = 0;
   bool failServices = false;
 
@@ -32,7 +37,10 @@ class _Feed implements ComunidadFeedRepository {
   );
 
   @override
-  Stream<List<HelpItem>> watchFavors() => Stream.value(const []);
+  Stream<List<HelpItem>> watchFavors() async* {
+    yield const [];
+    yield* favors.stream;
+  }
 
   @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) {
@@ -65,11 +73,27 @@ class _Feed implements ComunidadFeedRepository {
     String eventId,
     EventAttendanceResponse response,
   ) => attendance.respondToEvent(eventId, response);
+
+  @override
+  Future<void> postularAFavor(String postId) async {
+    postuladoIds.add(postId);
+  }
+
+  @override
+  Future<void> marcarFavorTerminado(String postId) async {
+    terminadoIds.add(postId);
+  }
+
+  @override
+  Future<void> confirmarFavor(String postId) async {
+    confirmadoIds.add(postId);
+  }
 }
 
 Future<void> _open(WidgetTester tester, _Feed repository) async {
   addTearDown(repository.news.close);
   addTearDown(repository.events.close);
+  addTearDown(repository.favors.close);
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -207,5 +231,122 @@ void main() {
     await _tap(tester, 'Eventos');
     expect(find.text(item.title), findsOneWidget);
     expect(repository.newsRequests, 1);
+  });
+
+  testWidgets('Favores permite postularse con Quiero ayudar', (tester) async {
+    final repository = _Feed();
+    addTearDown(repository.favors.close);
+    const favor = HelpItem(
+      id: 'favor-1',
+      title: 'Ayuda con compras',
+      description: 'Necesito ayuda para comprar víveres.',
+      authorName: 'Doña Rosa',
+      authorId: 'otro-user',
+      peopleNeeded: 1,
+      fichas: 10,
+      xp: 20,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FavoresTab(
+            repository: repository,
+            currentUserId: 'mi-user',
+          ),
+        ),
+      ),
+    );
+    repository.favors.add([favor]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ayuda con compras'), findsOneWidget);
+    expect(find.textContaining('+10'), findsOneWidget);
+    expect(find.text('Quiero ayudar'), findsOneWidget);
+
+    await tester.tap(find.text('Quiero ayudar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.postuladoIds, contains('favor-1'));
+  });
+
+  testWidgets('Favores permite al ayudante marcar como terminado', (
+    tester,
+  ) async {
+    final repository = _Feed();
+    addTearDown(repository.favors.close);
+    const favor = HelpItem(
+      id: 'favor-2',
+      title: 'Reparar foco',
+      description: 'Cambiar foco de la escalera.',
+      authorName: 'Don Carlos',
+      authorId: 'autor-1',
+      ayudantes: ['mi-user'],
+      cuposTomados: 1,
+      peopleNeeded: 1,
+      fichas: 10,
+      xp: 20,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FavoresTab(
+            repository: repository,
+            currentUserId: 'mi-user',
+          ),
+        ),
+      ),
+    );
+    repository.favors.add([favor]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Estás ayudando'), findsOneWidget);
+    expect(find.text('Marcar como terminado'), findsOneWidget);
+
+    await tester.tap(find.text('Marcar como terminado'));
+    await tester.pumpAndSettle();
+
+    expect(repository.terminadoIds, contains('favor-2'));
+  });
+
+  testWidgets('Favores permite al autor confirmar y agradecer', (
+    tester,
+  ) async {
+    final repository = _Feed();
+    addTearDown(repository.favors.close);
+    const favor = HelpItem(
+      id: 'favor-3',
+      title: 'Pasear perrito',
+      description: 'Paseo de 20 minutos.',
+      authorName: 'Yo Mismo',
+      authorId: 'mi-user',
+      ayudantes: ['ayudante-1'],
+      cuposTomados: 1,
+      peopleNeeded: 1,
+      estado: 'esperandoConfirmacion',
+      fichas: 10,
+      xp: 20,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FavoresTab(
+            repository: repository,
+            currentUserId: 'mi-user',
+          ),
+        ),
+      ),
+    );
+    repository.favors.add([favor]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirmar y agradecer'), findsOneWidget);
+
+    await tester.tap(find.text('Confirmar y agradecer'));
+    await tester.pumpAndSettle();
+
+    expect(repository.confirmadoIds, contains('favor-3'));
   });
 }

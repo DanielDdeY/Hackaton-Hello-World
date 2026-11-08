@@ -8,6 +8,7 @@ final class HelpItem {
     required this.id,
     required this.description,
     required this.authorName,
+    this.authorId,
     this.title,
     this.location,
     this.peopleNeeded,
@@ -21,6 +22,7 @@ final class HelpItem {
   final String id;
   final String description;
   final String authorName;
+  final String? authorId;
   final String? title;
   final String? location;
   final int? peopleNeeded;
@@ -32,6 +34,8 @@ final class HelpItem {
 
   bool get tieneCupo =>
       (cuposTomados < (peopleNeeded ?? 1)) && estado == 'abierto';
+  int get cuposTotales => peopleNeeded ?? 1;
+  int get cuposDisponibles => (cuposTotales - cuposTomados).clamp(0, 300);
 }
 
 final class ServiceItem {

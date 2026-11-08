@@ -88,6 +88,81 @@ final class FirestoreComunidadFeedRepository
     });
   }
 
+  @override
+  Future<void> postularAFavor(String postId) async {
+    final uid = await _auth.ensureSignedIn();
+    final postRef = _firestore.collection('posts').doc(postId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(postRef);
+      if (!snapshot.exists) throw StateError('El pedido de ayuda ya no existe.');
+      final data = snapshot.data() ?? {};
+      final details = Map<String, dynamic>.from(data['details'] as Map? ?? {});
+
+      final ayudantes = List<String>.from((details['ayudantes'] as List?)?.whereType<String>() ?? []);
+      if (ayudantes.contains(uid)) return;
+
+      final int cuposTotales = (details['cuposTotales'] as num?)?.toInt() ??
+          (details['peopleNeeded'] as num?)?.toInt() ?? 1;
+      int cuposTomados = (details['cuposTomados'] as num?)?.toInt() ?? 0;
+
+      if (cuposTomados >= cuposTotales) {
+        throw StateError('Todos los cupos de ayudantes han sido tomados.');
+      }
+
+      ayudantes.add(uid);
+      cuposTomados++;
+      final nuevoEstado = cuposTomados >= cuposTotales ? 'cuposLlenos' : 'abierto';
+
+      details['ayudantes'] = ayudantes;
+      details['cuposTomados'] = cuposTomados;
+      details['estado'] = nuevoEstado;
+
+      transaction.update(postRef, {
+        'details': details,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  @override
+  Future<void> marcarFavorTerminado(String postId) async {
+    await _auth.ensureSignedIn();
+    final postRef = _firestore.collection('posts').doc(postId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(postRef);
+      if (!snapshot.exists) return;
+      final data = snapshot.data() ?? {};
+      final details = Map<String, dynamic>.from(data['details'] as Map? ?? {});
+
+      details['estado'] = 'esperandoConfirmacion';
+      transaction.update(postRef, {
+        'details': details,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  @override
+  Future<void> confirmarFavor(String postId) async {
+    await _auth.ensureSignedIn();
+    final postRef = _firestore.collection('posts').doc(postId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(postRef);
+      if (!snapshot.exists) return;
+      final data = snapshot.data() ?? {};
+      final details = Map<String, dynamic>.from(data['details'] as Map? ?? {});
+
+      details['estado'] = 'completado';
+      transaction.update(postRef, {
+        'details': details,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   CollectionReference<Map<String, dynamic>> _eventResponses(String eventId) =>
       _firestore.collection('posts').doc(eventId).collection('attendance');
 
@@ -149,6 +224,7 @@ final class FirestoreComunidadFeedRepository
       id: id,
       description: description,
       authorName: _text(data['authorName']) ?? 'Vecino',
+      authorId: _text(data['authorId']),
       title: _text(details['title']),
       location: autoLocation ? null : _text(details['specificLocation']),
       peopleNeeded: people is int && people > 0 ? count : null,

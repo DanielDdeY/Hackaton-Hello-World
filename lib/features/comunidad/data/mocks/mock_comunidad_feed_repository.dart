@@ -59,6 +59,15 @@ final class MockComunidadFeedRepository implements ComunidadFeedRepository {
     _responseChanges.add(eventId);
   }
 
+  @override
+  Future<void> postularAFavor(String postId) async {}
+
+  @override
+  Future<void> marcarFavorTerminado(String postId) async {}
+
+  @override
+  Future<void> confirmarFavor(String postId) async {}
+
   EventAttendance _attendance(String eventId) {
     final response = _responses[eventId];
     return EventAttendance(

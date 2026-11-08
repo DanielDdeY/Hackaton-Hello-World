@@ -2,6 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /config/economia {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     match /phoneIndex/{phoneNumber} {
       allow read: if true;
       allow create: if signedIn()
@@ -103,13 +108,28 @@ service cloud.firestore {
         && validMedia(request.resource.data, postId);
 
       allow update: if signedIn()
-        && resource.data.authorId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['photos', 'mediaStatus', 'updatedAt'])
-        && request.resource.data.updatedAt == request.time
-        && validMedia(request.resource.data, postId);
+        && (
+          (
+            resource.data.authorId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['photos', 'mediaStatus', 'updatedAt'])
+            && request.resource.data.updatedAt == request.time
+            && validMedia(request.resource.data, postId)
+          )
+          || (
+            resource.data.category == 'help'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['details', 'updatedAt'])
+            && request.resource.data.updatedAt == request.time
+          )
+        );
 
       allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+
+      match /attendance/{responseId} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == responseId;
+      }
     }
 
     function owns(uid) {
@@ -124,19 +144,22 @@ service cloud.firestore {
       allow read: if owns(uid);
 
       allow create: if owns(uid)
-        && request.resource.data.communityId is string
+        && (!('communityId' in request.resource.data.keys()) || request.resource.data.communityId is string)
         && request.resource.data.keys().hasOnly([
           'communityId', 'proximityEnabled', 'location', 'geohash',
-          'locationUpdatedAt', 'fcmToken', 'platform'
+          'locationUpdatedAt', 'fcmToken', 'platform',
+          'fichas', 'xp', 'stars', 'badges', 'mochilaPreparada', 'updatedAt'
         ]);
 
       allow update: if owns(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'communityId', 'proximityEnabled', 'location', 'geohash',
-          'locationUpdatedAt', 'fcmToken', 'platform'
+          'locationUpdatedAt', 'fcmToken', 'platform',
+          'fichas', 'xp', 'stars', 'badges', 'mochilaPreparada', 'updatedAt'
         ])
         && (
-          request.resource.data.communityId == resource.data.communityId
+          !('communityId' in request.resource.data.keys())
+          || request.resource.data.communityId == resource.data.communityId
           || (
             !('communityId' in resource.data.keys())
             || (
@@ -156,6 +179,16 @@ service cloud.firestore {
 
       match /notification_devices/{deviceId} {
         allow read, write: if owns(uid);
+      }
+
+      match /mascota/{docId} {
+        allow read, write: if owns(uid);
+      }
+
+      match /movimientos/{movId} {
+        allow read: if owns(uid);
+        allow create: if owns(uid);
+        allow update, delete: if false;
       }
     }
 

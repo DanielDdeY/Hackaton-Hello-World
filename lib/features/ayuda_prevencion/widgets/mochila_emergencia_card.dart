@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../services/backpack_checklist_store.dart';
+import '../services/mochila_estado.dart';
 import 'help_section_card.dart';
 
-/// Tarjeta "Mochila de Emergencia" con checklist persistente (offline).
+/// Tarjeta "Mochila de Emergencia" con checklist persistente (offline)
+/// y asignacion de bono de preparacion vecinal.
 class MochilaEmergenciaCard extends StatefulWidget {
   const MochilaEmergenciaCard({super.key});
 
@@ -14,6 +16,8 @@ class MochilaEmergenciaCard extends StatefulWidget {
 
 class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
   late Map<String, bool> _items;
+  bool _bonoReclamado = false;
+  bool _reclamando = false;
 
   @override
   void initState() {
@@ -24,7 +28,13 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
 
   Future<void> _load() async {
     final loaded = await BackpackChecklistStore.load();
-    if (mounted) setState(() => _items = loaded);
+    final reclamado = await MochilaVerificacion.isBonoReclamado();
+    if (mounted) {
+      setState(() {
+        _items = loaded;
+        _bonoReclamado = reclamado;
+      });
+    }
   }
 
   Future<void> _toggle(String item, bool? value) async {
@@ -32,9 +42,39 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
     await BackpackChecklistStore.save(_items);
   }
 
+  Future<void> _reclamarBono() async {
+    if (_reclamando || _bonoReclamado) return;
+    setState(() => _reclamando = true);
+    try {
+      await MochilaVerificacion.reclamarBono();
+      if (mounted) {
+        setState(() {
+          _bonoReclamado = true;
+          _reclamando = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '¡Bono de preparación reclamado! +50 fichas y +100 XP 🎉',
+            ),
+            backgroundColor: Color(0xFF2E7D32),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _reclamando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al reclamar bono: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final checkedCount = _items.values.where((v) => v).length;
+    final estaCompleta = checkedCount == _items.length && _items.isNotEmpty;
 
     return HelpSectionCard(
       child: Column(
@@ -86,23 +126,23 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
           Row(
             children: [
               Icon(
-                checkedCount == _items.length
+                estaCompleta
                     ? Icons.verified_outlined
                     : Icons.hourglass_bottom_outlined,
                 size: 18,
-                color: checkedCount == _items.length
+                color: estaCompleta
                     ? AppColors.primary
                     : AppColors.secondaryText,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  checkedCount == _items.length
+                  estaCompleta
                       ? 'Validado por Jefe de Grupo'
                       : '$checkedCount de ${_items.length} elementos listos',
                   style: TextStyle(
                     fontSize: 13,
-                    color: checkedCount == _items.length
+                    color: estaCompleta
                         ? AppColors.primary
                         : AppColors.secondaryText,
                     fontWeight: FontWeight.w500,
@@ -111,6 +151,72 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
               ),
             ],
           ),
+          if (estaCompleta) ...[
+            const SizedBox(height: 10),
+            if (!_bonoReclamado)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _reclamando ? null : _reclamarBono,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.stars, color: Colors.amber, size: 20),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          _reclamando
+                              ? 'Reclamando bono…'
+                              : 'Reclamar bono de preparación (+50 fichas, +100 XP)',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF81C784)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.military_tech,
+                      color: Color(0xFF2E7D32),
+                      size: 18,
+                    ),
+                    SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Insignia "Vecino preparado" obtenida',
+                        style: TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -150,7 +256,9 @@ class _PillBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondaryText.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.secondaryText.withValues(alpha: 0.3),
+        ),
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
@@ -162,7 +270,10 @@ class _PillBadge extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.secondaryText,
+              ),
             ),
           ],
         ),

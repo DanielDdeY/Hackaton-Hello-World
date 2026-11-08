@@ -8,4 +8,7 @@ abstract interface class ComunidadFeedRepository {
   Stream<List<EventItem>> watchEvents();
   Stream<EventAttendance> watchEventAttendance(String eventId);
   Future<void> respondToEvent(String eventId, EventAttendanceResponse response);
+  Future<void> postularAFavor(String postId);
+  Future<void> marcarFavorTerminado(String postId);
+  Future<void> confirmarFavor(String postId);
 }

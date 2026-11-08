@@ -7,6 +7,16 @@ import { logger } from "firebase-functions";
 
 import { isWithinRadius } from "./geo";
 import { emergencyAlertProjection } from "./emergency_projection";
+export {
+  abrirCaja,
+  completarFavor,
+  reclamarBonoMochila,
+  sortearItem,
+  CATALOGO_OFICIAL,
+  COSTO_CAJA,
+  REEMBOLSO_DUPLICADO,
+  PITY_GARANTIZADO,
+} from "./economia_mascota";
 
 if (getApps().length === 0) initializeApp();
 
