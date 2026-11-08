@@ -18,7 +18,7 @@ service cloud.firestore {
     }
 
     function validCategory(category) {
-      return category in ['emergency', 'help', 'service', 'news'];
+      return category in ['emergency', 'help', 'service', 'news', 'event'];
     }
 
     function validServiceDetails(details) {
@@ -36,10 +36,26 @@ service cloud.firestore {
       return value is string && !value.matches('\\s*');
     }
 
+    function validEventDetails(details) {
+      return details.keys().hasAll(['title', 'place', 'startsAt'])
+        && details.keys().hasOnly([
+          'title', 'place', 'startsAt', 'attendees', 'description'
+        ])
+        && nonBlank(details.title)
+        && nonBlank(details.place)
+        && details.startsAt is timestamp
+        && details.startsAt > request.time
+        && (!('attendees' in details.keys())
+          || (details.attendees is int && details.attendees >= 0))
+        && (!('description' in details.keys())
+          || details.description is string);
+    }
+
     function validPostDetails(category, details) {
       return details is map
         && (category != 'service' || validServiceDetails(details))
-        && (category != 'news' || (nonBlank(details.title) && nonBlank(details.content)));
+        && (category != 'news' || (nonBlank(details.title) && nonBlank(details.content)))
+        && (category != 'event' || validEventDetails(details));
     }
 
     function validPhoto(photo, postId) {

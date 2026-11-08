@@ -53,6 +53,7 @@ async function signIn() {
 
 function encode(value) {
   if (value === null) return { nullValue: null };
+  if (value instanceof Date) return { timestampValue: value.toISOString() };
   if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
   if (typeof value === 'string') return { stringValue: value };
   if (typeof value === 'number') {
@@ -220,6 +221,7 @@ await request(photoUrl(helpPhoto), { method: 'DELETE', headers: storageAuth(owne
 const serviceId = 'service-' + randomUUID();
 const otherServiceId = 'service-other-' + randomUUID();
 const newsId = 'news-' + randomUUID();
+const eventId = 'event-' + randomUUID();
 const service = {
   ...emergency, id: serviceId, category: 'service', authorName: 'Vecino', mediaStatus: 'none',
   details: {
@@ -232,6 +234,14 @@ const service = {
 const news = {
   ...emergency, id: newsId, category: 'news', authorName: 'Vecino', mediaStatus: 'none',
   details: { title: 'Aviso vecinal', content: 'Primera línea\nSegunda línea', quickCategory: null },
+};
+const event = {
+  ...emergency, id: eventId, category: 'event', authorName: 'Vecino', mediaStatus: 'none',
+  details: {
+    title: 'Reunión vecinal', place: 'Local comunal',
+    startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    attendees: 0, description: 'Organización del barrio',
+  },
 };
 
 for (const patch of [
@@ -246,11 +256,21 @@ for (const patch of [
 for (const patch of [{ title: '' }, { content: ' \t\n ' }, { title: 123 }]) {
   await write(newsId, { ...news, details: { ...news.details, ...patch } }, owner, { status: 403 });
 }
+for (const patch of [
+  { title: '' },
+  { place: '  ' },
+  { startsAt: new Date(Date.now() - 60 * 1000) },
+  { attendees: -1 },
+  { unexpected: true },
+]) {
+  await write(eventId, { ...event, details: { ...event.details, ...patch } }, owner, { status: 403 });
+}
 await write(serviceId, service, owner);
 await write(otherServiceId, {
   ...service, id: otherServiceId, details: { ...service.details, serviceCategory: 'food', price: 0 },
 }, owner);
 await write(newsId, news, owner);
+await write(eventId, event, owner);
 
 async function readFeed(category, session, { serviceCategory, status = 200 } = {}) {
   const equalTo = (fieldPath, value) => ({
@@ -285,5 +305,6 @@ assert.ok(filteredServices.some((path) => path.endsWith('/' + serviceId)));
 assert.ok(!filteredServices.some((path) => path.endsWith('/' + otherServiceId)));
 assert.ok((await readFeed('news', stranger)).some((path) => path.endsWith('/' + newsId)));
 await readFeed('news', null, { status: [401, 403] });
+assert.ok((await readFeed('event', stranger)).some((path) => path.endsWith('/' + eventId)));
 
 console.log('Reglas de Firestore y Storage verificadas con dos sesiones anónimas locales.');

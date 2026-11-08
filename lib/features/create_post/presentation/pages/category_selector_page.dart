@@ -2,8 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/post_category.dart';
-import '../forms/emergency/emergency_form.dart';
+import '../forms/events/event_form.dart';
 import '../forms/help/help_form.dart';
 import '../forms/news/news_form.dart';
 import '../forms/services/service_form.dart';
@@ -14,25 +13,25 @@ class CategorySelectorPage extends StatelessWidget {
 
   static const _categories = [
     (
-      category: PostCategory.emergency,
-      title: 'Emergencia',
-      description: 'Alerta crítica o S.O.S.',
-      icon: Icons.emergency_outlined,
+      form: EventForm(),
+      title: 'Eventos',
+      description: 'Reuniones y actividades del barrio',
+      icon: Icons.event_outlined,
     ),
     (
-      category: PostCategory.help,
+      form: HelpForm(),
       title: 'Ayuda',
       description: 'Cadena de favores sin dinero',
       icon: Icons.volunteer_activism_outlined,
     ),
     (
-      category: PostCategory.services,
+      form: ServiceForm(),
       title: 'Servicios',
       description: 'Oficios y Visto Bueno',
       icon: Icons.handyman_outlined,
     ),
     (
-      category: PostCategory.news,
+      form: NewsForm(),
       title: 'Noticias',
       description: 'Avisos y reportes vecinales',
       icon: Icons.campaign_outlined,
@@ -109,18 +108,9 @@ class CategorySelectorPage extends StatelessWidget {
                               title: option.title,
                               description: option.description,
                               icon: option.icon,
-                              isUrgent:
-                                  option.category == PostCategory.emergency,
                               onTap: () => Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => switch (option.category) {
-                                    PostCategory.emergency =>
-                                      const EmergencyForm(),
-                                    PostCategory.help => const HelpForm(),
-                                    PostCategory.services =>
-                                      const ServiceForm(),
-                                    PostCategory.news => const NewsForm(),
-                                  },
+                                MaterialPageRoute<void>(
+                                  builder: (_) => option.form,
                                 ),
                               ),
                             ),

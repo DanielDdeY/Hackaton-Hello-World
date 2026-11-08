@@ -1,1 +1,1 @@
-enum PostCategory { emergency, help, services, news }
+enum PostCategory { emergency, help, services, news, event }

@@ -26,7 +26,7 @@ final class FirestoreComunidadFeedRepository
   Stream<List<NewsItem>> watchNews() => _watchPosts('news', _readNews);
 
   @override
-  Stream<List<EventItem>> watchEvents() => Stream.value(const []);
+  Stream<List<EventItem>> watchEvents() => _watchPosts('event', _readEvent);
 
   Stream<List<T>> _watchPosts<T>(
     String category,
@@ -45,9 +45,14 @@ final class FirestoreComunidadFeedRepository
         isEqualTo: serviceCategory.key,
       );
     }
+    final upcoming = category == 'event';
+    final orderField = upcoming ? 'details.startsAt' : 'createdAt';
+    if (upcoming) {
+      query = query.where(orderField, isGreaterThan: Timestamp.now());
+    }
 
     yield* query
-        .orderBy('createdAt', descending: true)
+        .orderBy(orderField, descending: !upcoming)
         .limit(30)
         .snapshots()
         .map(
@@ -118,6 +123,25 @@ final class FirestoreComunidadFeedRepository
       createdAt: timestamp is Timestamp ? timestamp.toDate() : null,
       photoUrls: _photos(data['photos']),
       isUploading: data['mediaStatus'] == 'uploading',
+    );
+  }
+
+  static EventItem? _readEvent(String id, Map<String, dynamic> data) {
+    final details = data['details'];
+    if (details is! Map) return null;
+    final title = _text(details['title']);
+    final place = _text(details['place']);
+    final startsAt = details['startsAt'];
+    if (title == null || place == null || startsAt is! Timestamp) return null;
+    final attendees = details['attendees'];
+
+    return EventItem(
+      id: id,
+      title: title,
+      place: place,
+      startsAt: startsAt.toDate(),
+      attendees: attendees is int && attendees >= 0 ? attendees : null,
+      description: _text(details['description']),
     );
   }
 
