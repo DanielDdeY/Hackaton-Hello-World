@@ -24,6 +24,8 @@ class ComunidadController extends ChangeNotifier {
 
   String _distritoRanking = 'Ate';
   String get distritoRanking => _distritoRanking;
+  bool _distritoResuelto = false;
+  bool get distritoResuelto => _distritoResuelto;
 
   static const ambitoRanking = 'distrito';
 
@@ -45,6 +47,8 @@ class ComunidadController extends ChangeNotifier {
   Future<void> cargarRanking() async {
     try {
       _distritoRanking = await repository.obtenerDistritoActual();
+      _distritoResuelto = true;
+      notifyListeners();
       _ranking = await repository.obtenerRanking(ambito: ambitoRanking);
       _error = null;
       notifyListeners();

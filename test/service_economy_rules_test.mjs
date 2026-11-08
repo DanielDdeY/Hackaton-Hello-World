@@ -12,6 +12,7 @@ const base = 'projects/' + project + '/databases/(default)/documents';
 const token = session => ({Authorization: 'Bearer ' + (session?.token ?? 'owner')});
 const period = new Date(Date.now() - 5 * 3600000).toISOString().slice(0, 7);
 function encode(x) {
+  if (x instanceof Date) return {timestampValue:x.toISOString()};
   if (typeof x === 'boolean') return {booleanValue:x};
   if (typeof x === 'string') return {stringValue:x};
   if (typeof x === 'number') return Number.isInteger(x) ? {integerValue:String(x)} : {doubleValue:x};
@@ -204,5 +205,56 @@ const raced=await Promise.all([
 ]);
 assert.equal(raced.filter(r=>r.status===200).length,1,JSON.stringify(raced));
 assert.equal(decode((await get(racer,root(racer.uid))).body.fields).xp,35);
-console.log('Fase 2: atomicidad, límite mensual, idempotencia, calificación, privacidad e inmutabilidad verificadas.');
+// Activity rewards require evidence and update the profile and ledger together.
+const author=await newUser('Autor');
+const helper=await newUser('Ayudante');
+const favorId='favor-'+randomUUID(), eventId='event-'+randomUUID();
+const offerPath='posts/'+favorId+'/helpOffers/'+helper.uid;
+await commit(null,[
+  write('posts/'+favorId,{category:'help',status:'active',authorId:author.uid}),
+  write('posts/'+eventId,{
+    category:'event',status:'active',authorId:author.uid,
+    details:{startsAt:new Date(Date.now()+3600000)},
+  }),
+]);
+await commit(helper,[write(offerPath,{helperName:'Ayudante'},{exists:false,timestamps:['offeredAt']})]);
+const confirmOffer = {
+  transform:{document:base+'/'+offerPath,fieldTransforms:[
+    {fieldPath:'confirmedAt',setToServerValue:'REQUEST_TIME'},
+  ]},
+  currentDocument:{exists:true},
+};
+function activityWrites(type, postId, uid, other, xpBefore, coins) {
+  const id=type+'_'+postId;
+  return [
+    write(root(uid),{
+      xp:xpBefore+10,monthlyXp:xpBefore+10,rankingPeriod:period,lastActivityReward:id,
+    },{update:true,timestamps:['updatedAt']}),
+    write(root(uid)+'/movimientos/'+id,{
+      id,confirmationId:id,uid,counterpartyUid:other,type,sourceId:postId,
+      deltaXpTotal:10,deltaXpMonth:10,deltaCoins:coins,period,status:'released',
+    },{exists:false,timestamps:['createdAt']}),
+  ];
+}
+const favorWrites=activityWrites('favor_completed',favorId,helper.uid,author.uid,20,0);
+await commit(author,[confirmOffer],[403]);
+await commit(helper,[confirmOffer,...favorWrites],[403]);
+await commit(author,favorWrites,[403]);
+await commit(author,[confirmOffer,...favorWrites]);
+await commit(author,[confirmOffer,...favorWrites],[400,403,409]);
+assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,30);
+
+const eventWrites=activityWrites('event_attended',eventId,helper.uid,helper.uid,30,3);
+const coinWrite=write(account(helper.uid),{availableCoins:13},{update:true});
+await commit(helper,[...eventWrites,coinWrite],[403]);
+await commit(helper,[write('posts/'+eventId+'/attendance/'+helper.uid,{
+  response:'going',
+},{exists:false,timestamps:['updatedAt']})]);
+await commit(helper,eventWrites,[403]);
+await commit(helper,[coinWrite],[403]);
+await commit(helper,[...eventWrites,coinWrite]);
+await commit(helper,[...eventWrites,coinWrite],[400,403,409]);
+assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,40);
+assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,13);
+console.log('Visto Bueno y recompensas de actividad: atomicidad, evidencia, privacidad e idempotencia verificadas.');
 

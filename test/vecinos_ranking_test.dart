@@ -105,11 +105,11 @@ void main() {
       await tester.tap(find.text('Vecinos'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Tabla de Vecinos'), findsOneWidget);
-      expect(find.text('Ate'), findsWidgets);
-      expect(find.text('Buen Vecino de la Semana'), findsOneWidget);
-      expect(find.text('Roberto Huamán'), findsOneWidget);
-      expect(find.text('Hilda Quispe'), findsOneWidget);
+      expect(find.text('Tabla de Vecinos del Barrio'), findsOneWidget);
+      expect(find.text('Barrio · Ate'), findsWidgets);
+      expect(find.text('Top 3 del Mes del Barrio'), findsOneWidget);
+      expect(find.text('Roberto Huamán'), findsWidgets);
+      expect(find.text('Hilda Quispe'), findsWidgets);
     });
 
     testWidgets('Tocar un vecino abre VecinoDetallePage con información enriquecida', (
@@ -134,7 +134,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Toca en la fila de Roberto Huamán
-      await tester.tap(find.text('Roberto Huamán'));
+      await tester.tap(find.text('Roberto Huamán').last);
       await tester.pumpAndSettle();
 
       expect(find.byType(VecinoDetallePage), findsOneWidget);

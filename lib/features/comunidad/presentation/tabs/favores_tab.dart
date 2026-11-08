@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../economy/domain/models/economy_result.dart';
+import '../../../economy/domain/services/economy_engine.dart';
+import '../../../economy/presentation/economy_failure_messages.dart';
 import '../../domain/entities/comunidad_feed_items.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
 import 'feed_widgets.dart';
@@ -114,6 +118,28 @@ class _HelpCardState extends State<_HelpCard> {
     }
   }
 
+  Future<void> _confirmHelp(HelpOffer offer, EconomyEngine engine) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await engine.confirmFavor(postId: widget.item.id, helperUid: offer.uid);
+    } on EconomyFailure catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(economyFailureMessage(error))));
+      }
+    } on Exception {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo confirmar la ayuda.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Widget _buildParticipation() {
     return StreamBuilder<HelpParticipation>(
       stream: _participation,
@@ -129,11 +155,34 @@ class _HelpCardState extends State<_HelpCard> {
           );
         }
         final participation = snapshot.data;
-        if (participation?.offerCount case final count?) {
-          return Text(
-            count == 1
-                ? '1 persona ofreció ayuda'
-                : '$count personas ofrecieron ayuda',
+        if (participation?.offers case final offers?) {
+          if (offers.isEmpty) return const Text('Nadie ha ofrecido ayuda aún');
+          final engine = context.read<EconomyEngine?>();
+          return ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              offers.length == 1
+                  ? '1 persona ofreció ayuda'
+                  : '${offers.length} personas ofrecieron ayuda',
+            ),
+            children: [
+              for (final offer in offers)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(offer.name),
+                  subtitle: offer.isConfirmed
+                      ? const Text('Ayuda confirmada')
+                      : null,
+                  trailing: offer.isConfirmed
+                      ? const Icon(Icons.check)
+                      : TextButton(
+                          onPressed: _saving || engine == null
+                              ? null
+                              : () => _confirmHelp(offer, engine),
+                          child: const Text('Confirmar ayuda'),
+                        ),
+                ),
+            ],
           );
         }
         final offered = participation?.hasOffered ?? false;
@@ -145,6 +194,8 @@ class _HelpCardState extends State<_HelpCard> {
           label: Text(
             _saving
                 ? 'Guardando…'
+                : participation?.isConfirmed == true
+                ? 'Ayuda confirmada · +${EconomyResult.favorXp} XP'
                 : offered
                 ? 'Ayuda ofrecida'
                 : 'Ayudar',
@@ -203,6 +254,10 @@ class _HelpCardState extends State<_HelpCard> {
               ],
             ),
             Text(item.description, style: theme.textTheme.bodyMedium),
+            const RewardBadge(
+              label: '+${EconomyResult.favorXp} XP',
+              detail: 'Al confirmar la ayuda',
+            ),
             if (item.hasReward && item.rewardDescription != null)
               Text(
                 'Recompensa: ${item.rewardDescription}',

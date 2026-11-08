@@ -28,11 +28,28 @@ final class HelpItem {
 }
 
 final class HelpParticipation {
-  const HelpParticipation({this.hasOffered = false, this.offerCount});
+  const HelpParticipation({
+    this.hasOffered = false,
+    this.isConfirmed = false,
+    this.offers,
+  });
 
   final bool hasOffered;
-  // Only the author can see the number of offers.
-  final int? offerCount;
+  final bool isConfirmed;
+  // Only the author can see all offers.
+  final List<HelpOffer>? offers;
+}
+
+final class HelpOffer {
+  const HelpOffer({
+    required this.uid,
+    required this.name,
+    required this.isConfirmed,
+  });
+
+  final String uid;
+  final String name;
+  final bool isConfirmed;
 }
 
 final class ServiceItem {

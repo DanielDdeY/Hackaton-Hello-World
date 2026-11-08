@@ -20,6 +20,7 @@ enum EconomyFailureReason {
   networkUnavailable,
   permissionDenied,
   simulationActive,
+  activityNotEligible,
   unsupportedSource,
   unavailable,
 }
@@ -44,6 +45,7 @@ final class EconomyResult {
   static const serviceProviderXp = 25;
   static const eventXp = 10;
   static const eventCoins = 3;
+  static const favorXp = 10;
 
   final String confirmationId;
   final String period;

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../create_post/domain/entities/news_post_data.dart';
 import '../../../economy/domain/models/economy_result.dart';
 import '../../../economy/domain/services/economy_engine.dart';
+import '../../../economy/presentation/economy_failure_messages.dart';
 import '../../domain/entities/comunidad_feed_items.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
 import 'feed_widgets.dart';
@@ -209,12 +210,13 @@ class _EventCardState extends State<_EventCard> {
         ],
       ),
     );
-    if (!mounted || choice == null || choice == current || _savingResponse) {
+    if (!mounted || choice == null || _savingResponse ||
+        (choice == current && choice != EventAttendanceResponse.going)) {
       return;
     }
     setState(() => _savingResponse = true);
     try {
-      await repository.respondToEvent(event.id, choice);
+      if (choice != current) await repository.respondToEvent(event.id, choice);
       if (choice == EventAttendanceResponse.going && economyEngine != null) {
         try {
           final result = await economyEngine.award(
@@ -231,8 +233,12 @@ class _EventCardState extends State<_EventCard> {
               ),
             );
           }
-        } catch (_) {
-          // La asistencia al evento se mantiene guardada aunque falle el bono.
+        } on EconomyFailure catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(economyFailureMessage(error))),
+            );
+          }
         }
       }
     } on Exception {
@@ -349,10 +355,8 @@ class _EventCardState extends State<_EventCard> {
                       ),
                       Text(event.title, style: theme.textTheme.titleMedium),
                       const RewardBadge(
-                        label: 'Bono pendiente',
-                        detail: '+${EconomyResult.eventCoins} monedas · '
-                            '+${EconomyResult.eventXp} XP',
-                        highlighted: false,
+                        label: '+${EconomyResult.eventXp} XP',
+                        detail: '+${EconomyResult.eventCoins} monedas al marcar «Voy»',
                       ),
                     ],
                   ),

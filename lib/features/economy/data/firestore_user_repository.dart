@@ -28,6 +28,10 @@ final class FirestoreUserRepository implements UserRepository {
       throw const UserFailure(UserFailureReason.noSession);
     }
     final userRef = firestore.collection('users').doc(uid);
+    final provider = periods;
+    final realPeriod = provider is SimulatablePeriodProvider
+        ? provider.realPeriod
+        : provider.currentPeriod;
     final accountRef = userRef.collection('private').doc('account');
     final proximityRef = userRef.collection('private').doc('proximity');
     try {
@@ -41,7 +45,7 @@ final class FirestoreUserRepository implements UserRepository {
           proximity: proximity.data(),
           uid: uid,
           name: name,
-          period: periods.currentPeriod,
+          period: realPeriod,
         );
         if (!user.exists) {
           plan.publicData['createdAt'] = FieldValue.serverTimestamp();
@@ -133,7 +137,7 @@ final class FirestoreUserRepository implements UserRepository {
   }) {
     if (limit < 1 || limit > 100) throw ArgumentError.value(limit, 'limit');
     late StreamController<List<AppUser>> controller;
-    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? subscription;
+    StreamSubscription<List<AppUser>>? subscription;
     Timer? timer;
     String? activePeriod;
     void bind() {
@@ -141,30 +145,18 @@ final class FirestoreUserRepository implements UserRepository {
       if (period == activePeriod) return;
       activePeriod = period;
       unawaited(subscription?.cancel());
-      subscription = firestore
-          .collection('users')
-          .where('profileVersion', isEqualTo: 1)
-          .where('districtKey', isEqualTo: districtKey(district))
-          .where('rankingPeriod', isEqualTo: period)
-          .where('monthlyXp', isGreaterThan: 0)
-          .orderBy('monthlyXp', descending: true)
-          .orderBy('xp', descending: true)
-          .limit(limit)
-          .snapshots()
-          .listen((snapshot) {
-            if (activePeriod != period || controller.isClosed) return;
-            controller.add(
-              snapshot.docs
-                  .map(
-                    (doc) => AppUser.fromMap(
-                      doc.id,
-                      doc.data(),
-                      currentPeriod: period,
-                    ),
-                  )
-                  .toList(growable: false),
-            );
-          }, onError: controller.addError);
+      subscription = _watchLeaderboardPeriod(district, period, limit).listen(
+        (users) {
+          if (activePeriod == period && !controller.isClosed) {
+            controller.add(users);
+          }
+        },
+        onError: (Object error, StackTrace stack) {
+          if (activePeriod == period && !controller.isClosed) {
+            controller.addError(error, stack);
+          }
+        },
+      );
     }
 
     controller = StreamController<List<AppUser>>(
@@ -178,6 +170,48 @@ final class FirestoreUserRepository implements UserRepository {
       },
     );
     return controller.stream;
+  }
+
+  Stream<List<AppUser>> _watchLeaderboardPeriod(
+    String district,
+    String period,
+    int limit,
+  ) async* {
+    await auth.ensureSignedIn();
+    final query = firestore
+        .collection('users')
+        .where('profileVersion', isEqualTo: 1)
+        .where('districtKey', isEqualTo: districtKey(district))
+        .where('rankingPeriod', isEqualTo: period);
+    AppUser read(QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+        AppUser.fromMap(doc.id, doc.data(), currentPeriod: period);
+    try {
+      await for (final snapshot
+          in query
+              .where('monthlyXp', isGreaterThan: 0)
+              .orderBy('monthlyXp', descending: true)
+              .orderBy('xp', descending: true)
+              .limit(limit)
+              .snapshots()) {
+        yield snapshot.docs.map(read).toList(growable: false);
+      }
+    } on FirebaseException catch (error) {
+      if (error.code != 'failed-precondition') rethrow;
+      yield* query.snapshots().map((snapshot) {
+        final users =
+            snapshot.docs
+                .map(read)
+                .where((user) => user.effectiveMonthlyXp > 0)
+                .toList()
+              ..sort((a, b) {
+                final monthly = b.monthlyXp.compareTo(a.monthlyXp);
+                if (monthly != 0) return monthly;
+                final total = b.xpTotal.compareTo(a.xpTotal);
+                return total != 0 ? total : b.uid.compareTo(a.uid);
+              });
+        return users.take(limit).toList(growable: false);
+      });
+    }
   }
 
   @override
