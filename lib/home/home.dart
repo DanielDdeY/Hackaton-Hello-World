@@ -529,7 +529,6 @@ class _InicioState extends State<Inicio> {
   final _campanaTutorial = GlobalKey();
   final _wrappedTutorial = GlobalKey();
   final _mascotaTutorial = GlobalKey();
-  final _filasTutorial = List.generate(3, (_) => GlobalKey());
   static const _sosConsent = SosConsentStore();
   int? _pasoTutorial;
   List<Rect> _zonasTutorial = [];
@@ -609,10 +608,7 @@ class _InicioState extends State<Inicio> {
       [_campanaTutorial, _sosTutorial],
       [_wrappedTutorial],
       [_mascotaTutorial],
-      [_filasTutorial[0]],
-      [_filasTutorial[1]],
-      [_filasTutorial[2]],
-      [_filasTutorial[2]],
+      [_mascotaTutorial],
     ][paso];
     final solicitud = ++_solicitudTutorial;
     final destino = destinos.first.currentContext;
@@ -651,45 +647,6 @@ class _InicioState extends State<Inicio> {
       debugPrint('No se pudo guardar la preferencia del tutorial: $error');
     }
   }
-
-  static const accesos = [
-    (
-    'Servicios\nde oficios',
-    'ServiciosDeOficios',
-    Color(0xfffbe5cf),
-    'Gasfitería, electricidad y otros oficios recomendados por tus vecinos.',
-    ),
-    (
-    'Muro de\nfavores',
-    'MuroDeFavores',
-    Color(0xfffce4df),
-    'Pide una herramienta prestada u ofrece ayuda a un vecino.',
-    ),
-    (
-    'Eventos\ndel barrio',
-    'EventosDelBarrio',
-    Color(0xffe4e9d5),
-    'Consulta reuniones, simulacros y actividades comunitarias.',
-    ),
-    (
-    'Misiones\ny grupos',
-    'MisionesYGrupos',
-    Color(0xffe5e2f5),
-    'Completa acciones de ayuda para sumar Aura.',
-    ),
-    (
-    'Mochila de\nemergencia',
-    'MochilaDeEmergencia',
-    Color(0xfff5e2cd),
-    'Revisa los suministros de tu vivienda.',
-    ),
-    (
-    'Noticias\ny alertas',
-    'NoticiasYAlertas',
-    Color(0xffffe5ad),
-    'Consulta los avisos de tu grupo barrial.',
-    ),
-  ];
 
   void detalle(String titulo, String mensaje) {
     showModalBottomSheet<void>(
@@ -1090,18 +1047,6 @@ class _InicioState extends State<Inicio> {
                 _wrapped(),
                 const SizedBox(height: 12),
                 _mascota(),
-                const SizedBox(height: 12),
-                for (var index = 0; index < accesos.length; index += 2) ...[
-                  if (index > 0) const SizedBox(height: 10),
-                  Row(
-                    key: _filasTutorial[index ~/ 2],
-                    children: [
-                      Expanded(child: _acceso(index)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _acceso(index + 1)),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
@@ -1348,38 +1293,6 @@ class _InicioState extends State<Inicio> {
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _acceso(int index) {
-    final (titulo, asset, tono, _) = accesos[index];
-    return tarjeta(
-      color: index == 5 ? const Color(0xfffff1d0) : paper,
-      radius: 16,
-      border: true,
-      onTap: () => detalle(titulo.replaceAll('\n', ' '), accesos[index].$4),
-      child: SizedBox(
-        height: 78,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: tono,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: icono(asset, 24),
-              ),
-              const SizedBox(width: 9),
-              Expanded(child: label(titulo, 13, bold: true)),
             ],
           ),
         ),

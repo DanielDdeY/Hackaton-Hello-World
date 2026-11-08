@@ -18,18 +18,6 @@ const _pasos = [
     'Tu compañero del barrio. Al alcanzar el nivel 2 podrás visitarlo, abrir cajas de sorpresas y personalizarlo con accesorios.',
   ),
   (
-    'Oficios y favores',
-    'Encuentra trabajadores recomendados en Oficios. En Favores puedes pedir u ofrecer ayuda sin dinero.',
-  ),
-  (
-    'Eventos y misiones',
-    'Consulta reuniones y simulacros en Eventos. En Misiones y grupos encontrarás tareas para ganar puntos.',
-  ),
-  (
-    'Mochila y alertas',
-    'Revisa qué falta en tu mochila de emergencia y consulta los avisos del barrio.',
-  ),
-  (
     'Muévete por la app',
     'Usa la barra inferior para explorar Mapa, Comunidad, Ayuda y Publicar.',
   ),
