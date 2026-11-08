@@ -14,7 +14,6 @@ final class UserProfile {
   const UserProfile({
     required this.name,
     required this.phoneNumber,
-    required this.role,
     required this.bio,
     required this.department,
     required this.province,
@@ -53,7 +52,6 @@ final class UserProfile {
         privateAccount['phoneNumber'] ?? data['phoneNumber'],
         '',
       ),
-      role: _string(data['role'], 'Vecino'),
       bio: _string(data['bio'], fallbackBio),
       department: _string(data['department'], fallbackDepartment),
       province: _string(data['province'], fallbackProvince),
@@ -84,7 +82,6 @@ final class UserProfile {
 
   final String name;
   final String phoneNumber;
-  final String role;
   final String bio;
   final String department;
   final String province;
@@ -121,7 +118,6 @@ final class UserProfile {
   }) => UserProfile(
     name: name,
     phoneNumber: phoneNumber,
-    role: role,
     bio: bio,
     department: department,
     province: province,
@@ -146,7 +142,6 @@ final class UserProfile {
     'firstName': name.trim().split(RegExp(r'\s+')).first,
     'lastName': name.trim().split(RegExp(r'\s+')).skip(1).join(' '),
     'phoneNumber': phoneNumber,
-    'role': role,
     'bio': bio,
     'department': department,
     'province': province,
@@ -317,7 +312,6 @@ final class FirestoreUserProfileStore implements UserProfileStore {
       'name': profile.name,
       'firstName': profile.name.trim().split(RegExp(r'\s+')).first,
       'lastName': profile.name.trim().split(RegExp(r'\s+')).skip(1).join(' '),
-      'role': profile.role,
       'bio': profile.bio,
       'department': profile.department,
       'province': profile.province,

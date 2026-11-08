@@ -16,7 +16,6 @@ class _DatosBarrio extends ChangeNotifier {
         distrito = profile.district,
         nombre = profile.name,
         phoneNumber = profile.phoneNumber,
-        rol = profile.role,
         bio = profile.bio,
         xp = profile.xp,
         fichas = profile.fichas,
@@ -42,7 +41,6 @@ class _DatosBarrio extends ChangeNotifier {
   String distrito;
   String nombre;
   String phoneNumber;
-  String rol;
   String bio;
   int xp;
   int fichas;
@@ -93,7 +91,6 @@ class _DatosBarrio extends ChangeNotifier {
   UserProfile toProfile() => UserProfile(
     name: nombre,
     phoneNumber: phoneNumber,
-    role: rol,
     bio: bio,
     department: departamento,
     province: provincia,
@@ -127,20 +124,14 @@ class _DatosBarrio extends ChangeNotifier {
   Future<void> guardarPerfil(
       String nuevoNombre,
       String nuevaBio,
-      bool nuevaFoto, {
-        String? nuevoRol,
-      }) async {
+      bool nuevaFoto) async {
     nombre = nuevoNombre;
     bio = nuevaBio;
     foto = nuevaFoto;
-    if (nuevoRol != null && nuevoRol.trim().isNotEmpty) {
-      rol = nuevoRol.trim();
-    }
     notifyListeners();
     try {
       await preferencias.setString('vecino_nombre', nombre);
       await preferencias.setString('vecino_bio', bio);
-      await preferencias.setString('vecino_rol', rol);
       await preferencias.setBool('vecino_foto_demo', foto);
     } catch (e) {
       debugPrint('No se pudo guardar el perfil: $e');
@@ -246,7 +237,6 @@ class _EntradaState extends State<_Entrada> {
             district: d,
             name: _prefs.getString('vecino_nombre') ?? 'Carlos Mendoza',
             phoneNumber: _prefs.getString('vecino_telefono') ?? '',
-            role: _prefs.getString('vecino_rol') ?? 'Vecino',
             bio:
             _prefs.getString('vecino_bio') ??
                 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
@@ -756,7 +746,6 @@ class _EntradaState extends State<_Entrada> {
           district: dist,
           name: _nombreAutenticado,
           phoneNumber: _telefonoVerificado,
-          role: _perfilExistente?.role ?? 'Vecino',
           bio:
           _perfilExistente?.bio ??
               'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',

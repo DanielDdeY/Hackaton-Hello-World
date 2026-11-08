@@ -3,7 +3,7 @@ part of 'home.dart';
 const _pasos = [
   (
     'Tu perfil',
-    'Aquí ves tu nombre, tu rol, tu nivel y los puntos que ganas al participar.',
+    'Aquí ves tu nombre, tu nivel y los puntos que ganas al participar.',
   ),
   (
     'SOS y notificaciones',

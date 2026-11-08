@@ -5,7 +5,6 @@ class VecinoSimuladoSeed {
     required this.uid,
     required this.nombre,
     required this.iniciales,
-    required this.rol,
     required this.distrito,
     required this.provincia,
     required this.departamento,
@@ -27,7 +26,6 @@ class VecinoSimuladoSeed {
   final String uid;
   final String nombre;
   final String iniciales;
-  final String rol;
   final String distrito;
   final String provincia;
   final String departamento;
@@ -69,7 +67,6 @@ class VecinoSimuladoSeed {
     'firstName': nombre.split(' ').first,
     'lastName': nombre.split(' ').skip(1).join(' '),
     'phoneNumber': telefono,
-    'role': rol,
     'bio': bio,
     'department': departamento,
     'province': provincia,
@@ -116,7 +113,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_roberto',
     nombre: 'Roberto Huamán',
     iniciales: 'RH',
-    rol: 'Coordinador de Defensa Civil',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -138,7 +135,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_hilda',
     nombre: 'Hilda Quispe',
     iniciales: 'HQ',
-    rol: 'Líder de Olla Común',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -160,7 +157,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_carmen',
     nombre: 'Carmen Rosa Díaz',
     iniciales: 'CR',
-    rol: 'Protectora Vecinal',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -182,7 +179,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_ana',
     nombre: 'Ana Belén',
     iniciales: 'AB',
-    rol: 'Brigadista de Salud',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -204,7 +201,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_sofia',
     nombre: 'Sofía Torres',
     iniciales: 'ST',
-    rol: 'Coordinadora Juvenil',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -226,7 +223,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_mariela',
     nombre: 'Mariela Paredes',
     iniciales: 'MP',
-    rol: 'Promotora Cultural',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -248,7 +245,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_jorge',
     nombre: 'Jorge Mendoza',
     iniciales: 'JM',
-    rol: 'Electricista Vecinal',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -270,7 +267,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_marcos',
     nombre: 'Marcos Ríos',
     iniciales: 'MR',
-    rol: 'Vecino Solidario',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -292,7 +289,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_pedro',
     nombre: 'Pedro Gómez',
     iniciales: 'PG',
-    rol: 'Vecino Activo',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -314,7 +311,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_lucia',
     nombre: 'Lucía Fernández',
     iniciales: 'LF',
-    rol: 'Comunicadora Barrial',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -336,7 +333,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_don_luis',
     nombre: 'Don Luis Morales',
     iniciales: 'LM',
-    rol: 'Vecino Emérito',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
@@ -358,7 +355,7 @@ const datosSimuladosAte = <VecinoSimuladoSeed>[
     uid: 'usr_raul',
     nombre: 'Raúl Castillo',
     iniciales: 'RC',
-    rol: 'Estudiante Voluntario',
+    
     distrito: 'Ate',
     provincia: 'Lima',
     departamento: 'Lima',
