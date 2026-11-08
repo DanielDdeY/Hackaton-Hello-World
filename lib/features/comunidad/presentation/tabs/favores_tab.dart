@@ -61,20 +61,102 @@ class _FavoresTabState extends State<FavoresTab>
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, index) => _HelpCard(item: items[index]),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _HelpCard(
+              key: ValueKey(item.id),
+              item: item,
+              repository: widget.repository,
+            );
+          },
         );
       },
     );
   }
 }
 
-class _HelpCard extends StatelessWidget {
-  const _HelpCard({required this.item});
+class _HelpCard extends StatefulWidget {
+  const _HelpCard({super.key, required this.item, required this.repository});
 
   final HelpItem item;
+  final ComunidadFeedRepository repository;
+
+  @override
+  State<_HelpCard> createState() => _HelpCardState();
+}
+
+class _HelpCardState extends State<_HelpCard> {
+  late Stream<HelpParticipation> _participation = widget.repository
+      .watchHelpParticipation(widget.item);
+  bool _saving = false;
+
+  @override
+  void didUpdateWidget(covariant _HelpCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.item.authorId != widget.item.authorId) {
+      _participation = widget.repository.watchHelpParticipation(widget.item);
+    }
+  }
+
+  Future<void> _offerHelp() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.repository.offerHelp(widget.item.id);
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo registrar tu ayuda.')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _buildParticipation() {
+    return StreamBuilder<HelpParticipation>(
+      stream: _participation,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return TextButton(
+            onPressed: () => setState(() {
+              _participation = widget.repository.watchHelpParticipation(
+                widget.item,
+              );
+            }),
+            child: const Text('Reintentar consulta de ayuda'),
+          );
+        }
+        final participation = snapshot.data;
+        if (participation?.offerCount case final count?) {
+          return Text(
+            count == 1
+                ? '1 persona ofreció ayuda'
+                : '$count personas ofrecieron ayuda',
+          );
+        }
+        final offered = participation?.hasOffered ?? false;
+        return FilledButton.tonalIcon(
+          onPressed: participation == null || offered || _saving
+              ? null
+              : _offerHelp,
+          icon: Icon(offered ? Icons.check : Icons.volunteer_activism_outlined),
+          label: Text(
+            _saving
+                ? 'Guardando…'
+                : offered
+                ? 'Ayuda ofrecida'
+                : 'Ayudar',
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final theme = Theme.of(context);
     final location = item.location ?? 'N/A';
     final people = item.peopleNeeded;
@@ -113,11 +195,19 @@ class _HelpCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const _PointsBadge(),
+                RewardBadge(
+                  label: item.hasReward ? 'Con recompensa' : 'Sin recompensa',
+                  highlighted: item.hasReward,
+                ),
                 const ExcludeSemantics(child: Icon(Icons.more_vert, size: 20)),
               ],
             ),
             Text(item.description, style: theme.textTheme.bodyMedium),
+            if (item.hasReward && item.rewardDescription != null)
+              Text(
+                'Recompensa: ${item.rewardDescription}',
+                style: theme.textTheme.bodySmall,
+              ),
             Row(
               spacing: 6,
               children: [
@@ -160,6 +250,7 @@ class _HelpCard extends StatelessWidget {
                 ),
               ],
             ),
+            _buildParticipation(),
           ],
         ),
       ),
@@ -171,43 +262,5 @@ class _HelpCard extends StatelessWidget {
     return firstLine.length <= 54
         ? firstLine.toString()
         : '${firstLine.take(54)}…';
-  }
-}
-
-class _PointsBadge extends StatelessWidget {
-  const _PointsBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 122),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF3CD),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFFFB703), width: 0.8),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 4,
-        children: [
-          Icon(Icons.stars_rounded, size: 16, color: Color(0xFFD48B00)),
-          Flexible(
-            child: Text.rich(
-              TextSpan(
-                style: TextStyle(color: Color(0xFF7A4A00)),
-                children: [
-                  TextSpan(
-                    text: '+5 pts',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  TextSpan(text: ' (10 XP)', style: TextStyle(fontSize: 10)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

@@ -11,24 +11,25 @@ class _LocationLoginException implements Exception {
 
 class _DatosBarrio extends ChangeNotifier {
   _DatosBarrio(this.preferencias, UserProfile profile)
-    : departamento = profile.department,
-      provincia = profile.province,
-      distrito = profile.district,
-      nombre = profile.name,
-      phoneNumber = profile.phoneNumber,
-      rol = profile.role,
-      bio = profile.bio,
-      xp = profile.xp,
-      weeklyXp = profile.weeklyXp,
-      stars = profile.stars,
-      favores = profile.favors,
-      herramientas = profile.tools,
-      hambre = profile.petHunger,
-      insignias = profile.badges,
-      favoresCompletados = profile.favoresCompletados,
-      eventosAsistidos = profile.eventosAsistidos,
-      reconocimientos = profile.reconocimientos,
-      rachaSemanal = profile.rachaSemanal;
+      : departamento = profile.department,
+        provincia = profile.province,
+        distrito = profile.district,
+        nombre = profile.name,
+        phoneNumber = profile.phoneNumber,
+        rol = profile.role,
+        bio = profile.bio,
+        xp = profile.xp,
+        weeklyXp = profile.weeklyXp,
+        stars = profile.stars,
+        availableCoins = preferencias.getInt('vecino_monedas') ?? 0,
+        favores = profile.favors,
+        herramientas = profile.tools,
+        hambre = profile.petHunger,
+        insignias = profile.badges,
+        favoresCompletados = profile.favoresCompletados,
+        eventosAsistidos = profile.eventosAsistidos,
+        reconocimientos = profile.reconocimientos,
+        rachaSemanal = profile.rachaSemanal;
 
   final SharedPreferences preferencias;
   String departamento;
@@ -41,6 +42,7 @@ class _DatosBarrio extends ChangeNotifier {
   int xp;
   int weeklyXp;
   int stars;
+  int availableCoins;
   int favores;
   int herramientas;
   double hambre;
@@ -51,6 +53,35 @@ class _DatosBarrio extends ChangeNotifier {
   int rachaSemanal;
   bool get mascotaDesbloqueada => nivel >= 25;
   int get nivel => xp ~/ 100;
+
+  void syncEconomy(AppUser stats) {
+    final nuevasEstrellas = stats.reviewCount > 0
+        ? stats.averageStars.round()
+        : stars;
+    final nuevoDistrito = stats.district.trim().isNotEmpty
+        ? stats.district.trim()
+        : distrito;
+    final huboCambios =
+        xp != stats.xpTotal ||
+            weeklyXp != stats.effectiveMonthlyXp ||
+            availableCoins != stats.availableCoins ||
+            stars != nuevasEstrellas ||
+            distrito != nuevoDistrito;
+    if (!huboCambios) return;
+
+    xp = stats.xpTotal;
+    weeklyXp = stats.effectiveMonthlyXp;
+    availableCoins = stats.availableCoins;
+    stars = nuevasEstrellas;
+    distrito = nuevoDistrito;
+    notifyListeners();
+
+    unawaited(preferencias.setInt('vecino_xp', xp));
+    unawaited(preferencias.setInt('vecino_xp_semana', weeklyXp));
+    unawaited(preferencias.setInt('vecino_stars', stars));
+    unawaited(preferencias.setInt('vecino_monedas', availableCoins));
+  }
+
   UserProfile toProfile() => UserProfile(
     name: nombre,
     phoneNumber: phoneNumber,
@@ -85,11 +116,11 @@ class _DatosBarrio extends ChangeNotifier {
       .join();
 
   Future<void> guardarPerfil(
-    String nuevoNombre,
-    String nuevaBio,
-    bool nuevaFoto, {
-    String? nuevoRol,
-  }) async {
+      String nuevoNombre,
+      String nuevaBio,
+      bool nuevaFoto, {
+        String? nuevoRol,
+      }) async {
     nombre = nuevoNombre;
     bio = nuevaBio;
     foto = nuevaFoto;
@@ -151,10 +182,12 @@ class _EntradaState extends State<_Entrada> {
 
   bool _tieneUbicacion(UserProfile profile) =>
       profile.department.isNotEmpty &&
-      profile.province.isNotEmpty &&
-      profile.district.isNotEmpty;
+          profile.province.isNotEmpty &&
+          profile.district.isNotEmpty;
 
   Future<void> _guardarPerfilLocal(UserProfile profile) async {
+    final uid = context.read<AuthGateway?>()?.currentUid;
+    if (uid != null) await _prefs.setString('vecino_profile_uid', uid);
     await _prefs.setString('vecino_departamento', profile.department);
     await _prefs.setString('vecino_provincia', profile.province);
     await _prefs.setString('vecino_distrito', profile.district);
@@ -168,30 +201,22 @@ class _EntradaState extends State<_Entrada> {
     final store = context.read<UserProfileStore?>();
     try {
       _prefs = await SharedPreferences.getInstance();
-      final telefono = _prefs.getString('vecino_telefono') ?? '';
       UserProfile? perfilRemoto;
       if (store != null) {
         try {
           if (auth != null) await auth.ensureSignedIn();
-          perfilRemoto = telefono.isNotEmpty
-              ? await store.loadByPhone(
-                  telefono,
-                  fallbackName: 'Vecino',
-                  fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-                  fallbackDepartment: '',
-                  fallbackProvince: '',
-                  fallbackDistrict: '',
-                )
-              : auth?.currentUid == null
-              ? null
-              : await store.load(
-                  auth!.currentUid!,
-                  fallbackName: 'Vecino',
-                  fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-                  fallbackDepartment: '',
-                  fallbackProvince: '',
-                  fallbackDistrict: '',
-                );
+          final currentUid = auth?.currentUid;
+          if (currentUid != null) {
+            perfilRemoto = await store.load(
+              currentUid,
+              fallbackName: 'Vecino',
+              fallbackBio:
+              'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+              fallbackDepartment: '',
+              fallbackProvince: '',
+              fallbackDistrict: '',
+            );
+          }
         } catch (error) {
           debugPrint('No se pudo cargar el perfil remoto: $error');
         }
@@ -200,7 +225,10 @@ class _EntradaState extends State<_Entrada> {
         datos = _DatosBarrio(_prefs, perfilRemoto);
       }
       final d = _prefs.getString('vecino_distrito');
-      if (datos == null && d != null) {
+      final cachedUid = _prefs.getString('vecino_profile_uid');
+      if (datos == null &&
+          d != null &&
+          (auth == null || cachedUid == auth.currentUid && cachedUid != null)) {
         datos = _DatosBarrio(
           _prefs,
           UserProfile(
@@ -210,7 +238,9 @@ class _EntradaState extends State<_Entrada> {
             name: _prefs.getString('vecino_nombre') ?? 'Carlos Mendoza',
             phoneNumber: _prefs.getString('vecino_telefono') ?? '',
             role: _prefs.getString('vecino_rol') ?? 'Vecino',
-            bio: _prefs.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+            bio:
+            _prefs.getString('vecino_bio') ??
+                'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
             xp: _prefs.getInt('vecino_xp') ?? 0,
             stars: _prefs.getInt('vecino_stars') ?? 0,
             favors: _prefs.getInt('vecino_favores') ?? 0,
@@ -264,8 +294,18 @@ class _EntradaState extends State<_Entrada> {
     setState(() => _verificandoTelefono = true);
     try {
       final telefono = _telefono();
-      await gateway.ensureSignedIn();
-      _registroNuevo = !await store.phoneExists(telefono);
+      final uid = await gateway.ensureSignedIn();
+      final perfilPropio = await store.load(
+        uid,
+        fallbackName: 'Vecino',
+        fallbackBio:
+        'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+        fallbackDepartment: '',
+        fallbackProvince: '',
+        fallbackDistrict: '',
+      );
+      _perfilExistente = perfilPropio;
+      _registroNuevo = perfilPropio == null;
       await gateway.sendPhoneCode(telefono);
       _telefonoVerificado = telefono;
       if (mounted) _ir(_registroNuevo ? 2 : 3);
@@ -273,17 +313,18 @@ class _EntradaState extends State<_Entrada> {
       if (mounted) {
         _mostrarErrorTelefono(switch (error.reason) {
           AuthFailureReason.noConnection =>
-            'Sin conexión. Inténtalo nuevamente.',
+          'Sin conexión. Inténtalo nuevamente.',
           AuthFailureReason.tooManyRequests =>
-            'Demasiados intentos. Espera unos minutos.',
-          AuthFailureReason.anonymousDisabled => 'Activa el proveedor Anónimo en Firebase Console: Authentication > Proveedores de acceso.',
+          'Demasiados intentos. Espera unos minutos.',
+          AuthFailureReason.anonymousDisabled =>
+          'Activa el proveedor Anónimo en Firebase Console: Authentication > Proveedores de acceso.',
           _ => 'No se pudo preparar el código de prueba.',
         });
       }
     } on FirebaseException catch (error) {
       debugPrint(
-        'No se pudo consultar el teléfono en Firestore '
-        '(code=${error.code}): ${error.message}',
+        'No se pudo consultar el perfil en Firestore '
+            '(code=${error.code}): ${error.message}',
       );
       if (mounted) {
         _mostrarErrorTelefono(
@@ -314,21 +355,23 @@ class _EntradaState extends State<_Entrada> {
     try {
       await gateway.signInWithPhoneCode(_codigo.text.trim());
       if (!_registroNuevo) {
-        UserProfile? profile;
-        if (store != null) {
+        UserProfile? profile = _perfilExistente;
+        final currentUid = gateway.currentUid;
+        if (profile == null && store != null && currentUid != null) {
           try {
-            profile = await store.loadByPhone(
-              _telefonoVerificado,
+            profile = await store.load(
+              currentUid,
               fallbackName: 'Vecino',
-              fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+              fallbackBio:
+              'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
               fallbackDepartment: '',
               fallbackProvince: '',
               fallbackDistrict: '',
             );
           } on FirebaseException catch (error) {
             debugPrint(
-              'No se pudo cargar el perfil por teléfono '
-              '(code=${error.code}): ${error.message}',
+              'No se pudo cargar el perfil del UID '
+                  '(code=${error.code}): ${error.message}',
             );
             if (mounted) {
               _mostrarErrorTelefono(
@@ -338,7 +381,7 @@ class _EntradaState extends State<_Entrada> {
               );
             }
           } catch (error) {
-            debugPrint('No se pudo cargar el perfil por teléfono: $error');
+            debugPrint('No se pudo cargar el perfil del UID: $error');
             if (mounted) {
               _mostrarErrorTelefono(
                 'No se pudo recuperar tu perfil. Completa tus datos para continuar.',
@@ -361,7 +404,7 @@ class _EntradaState extends State<_Entrada> {
         }
       } else {
         _nombreAutenticado =
-            '${_nombres.text.trim()} ${_apellidos.text.trim()}';
+        '${_nombres.text.trim()} ${_apellidos.text.trim()}';
       }
       if (mounted) _ir(4);
     } on AuthFailure catch (error) {
@@ -369,14 +412,14 @@ class _EntradaState extends State<_Entrada> {
         _mostrarErrorTelefono(switch (error.reason) {
           AuthFailureReason.invalidCode => 'El código no es válido.',
           AuthFailureReason.noConnection =>
-            'Sin conexión. Inténtalo nuevamente.',
+          'Sin conexión. Inténtalo nuevamente.',
           _ => 'No se pudo verificar el código.',
         });
       }
     } on FirebaseException catch (error) {
       debugPrint(
         'No se pudo verificar el código '
-        '(code=${error.code}): ${error.message}',
+            '(code=${error.code}): ${error.message}',
       );
       if (mounted) {
         _mostrarErrorTelefono(
@@ -404,6 +447,7 @@ class _EntradaState extends State<_Entrada> {
     setState(() => _iniciandoGoogle = true);
     try {
       final gateway = context.read<AuthGateway?>();
+      final store = context.read<UserProfileStore?>();
       if (gateway == null) {
         throw const AuthFailure(AuthFailureReason.unavailable);
       }
@@ -412,17 +456,45 @@ class _EntradaState extends State<_Entrada> {
       if (nombre != null && nombre.isNotEmpty) {
         _nombreAutenticado = nombre;
       }
+      final uid = gateway.currentUid;
+      if (store != null && uid != null) {
+        try {
+          final existing = await store.load(
+            uid,
+            fallbackName: _nombreAutenticado,
+            fallbackBio:
+            'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+            fallbackDepartment: '',
+            fallbackProvince: '',
+            fallbackDistrict: '',
+          );
+          if (existing != null) {
+            _perfilExistente = existing;
+            _nombreAutenticado = existing.name;
+            if (_tieneUbicacion(existing)) {
+              await _guardarPerfilLocal(existing);
+              if (mounted) {
+                setState(() => _datos = _DatosBarrio(_prefs, existing));
+                widget.onAuthenticated?.call();
+              }
+              return;
+            }
+          }
+        } catch (error) {
+          debugPrint('No se pudo recuperar el perfil de Google: $error');
+        }
+      }
       if (mounted) _ir(4);
     } on AuthFailure catch (error) {
       if (!mounted) return;
       final mensaje = switch (error.reason) {
         AuthFailureReason.noConnection =>
-          'Sin conexión. Conéctate y vuelve a intentarlo.',
+        'Sin conexión. Conéctate y vuelve a intentarlo.',
         AuthFailureReason.cancelled => 'Inicio de sesión cancelado.',
         AuthFailureReason.invalidCode || AuthFailureReason.tooManyRequests =>
-          'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
+        'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
         AuthFailureReason.anonymousDisabled || AuthFailureReason.unavailable =>
-          'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
+        'No se pudo iniciar sesión con Google. Inténtalo otra vez.',
       };
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -471,8 +543,8 @@ class _EntradaState extends State<_Entrada> {
       final headers = kIsWeb
           ? const <String, String>{}
           : const <String, String>{
-              'User-Agent': 'hackaton-hello-world/1.0 (Mi Barrio)',
-            };
+        'User-Agent': 'hackaton-hello-world/1.0 (Mi Barrio)',
+      };
       final respuesta = await http
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 10));
@@ -517,12 +589,12 @@ class _EntradaState extends State<_Entrada> {
           ? null
           : _encontrar(peruLocations[departamentoCatalogo]!.keys, provincia);
       final distritoCatalogo =
-          departamentoCatalogo == null || provinciaCatalogo == null
+      departamentoCatalogo == null || provinciaCatalogo == null
           ? null
           : _encontrar(
-              peruLocations[departamentoCatalogo]![provinciaCatalogo]!,
-              distrito,
-            );
+        peruLocations[departamentoCatalogo]![provinciaCatalogo]!,
+        distrito,
+      );
       if (departamentoCatalogo == null ||
           provinciaCatalogo == null ||
           distritoCatalogo == null) {
@@ -545,8 +617,8 @@ class _EntradaState extends State<_Entrada> {
         canOpenSettings: error.canOpenSettings,
         accionAjustes: error.canOpenSettings
             ? () {
-                Geolocator.openAppSettings();
-              }
+          Geolocator.openAppSettings();
+        }
             : null,
       );
     } on FormatException catch (error) {
@@ -592,10 +664,10 @@ class _EntradaState extends State<_Entrada> {
   }
 
   void _mostrarErrorUbicacion(
-    String mensaje, {
-    bool canOpenSettings = false,
-    VoidCallback? accionAjustes,
-  }) {
+      String mensaje, {
+        bool canOpenSettings = false,
+        VoidCallback? accionAjustes,
+      }) {
     if (!mounted) return;
     setState(() {
       _obteniendoUbicacion = false;
@@ -654,7 +726,7 @@ class _EntradaState extends State<_Entrada> {
     final store = context.read<UserProfileStore?>();
     final uid = auth?.currentUid;
     setState(
-      () => _datos = _DatosBarrio(
+          () => _datos = _DatosBarrio(
         _prefs,
         UserProfile(
           department: dep,
@@ -663,7 +735,9 @@ class _EntradaState extends State<_Entrada> {
           name: _nombreAutenticado,
           phoneNumber: _telefonoVerificado,
           role: _perfilExistente?.role ?? 'Vecino',
-          bio: _perfilExistente?.bio ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+          bio:
+          _perfilExistente?.bio ??
+              'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
           xp: _perfilExistente?.xp ?? 0,
           stars: _perfilExistente?.stars ?? 0,
           favors: _perfilExistente?.favors ?? 0,
@@ -678,8 +752,18 @@ class _EntradaState extends State<_Entrada> {
       await _prefs.setString('vecino_distrito', dist);
       await _prefs.setString('vecino_nombre', _nombreAutenticado);
       await _prefs.setString('vecino_telefono', _telefonoVerificado);
+      if (uid != null) await _prefs.setString('vecino_profile_uid', uid);
       if (store != null && uid != null) {
-        await store.save(uid, _datos!.toProfile());
+        if (mounted) {
+          unawaited(
+            _saveRegistrationProfile(
+              store,
+              uid,
+              _datos!.toProfile(),
+              ScaffoldMessenger.of(context),
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('No se pudo guardar el distrito: $e');
@@ -758,10 +842,10 @@ class _EntradaState extends State<_Entrada> {
           onPressed: _obteniendoUbicacion ? null : _usarUbicacion,
           icon: _obteniendoUbicacion
               ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
               : const Icon(Icons.my_location),
           label: Text(
             _obteniendoUbicacion
@@ -881,9 +965,9 @@ class _EntradaState extends State<_Entrada> {
           onPressed: _iniciandoGoogle ? null : _continuarConGoogle,
           icon: _iniciandoGoogle
               ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
               : const Icon(Icons.account_circle_outlined),
           label: Text(
             _iniciandoGoogle
@@ -896,16 +980,42 @@ class _EntradaState extends State<_Entrada> {
   );
 }
 
+Future<void> _saveRegistrationProfile(
+    UserProfileStore store,
+    String uid,
+    UserProfile profile,
+    ScaffoldMessengerState messenger,
+    ) async {
+  try {
+    await store.save(uid, profile).timeout(const Duration(seconds: 12));
+  } catch (_) {
+    if (!messenger.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Tu perfil se guardó en este dispositivo. Falta sincronizarlo.',
+        ),
+        action: SnackBarAction(
+          label: 'Reintentar',
+          onPressed: () => unawaited(
+            _saveRegistrationProfile(store, uid, profile, messenger),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Widget _campo(
-  TextEditingController controller,
-  String titulo, {
-  int minimo = 1,
-  TextInputType? tipo,
-  String? prefijo,
-  bool soloDigitos = false,
-  String? esperado,
-  int maxLines = 1,
-}) => TextFormField(
+    TextEditingController controller,
+    String titulo, {
+      int minimo = 1,
+      TextInputType? tipo,
+      String? prefijo,
+      bool soloDigitos = false,
+      String? esperado,
+      int maxLines = 1,
+    }) => TextFormField(
   controller: controller,
   keyboardType: tipo,
   maxLines: maxLines,
@@ -945,12 +1055,12 @@ String _normalizar(String texto) {
 }
 
 Widget _selectorUbicacion(
-  BuildContext context,
-  String titulo,
-  String? valor,
-  Iterable<String> opciones,
-  ValueChanged<String> onSelected,
-) {
+    BuildContext context,
+    String titulo,
+    String? valor,
+    Iterable<String> opciones,
+    ValueChanged<String> onSelected,
+    ) {
   final disponibles = opciones.toList(growable: false);
   return FormField<String>(
     key: ValueKey('$titulo:$valor'),
@@ -965,18 +1075,18 @@ Widget _selectorUbicacion(
           onTap: disponibles.isEmpty
               ? null
               : () async {
-                  final seleccion = await showDialog<String>(
-                    context: context,
-                    builder: (_) => _BusquedaUbicacion(
-                      titulo: titulo,
-                      opciones: disponibles,
-                    ),
-                  );
-                  if (seleccion != null) {
-                    onSelected(seleccion);
-                    field.didChange(seleccion);
-                  }
-                },
+            final seleccion = await showDialog<String>(
+              context: context,
+              builder: (_) => _BusquedaUbicacion(
+                titulo: titulo,
+                opciones: disponibles,
+              ),
+            );
+            if (seleccion != null) {
+              onSelected(seleccion);
+              field.didChange(seleccion);
+            }
+          },
           child: InputDecorator(
             decoration: InputDecoration(
               labelText: titulo,

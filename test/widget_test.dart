@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/services/auth_gateway.dart';
+import 'package:hackaton_hello_world/features/economy/domain/services/period_provider.dart';
 import 'package:hackaton_hello_world/main.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _TestAuthGateway implements AuthGateway {
@@ -32,6 +34,37 @@ class _TestAuthGateway implements AuthGateway {
 }
 
 void main() {
+  testWidgets('publica el periodo simulado y notifica sus cambios', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final periods = SimulatablePeriodProvider(
+      base: FakePeriodProvider('2026-12'),
+    );
+    addTearDown(periods.dispose);
+    await tester.pumpWidget(MyApp(periodProvider: periods));
+    await tester.pumpAndSettle();
+
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => Consumer<PeriodProvider>(
+          builder: (_, periods, _) => Text(periods.currentPeriod),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2026-12'), findsOneWidget);
+
+    periods.simulateNextMonth();
+    await tester.pump();
+    expect(find.text('2027-01'), findsOneWidget);
+
+    periods.clearSimulation();
+    await tester.pump();
+    expect(find.text('2026-12'), findsOneWidget);
+  });
+
   testWidgets('muestra la bienvenida de Mi Barrio', (
     WidgetTester tester,
   ) async {

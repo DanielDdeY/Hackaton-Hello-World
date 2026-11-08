@@ -16,6 +16,7 @@ class _Feed implements ComunidadFeedRepository {
   final serviceRequests = <ServiceCategory?>[];
   final events = StreamController<List<EventItem>>.broadcast();
   final news = StreamController<List<NewsItem>>.broadcast();
+  List<HelpItem> favors = const [];
   int newsRequests = 0;
   bool failServices = false;
 
@@ -32,7 +33,14 @@ class _Feed implements ComunidadFeedRepository {
   );
 
   @override
-  Stream<List<HelpItem>> watchFavors() => Stream.value(const []);
+  Stream<List<HelpItem>> watchFavors() => Stream.value(favors);
+
+  @override
+  Stream<HelpParticipation> watchHelpParticipation(HelpItem favor) =>
+      attendance.watchHelpParticipation(favor);
+
+  @override
+  Future<void> offerHelp(String favorId) => attendance.offerHelp(favorId);
 
   @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) {
@@ -89,6 +97,40 @@ Future<void> _tap(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('Favores muestra la recompensa y conserva la oferta de ayuda', (
+    tester,
+  ) async {
+    final repository = _Feed()
+      ..favors = const [
+        HelpItem(
+          id: 'mudanza',
+          description: 'Ayuda para mover cajas',
+          authorName: 'Ana',
+          hasReward: true,
+          rewardDescription: 'Un almuerzo',
+        ),
+        HelpItem(
+          id: 'parque',
+          description: 'Limpiar el parque',
+          authorName: 'Luis',
+        ),
+      ];
+    await _open(tester, repository);
+    expect(find.text('Con recompensa', findRichText: true), findsOneWidget);
+    expect(find.text('Recompensa: Un almuerzo'), findsOneWidget);
+    expect(find.text('Sin recompensa', findRichText: true), findsOneWidget);
+    expect(find.text('Ayudar'), findsNWidgets(2));
+
+    await tester.tap(find.text('Ayudar').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Ayuda ofrecida'), findsOneWidget);
+    expect(find.text('Ayudar'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _open(tester, repository);
+    expect(find.text('Ayuda ofrecida'), findsOneWidget);
+  });
+
   testWidgets('Servicios filtra, conserva la selección y abre el detalle', (
     tester,
   ) async {
@@ -96,6 +138,10 @@ void main() {
     await _open(tester, repository);
     await _tap(tester, 'Servicios');
     expect(find.text('S/ 25.00'), findsOneWidget);
+    expect(
+      find.text('+15 XP cliente (+25 XP proveedor)', findRichText: true),
+      findsOneWidget,
+    );
     await _tap(tester, 'Reparación de laptops');
     final sheet = find.byType(DraggableScrollableSheet);
     expect(sheet, findsOneWidget);
@@ -161,6 +207,10 @@ void main() {
     expect(find.text('17:30'), findsOneWidget);
     expect(find.text('Local comunal'), findsOneWidget);
     expect(find.text('14 asistentes previstos'), findsOneWidget);
+    expect(
+      find.text('Bono pendiente (+3 monedas · +10 XP)', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('Aún no hay eventos programados'), findsNothing);
 
     await _tap(tester, 'Detalles');

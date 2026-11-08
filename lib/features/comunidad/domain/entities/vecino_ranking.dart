@@ -131,8 +131,7 @@ class VecinoPerfil {
   final bool esUsuarioActual;
   final TendenciaRanking tendencia;
 
-  String get zona => [distrito, provincia, departamento]
-      .toSet()
+  String get zona => {distrito, provincia, departamento}
       .where((value) => value.trim().isNotEmpty)
       .join(', ');
 

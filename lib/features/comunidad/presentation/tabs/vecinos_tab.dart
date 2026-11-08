@@ -1,41 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../create_post/domain/services/auth_gateway.dart';
+import '../../../economy/data/demo_ranking_seeder.dart';
+import '../../../economy/domain/models/app_user.dart';
+import '../../../economy/domain/repositories/user_repository.dart';
+import '../../../economy/domain/services/period_provider.dart';
 import '../../domain/entities/vecino_ranking.dart';
 import '../controllers/comunidad_controller.dart';
 import '../pages/vecino_detalle_page.dart';
 import '../widgets/reconocimiento_dialog.dart';
 
-class VecinosTab extends StatelessWidget {
+class VecinosTab extends StatefulWidget {
   const VecinosTab({super.key});
+
+  @override
+  State<VecinosTab> createState() => _VecinosTabState();
+}
+
+class _VecinosTabState extends State<VecinosTab> {
+  int _reloadToken = 0;
+
+  void _reintentar(ComunidadController controller) {
+    setState(() => _reloadToken++);
+    controller.cargarRanking();
+  }
+
+  Future<void> _abrirHerramientasDemo(
+      BuildContext context, {
+        required String district,
+        required ComunidadController controller,
+      }) async {
+    if (!kEnableDemoTools) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _DemoRankingToolsSheet(
+        district: district,
+        onChanged: () {
+          if (mounted) _reintentar(controller);
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ComunidadController>();
-    final buenVecino = controller.buenVecino;
-    final ranking = controller.ranking;
+    final userRepository = context.watch<UserRepository?>();
+    final simulatablePeriod = context.watch<SimulatablePeriodProvider?>();
+    final activePeriod =
+        simulatablePeriod?.currentPeriod ??
+            context.watch<PeriodProvider?>()?.currentPeriod ??
+            '';
+    final currentUid = context.watch<AuthGateway?>()?.currentUid;
+    final distrito = controller.distritoRanking.trim().isEmpty
+        ? 'Ate'
+        : controller.distritoRanking.trim();
     final theme = Theme.of(context);
 
     return RefreshIndicator(
-      onRefresh: () => controller.cargarRanking(),
+      onRefresh: () async => _reintentar(controller),
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // Tarjeta de Buen Vecino de la Semana
-          if (buenVecino != null) ...[
-            _TarjetaBuenVecino(
-              buenVecino: buenVecino,
-              onNominar: () => mostrarDialogoReconocimiento(
-                context,
-                controller,
-                destinoUid: buenVecino.uid,
-                destinoNombre: buenVecino.nombre,
-              ),
+          TopThreeMonthlyCard(
+            key: ValueKey('top3_${distrito}_${activePeriod}_$_reloadToken'),
+            district: distrito,
+            currentUid: currentUid,
+            fallbackRanking: controller.ranking,
+            onRetry: () => _reintentar(controller),
+            onOpenDemoTools: kEnableDemoTools
+                ? () => _abrirHerramientasDemo(
+              context,
+              district: distrito,
+              controller: controller,
+            )
+                : null,
+            onNominar: (vecino) => mostrarDialogoReconocimiento(
+              context,
+              controller,
+              destinoUid: vecino.uid,
+              destinoNombre: vecino.nombre,
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
+          const SizedBox(height: 16),
 
-          // Cabecera del ranking por distrito
+          // Cabecera del ranking del barrio (filtrado por distrito)
           Row(
             children: [
               Expanded(
@@ -43,7 +94,7 @@ class VecinosTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Tabla de Vecinos',
+                      'Tabla de Vecinos del Barrio',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -55,7 +106,7 @@ class VecinosTab extends StatelessWidget {
                         size: 16,
                         color: Color(0xFF006D77),
                       ),
-                      label: Text(controller.distritoRanking),
+                      label: Text('Barrio · $distrito'),
                       visualDensity: VisualDensity.compact,
                       backgroundColor: const Color(0xFFE0F2F1),
                       side: BorderSide.none,
@@ -69,43 +120,94 @@ class VecinosTab extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Lista de posiciones
-          if (controller.cargando && ranking.isEmpty)
+          if (userRepository != null)
+            StreamBuilder<List<AppUser>>(
+              key: ValueKey(
+                'leaderboard_${distrito}_${activePeriod}_$_reloadToken',
+              ),
+              stream: userRepository.watchMonthlyLeaderboard(
+                district: distrito,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return _EstadoErrorRanking(
+                    onReintentar: () => _reintentar(controller),
+                  );
+                }
+                final users = snapshot.data ?? const <AppUser>[];
+                if (users.isEmpty) {
+                  return _EstadoVacioRanking(
+                    onReintentar: () => _reintentar(controller),
+                  );
+                }
+                final ranking = _mapUsersToRanking(
+                  users,
+                  currentUid: currentUid,
+                  fallbackDistrito: distrito,
+                );
+                return Column(
+                  children: ranking
+                      .map((v) => _FilaVecinoRanking(vecino: v))
+                      .toList(growable: false),
+                );
+              },
+            )
+          else if (controller.cargando && controller.ranking.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: CircularProgressIndicator(),
               ),
             )
-          else if (ranking.isEmpty)
-            _EstadoVacioRanking(
-              distrito: controller.distritoRanking,
-              onReintentar: controller.cargarRanking,
-            )
-          else
-            ...ranking.map((v) => _FilaVecinoRanking(vecino: v)),
+          else if (controller.error != null && controller.ranking.isEmpty)
+              _EstadoErrorRanking(onReintentar: () => _reintentar(controller))
+            else if (controller.ranking.isEmpty)
+                _EstadoVacioRanking(onReintentar: () => _reintentar(controller))
+              else
+                ...controller.ranking.map((v) => _FilaVecinoRanking(vecino: v)),
 
           const SizedBox(height: 16),
-          Card(
-            color: const Color(0xFFF1F8F8),
-            elevation: 0,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    size: 20,
-                    color: Color(0xFF006D77),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'El ranking se actualiza semanalmente según los puntos XP ganados por participar y ayudar en ${controller.distritoRanking}.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+          GestureDetector(
+            onLongPress: kEnableDemoTools
+                ? () => _abrirHerramientasDemo(
+              context,
+              district: distrito,
+              controller: controller,
+            )
+                : null,
+            child: Card(
+              color: const Color(0xFFF1F8F8),
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      size: 20,
+                      color: Color(0xFF006D77),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'El ranking del barrio se actualiza mensualmente según los puntos XP ganados por participar y ayudar. Se reinicia cada mes.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -115,10 +217,601 @@ class VecinosTab extends StatelessWidget {
   }
 }
 
-class _EstadoVacioRanking extends StatelessWidget {
-  const _EstadoVacioRanking({required this.distrito, required this.onReintentar});
+List<VecinoRanking> _mapUsersToRanking(
+    List<AppUser> users, {
+      required String? currentUid,
+      required String fallbackDistrito,
+    }) {
+  return List<VecinoRanking>.generate(users.length, (index) {
+    final user = users[index];
+    return VecinoRanking(
+      uid: user.uid,
+      nombre: user.name,
+      iniciales: _inicialesDe(user.name),
+      distrito: user.district.trim().isNotEmpty
+          ? user.district
+          : fallbackDistrito,
+      xpPeriodo: user.effectiveMonthlyXp,
+      posicion: index + 1,
+      nivel: user.level,
+      esUsuarioActual: currentUid != null && user.uid == currentUid,
+      estrellas: user.averageStars.round(),
+      xpTotal: user.xpTotal,
+    );
+  }, growable: false);
+}
 
-  final String distrito;
+String _inicialesDe(String nombre) {
+  final partes = nombre
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .take(2)
+      .map((p) => p.substring(0, 1).toUpperCase())
+      .join();
+  return partes.isEmpty ? 'V' : partes;
+}
+
+class TopThreeMonthlyCard extends StatelessWidget {
+  const TopThreeMonthlyCard({
+    super.key,
+    required this.district,
+    this.currentUid,
+    this.fallbackRanking = const [],
+    this.onRetry,
+    this.onOpenDemoTools,
+    this.onNominar,
+  });
+
+  final String district;
+  final String? currentUid;
+  final List<VecinoRanking> fallbackRanking;
+  final VoidCallback? onRetry;
+  final VoidCallback? onOpenDemoTools;
+  final ValueChanged<VecinoRanking>? onNominar;
+
+  @override
+  Widget build(BuildContext context) {
+    final userRepository = context.watch<UserRepository?>();
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: colors.secondary, width: 1.5),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            colors: [
+              colors.surface,
+              colors.secondaryContainer.withValues(alpha: 0.35),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: userRepository != null
+            ? StreamBuilder<List<AppUser>>(
+          stream: userRepository.watchTopThreeOfMonth(district: district),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
+              return _buildHeaderAndBody(
+                context,
+                body: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                  ),
+                ),
+              );
+            }
+            if (snapshot.hasError) {
+              return _buildHeaderAndBody(
+                context,
+                body: _TopThreeErrorBody(onRetry: onRetry),
+              );
+            }
+            final topUsers = _mapUsersToRanking(
+              (snapshot.data ?? const <AppUser>[])
+                  .take(3)
+                  .toList(growable: false),
+              currentUid: currentUid,
+              fallbackDistrito: district,
+            );
+            return _buildTopThreeContent(context, topUsers);
+          },
+        )
+            : _buildTopThreeContent(
+          context,
+          fallbackRanking
+              .where((v) => v.xpPeriodo > 0)
+              .take(3)
+              .toList(growable: false),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopThreeContent(
+      BuildContext context,
+      List<VecinoRanking> topThree,
+      ) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    if (topThree.isEmpty) {
+      return _buildHeaderAndBody(
+        context,
+        body: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: colors.secondary.withValues(alpha: 0.45),
+            ),
+          ),
+          child: Text(
+            'Aún no hay puntos este mes en el barrio. Participa ayudando a tus vecinos para inaugurar el podio.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return _buildHeaderAndBody(
+      context,
+      first: topThree.first,
+      body: Column(
+        children: [
+          for (var i = 0; i < topThree.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _FilaPodioMes(vecino: topThree[i]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderAndBody(
+      BuildContext context, {
+        required Widget body,
+        VecinoRanking? first,
+      }) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colors.secondary,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.workspace_premium,
+                color: colors.onSecondary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Top 3 del Mes del Barrio',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colors.primary,
+                    ),
+                  ),
+                  Text(
+                    'Vecinos más solidarios del barrio',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                  Text(
+                    'Barrio · $district',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        body,
+        const SizedBox(height: 12),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            GestureDetector(
+              onLongPress: kEnableDemoTools ? onOpenDemoTools : null,
+              child: Text(
+                'Se reinicia cada mes',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (first != null && onNominar != null)
+              OutlinedButton.icon(
+                onPressed: () => onNominar!(first),
+                icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
+                label: const Text('Reconocer a un vecino'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.primary,
+                  side: BorderSide(color: colors.secondary),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DemoRankingToolsSheet extends StatefulWidget {
+  const _DemoRankingToolsSheet({
+    required this.district,
+    required this.onChanged,
+  });
+
+  final String district;
+  final VoidCallback onChanged;
+
+  @override
+  State<_DemoRankingToolsSheet> createState() => _DemoRankingToolsSheetState();
+}
+
+class _DemoRankingToolsSheetState extends State<_DemoRankingToolsSheet> {
+  bool _busy = false;
+  String? _feedback;
+
+  Future<void> _seedDemoUsers() async {
+    final seeder = context.read<DemoRankingSeeder?>();
+    if (seeder == null || _busy) return;
+    setState(() {
+      _busy = true;
+      _feedback = null;
+    });
+    try {
+      final count = await seeder.seed(district: widget.district);
+      widget.onChanged();
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _feedback =
+        'Se cargaron $count vecinos de demostración en el barrio (${widget.district}).';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _feedback = 'No se pudieron cargar los datos de demostración: $error';
+      });
+    }
+  }
+
+  Future<void> _clearDemoUsers() async {
+    final seeder = context.read<DemoRankingSeeder?>();
+    if (seeder == null || _busy) return;
+    setState(() {
+      _busy = true;
+      _feedback = null;
+    });
+    try {
+      final count = await seeder.clear();
+      widget.onChanged();
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _feedback =
+        'Se eliminaron $count vecinos de demostración (isDemo: true).';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _feedback = 'No se pudieron borrar los datos de demostración: $error';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final simulator = context.watch<SimulatablePeriodProvider?>();
+    final seeder = context.watch<DemoRankingSeeder?>();
+    final isSimulating = simulator?.isSimulating ?? false;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
+          children: [
+            Text(
+              'Herramientas de demostración (Ranking Mensual)',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              simulator == null
+                  ? 'Periodo activo del sistema.'
+                  : isSimulating
+                  ? 'Simulando nuevo mes (${simulator.currentPeriod} · solo lectura). El ranking del barrio y el XP mensual aparecen en 0 sin tocar xpTotal, Nivel ni Monedas.'
+                  : 'Periodo actual en Lima: ${simulator.realPeriod}.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+            if (simulator != null)
+              FilledButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () {
+                  simulator.toggleNextMonthSimulation();
+                  widget.onChanged();
+                },
+                icon: Icon(
+                  isSimulating ? Icons.restore : Icons.calendar_month_outlined,
+                ),
+                label: Text(
+                  isSimulating
+                      ? 'Volver al mes actual (${simulator.realPeriod})'
+                      : 'Simular Nuevo Mes (${nextMonthPeriod(simulator.realPeriod)})',
+                ),
+              ),
+            if (seeder != null)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _seedDemoUsers,
+                    icon: const Icon(Icons.group_add_outlined, size: 18),
+                    label: Text('Cargar vecinos demo (${widget.district})'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _clearDemoUsers,
+                    icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                    label: const Text('Borrar vecinos demo'),
+                  ),
+                ],
+              ),
+            if (_feedback != null)
+              Text(
+                _feedback!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.primary,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilaPodioMes extends StatelessWidget {
+  const _FilaPodioMes({required this.vecino});
+
+  final VecinoRanking vecino;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final controller = context.read<ComunidadController?>();
+
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => controller != null
+                  ? ChangeNotifierProvider.value(
+                value: controller,
+                child: VecinoDetallePage(vecino: vecino),
+              )
+                  : VecinoDetallePage(vecino: vecino),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: colors.secondary.withValues(alpha: 0.45),
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 28,
+                child: Text(
+                  '${vecino.posicion}°',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colors.primary,
+                  ),
+                ),
+              ),
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: vecino.esUsuarioActual
+                    ? colors.primary
+                    : colors.primaryContainer,
+                child: Text(
+                  vecino.iniciales,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: vecino.esUsuarioActual
+                        ? colors.onPrimary
+                        : colors.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      vecino.nombre,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    Text(
+                      'Nivel ${vecino.nivel}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${vecino.xpPeriodo} XP',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colors.primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: colors.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopThreeErrorBody extends StatelessWidget {
+  const _TopThreeErrorBody({this.onRetry});
+
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.error.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'No se pudo cargar el Top 3 del mes del barrio.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EstadoErrorRanking extends StatelessWidget {
+  const _EstadoErrorRanking({required this.onReintentar});
+
+  final VoidCallback onReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Icon(Icons.error_outline, size: 36, color: colors.error),
+            const SizedBox(height: 10),
+            Text(
+              'No se pudo cargar el ranking del barrio.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onReintentar,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EstadoVacioRanking extends StatelessWidget {
+  const _EstadoVacioRanking({required this.onReintentar});
+
   final VoidCallback onReintentar;
 
   @override
@@ -139,166 +832,16 @@ class _EstadoVacioRanking extends StatelessWidget {
               color: Color(0xFF006D77),
             ),
             const SizedBox(height: 10),
-            Text(
-              'Aún no hay vecinos en el ranking de $distrito.',
+            const Text(
+              'Aún no hay vecinos en el ranking del barrio este mes.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13),
+              style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: onReintentar,
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TarjetaBuenVecino extends StatelessWidget {
-  const _TarjetaBuenVecino({required this.buenVecino, required this.onNominar});
-
-  final BuenVecinoSemana buenVecino;
-  final VoidCallback onNominar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFFFB703), width: 1.5),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFFDF5), Color(0xFFFFF8E7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                final controller = context.read<ComunidadController>();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ChangeNotifierProvider.value(
-                      value: controller,
-                      child: VecinoDetallePage(
-                        vecino: VecinoRanking(
-                          uid: buenVecino.uid,
-                          nombre: buenVecino.nombre,
-                          iniciales: buenVecino.iniciales,
-                          distrito: buenVecino.distrito,
-                          xpPeriodo: 240,
-                          posicion: 1,
-                          nivel: 8,
-                          reconocimientos: buenVecino.votosReconocimiento,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFB703),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.workspace_premium,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Buen Vecino de la Semana',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFB27B00),
-                          ),
-                        ),
-                        Text(
-                          buenVecino.nombre,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        Text(
-                          buenVecino.distrito,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: Color(0xFFB27B00),
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFFE082)),
-              ),
-              child: Text(
-                '“${buenVecino.motivo}”',
-                style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                Text(
-                  '${buenVecino.votosReconocimiento} reconocimientos',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF8D6200),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onNominar,
-                  icon: const Icon(Icons.thumb_up_alt_outlined, size: 16),
-                  label: const Text('Reconocer a un vecino'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF8D6200),
-                    side: const BorderSide(color: Color(0xFFFFB703)),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -383,7 +926,9 @@ class _FilaVecinoRanking extends StatelessWidget {
                       Text(
                         vecino.nombre,
                         style: TextStyle(
-                          fontWeight: esUsuario ? FontWeight.bold : FontWeight.w600,
+                          fontWeight: esUsuario
+                              ? FontWeight.bold
+                              : FontWeight.w600,
                           fontSize: 14,
                         ),
                       ),
@@ -435,7 +980,7 @@ class _FilaVecinoRanking extends StatelessWidget {
                       ),
                     ),
                     const Text(
-                      'esta semana',
+                      'este mes',
                       style: TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                   ],

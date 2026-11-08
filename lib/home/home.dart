@@ -17,6 +17,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../features/create_post/domain/services/auth_gateway.dart';
 import '../features/create_post/domain/services/photo_picker.dart';
 import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
+import '../features/economy/domain/models/app_user.dart';
+import '../features/economy/domain/repositories/user_repository.dart';
+import '../features/economy/domain/services/period_provider.dart';
 import '../features/emergency/data/firebase_emergency_alert_repository.dart';
 import '../features/emergency/data/firebase_emergency_post_repository.dart';
 import '../features/emergency/domain/emergency_alert.dart';
@@ -192,7 +195,7 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  'Progreso: Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP (${widget.datos.weeklyXp} XP esta semana)',
+                  'Progreso: Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP (${widget.datos.weeklyXp} XP este mes)',
                   style: const TextStyle(fontSize: 12),
                 ),
                 if (widget.datos.insignias.isNotEmpty) ...[
@@ -202,7 +205,10 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
                     runSpacing: 6,
                     children: widget.datos.insignias.map((insignia) {
                       return Chip(
-                        label: Text(insignia, style: const TextStyle(fontSize: 10)),
+                        label: Text(
+                          insignia,
+                          style: const TextStyle(fontSize: 10),
+                        ),
                         visualDensity: VisualDensity.compact,
                         backgroundColor: const Color(0xFFFFF3D6),
                         side: const BorderSide(color: Color(0xFFFFD54F)),
@@ -219,9 +225,9 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
           onPressed: _guardando ? null : _guardar,
           icon: _guardando
               ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
               : const Icon(Icons.save_outlined),
           label: Text(_guardando ? 'Guardando...' : 'Guardar cambios'),
         ),
@@ -260,7 +266,7 @@ class _InicioLoader extends StatefulWidget {
 
 class _InicioLoaderState extends State<_InicioLoader> {
   late final Future<SharedPreferences> _preferences =
-      SharedPreferences.getInstance();
+  SharedPreferences.getInstance();
 
   @override
   Widget build(BuildContext context) => FutureBuilder<SharedPreferences>(
@@ -289,7 +295,9 @@ class _InicioProfileLoader extends StatelessWidget {
       name: preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
       phoneNumber: preferences.getString('vecino_telefono') ?? '',
       role: preferences.getString('vecino_rol') ?? 'Vecino',
-      bio: preferences.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+      bio:
+      preferences.getString('vecino_bio') ??
+          'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
       department: preferences.getString('vecino_departamento') ?? '',
       province: preferences.getString('vecino_provincia') ?? '',
       district: preferences.getString('vecino_distrito') ?? '',
@@ -352,6 +360,9 @@ class Inicio extends StatefulWidget {
 
 class _InicioState extends State<Inicio> {
   late double hambre = widget.datos.hambre;
+  StreamSubscription<AppUser>? _statsSubscription;
+  SimulatablePeriodProvider? _simulatablePeriod;
+  AppUser? _lastRawStats;
 
   static const _claveTutorial = 'tutorial_inicio_v1_visto';
   final _inicio = GlobalKey();
@@ -370,7 +381,54 @@ class _InicioState extends State<Inicio> {
   @override
   void initState() {
     super.initState();
+    _bindStatsStream();
     WidgetsBinding.instance.addPostFrameCallback((_) => _abrirSiEsNuevo());
+  }
+
+  void _bindStatsStream() {
+    final auth = context.read<AuthGateway?>();
+    final users = context.read<UserRepository?>();
+    _simulatablePeriod = context.read<SimulatablePeriodProvider?>();
+    _simulatablePeriod?.addListener(_onSimulatedPeriodChanged);
+    final uid = auth?.currentUid;
+    if (users == null || uid == null || uid.isEmpty) return;
+    _statsSubscription = users.watchUserStats(uid).listen(
+          (user) {
+        if (!mounted) return;
+        _lastRawStats = user;
+        widget.datos.syncEconomy(user);
+      },
+      onError: (Object error) {
+        debugPrint('No se pudo escuchar watchUserStats en Inicio: $error');
+      },
+    );
+  }
+
+  void _onSimulatedPeriodChanged() {
+    final last = _lastRawStats;
+    final activePeriod = _simulatablePeriod?.currentPeriod;
+    if (!mounted || last == null || activePeriod == null) return;
+    widget.datos.syncEconomy(
+      AppUser(
+        uid: last.uid,
+        name: last.name,
+        district: last.district,
+        currentPeriod: activePeriod,
+        xpTotal: last.xpTotal,
+        monthlyXp: last.monthlyXp,
+        rankingPeriod: last.rankingPeriod,
+        availableCoins: last.availableCoins,
+        averageStars: last.averageStars,
+        reviewCount: last.reviewCount,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _simulatablePeriod?.removeListener(_onSimulatedPeriodChanged);
+    unawaited(_statsSubscription?.cancel());
+    super.dispose();
   }
 
   Future<void> _abrirSiEsNuevo() async {
@@ -437,40 +495,40 @@ class _InicioState extends State<Inicio> {
 
   static const accesos = [
     (
-      'Servicios\nde oficios',
-      'ServiciosDeOficios',
-      Color(0xfffbe5cf),
-      'Gasfitería, electricidad y otros oficios recomendados por tus vecinos.',
+    'Servicios\nde oficios',
+    'ServiciosDeOficios',
+    Color(0xfffbe5cf),
+    'Gasfitería, electricidad y otros oficios recomendados por tus vecinos.',
     ),
     (
-      'Muro de\nfavores',
-      'MuroDeFavores',
-      Color(0xfffce4df),
-      'Pide una herramienta prestada u ofrece ayuda a un vecino.',
+    'Muro de\nfavores',
+    'MuroDeFavores',
+    Color(0xfffce4df),
+    'Pide una herramienta prestada u ofrece ayuda a un vecino.',
     ),
     (
-      'Eventos\ndel barrio',
-      'EventosDelBarrio',
-      Color(0xffe4e9d5),
-      'Consulta reuniones, simulacros y actividades comunitarias.',
+    'Eventos\ndel barrio',
+    'EventosDelBarrio',
+    Color(0xffe4e9d5),
+    'Consulta reuniones, simulacros y actividades comunitarias.',
     ),
     (
-      'Misiones\ny grupos',
-      'MisionesYGrupos',
-      Color(0xffe5e2f5),
-      'Completa acciones de ayuda para sumar Aura.',
+    'Misiones\ny grupos',
+    'MisionesYGrupos',
+    Color(0xffe5e2f5),
+    'Completa acciones de ayuda para sumar Aura.',
     ),
     (
-      'Mochila de\nemergencia',
-      'MochilaDeEmergencia',
-      Color(0xfff5e2cd),
-      'Revisa los suministros de tu vivienda.',
+    'Mochila de\nemergencia',
+    'MochilaDeEmergencia',
+    Color(0xfff5e2cd),
+    'Revisa los suministros de tu vivienda.',
     ),
     (
-      'Noticias\ny alertas',
-      'NoticiasYAlertas',
-      Color(0xffffe5ad),
-      'Consulta los avisos de tu grupo barrial.',
+    'Noticias\ny alertas',
+    'NoticiasYAlertas',
+    Color(0xffffe5ad),
+    'Consulta los avisos de tu grupo barrial.',
     ),
   ];
 
@@ -529,11 +587,13 @@ class _InicioState extends State<Inicio> {
         'vecino_distrito',
         'vecino_nombre',
         'vecino_telefono',
+        'vecino_profile_uid',
         'vecino_bio',
         'vecino_rol',
         'vecino_xp',
         'vecino_xp_semana',
         'vecino_stars',
+        'vecino_monedas',
         'vecino_favores',
         'vecino_herramientas',
         'vecino_hambre',
@@ -675,8 +735,8 @@ class _InicioState extends State<Inicio> {
 
       final alertId =
           _pendingSosId ??
-          preferences.getString('sos_pending_alert_id') ??
-          FirebaseFirestore.instance.collection('emergency_alerts').doc().id;
+              preferences.getString('sos_pending_alert_id') ??
+              FirebaseFirestore.instance.collection('emergency_alerts').doc().id;
       _pendingSosId = alertId;
       await preferences.setString('sos_pending_alert_id', alertId);
       final alertRepository = FirebaseEmergencyAlertRepository();
@@ -902,22 +962,22 @@ class _InicioState extends State<Inicio> {
               fit: BoxFit.scaleDown,
               child: _sosSending
                   ? const Center(
-                      child: SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    )
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                ),
+              )
                   : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        label('¡SOS!', 21, bold: true, color: Colors.white),
-                        const SizedBox(height: 3),
-                        label('EMERGENCIA', 9, bold: true, color: Colors.white),
-                      ],
-                    ),
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  label('¡SOS!', 21, bold: true, color: Colors.white),
+                  const SizedBox(height: 3),
+                  label('EMERGENCIA', 9, bold: true, color: Colors.white),
+                ],
+              ),
             ),
           ),
         ),
@@ -1099,11 +1159,11 @@ Widget _avatarVecino(String iniciales, bool foto, double radio) => CircleAvatar(
 );
 
 Widget label(
-  String value,
-  double size, {
-  bool bold = false,
-  Color color = ink,
-}) => Text(
+    String value,
+    double size, {
+      bool bold = false,
+      Color color = ink,
+    }) => Text(
   value,
   style: TextStyle(
     fontSize: size,

@@ -213,6 +213,35 @@ await write(helpId, {
   ...emergency, id: helpId, category: 'help', details: { description: 'Ayuda de prueba' },
   photos: [metadata(helpPhoto)], mediaStatus: 'ready',
 }, owner);
+const helpOfferUrl = (uid) => docUrl(helpId) + '/helpOffers/' + uid;
+async function writeHelpOffer(postId, uid, session, status = 200) {
+  await request(firestore + '/v1/' + documents + ':commit', {
+    method: 'POST',
+    headers: firestoreAuth(session),
+    status,
+    json: {
+      writes: [{
+        update: { name: documents + '/posts/' + postId + '/helpOffers/' + uid },
+        updateTransforms: [{ fieldPath: 'offeredAt', setToServerValue: 'REQUEST_TIME' }],
+      }],
+    },
+  });
+}
+await writeHelpOffer(helpId, owner.uid, owner, 403);
+await writeHelpOffer(helpId, owner.uid, stranger, 403);
+await writeHelpOffer(emergencyId, stranger.uid, stranger, 403);
+await writeHelpOffer(helpId, stranger.uid, stranger);
+await writeHelpOffer(helpId, stranger.uid, stranger);
+await request(helpOfferUrl(stranger.uid), { headers: firestoreAuth(stranger) });
+await request(helpOfferUrl(stranger.uid), { status: 403 });
+const offers = await request(docUrl(helpId) + '/helpOffers', {
+  headers: firestoreAuth(owner),
+});
+assert.equal((await offers.json()).documents.length, 1);
+await request(docUrl(helpId) + '/helpOffers', {
+  headers: firestoreAuth(stranger),
+  status: 403,
+});
 await request(docUrl(helpId), { method: 'DELETE', headers: firestoreAuth(stranger), status: 403 });
 await request(docUrl(helpId), { method: 'DELETE', headers: firestoreAuth(owner) });
 await request(photoUrl(helpPhoto), { method: 'DELETE', headers: storageAuth(stranger), status: [401, 403] });

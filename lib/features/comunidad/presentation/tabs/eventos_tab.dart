@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../create_post/domain/entities/news_post_data.dart';
+import '../../../economy/domain/models/economy_result.dart';
+import '../../../economy/domain/services/economy_engine.dart';
 import '../../domain/entities/comunidad_feed_items.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
 import 'feed_widgets.dart';
@@ -190,6 +193,7 @@ class _EventCardState extends State<_EventCard> {
   Future<void> _chooseResponse(EventAttendanceResponse? current) async {
     final event = widget.event;
     final repository = widget.repository;
+    final economyEngine = context.read<EconomyEngine?>();
     final choice = await showDialog<EventAttendanceResponse>(
       context: context,
       builder: (context) => SimpleDialog(
@@ -211,6 +215,26 @@ class _EventCardState extends State<_EventCard> {
     setState(() => _savingResponse = true);
     try {
       await repository.respondToEvent(event.id, choice);
+      if (choice == EventAttendanceResponse.going && economyEngine != null) {
+        try {
+          final result = await economyEngine.award(
+            source: EconomySource.attendedEvent,
+            sourceId: event.id,
+            operationId: economyEngine.newOperationId(),
+          );
+          if (mounted && !result.alreadyApplied) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Asistencia confirmada (+${result.clientXp} XP).',
+                ),
+              ),
+            );
+          }
+        } catch (_) {
+          // La asistencia al evento se mantiene guardada aunque falle el bono.
+        }
+      }
     } on Exception {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -225,7 +249,7 @@ class _EventCardState extends State<_EventCard> {
     final event = widget.event;
     showFeedDetail(
       context,
-      (context) => [
+          (context) => [
         Text(event.title, style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 12),
         _EventMetadata(icon: Icons.calendar_today_outlined, text: day),
@@ -324,6 +348,12 @@ class _EventCardState extends State<_EventCard> {
                         ),
                       ),
                       Text(event.title, style: theme.textTheme.titleMedium),
+                      const RewardBadge(
+                        label: 'Bono pendiente',
+                        detail: '+${EconomyResult.eventCoins} monedas · '
+                            '+${EconomyResult.eventXp} XP',
+                        highlighted: false,
+                      ),
                     ],
                   ),
                 ),
@@ -442,7 +472,7 @@ class _NewsCard extends StatelessWidget {
       child: InkWell(
         onTap: () => showFeedDetail(
           context,
-          (context) => [
+              (context) => [
             Text(news.title, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
