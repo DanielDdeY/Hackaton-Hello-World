@@ -144,18 +144,153 @@ class _EventCard extends StatelessWidget {
 
   final EventItem event;
 
+  static const _months = [
+    'ENE',
+    'FEB',
+    'MAR',
+    'ABR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AGO',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DIC',
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final labels = MaterialLocalizations.of(context);
     final date = event.startsAt.toLocal();
-    final day = MaterialLocalizations.of(context).formatMediumDate(date);
-    final time = TimeOfDay.fromDateTime(date).format(context);
+    final time = labels.formatTimeOfDay(
+      TimeOfDay.fromDateTime(date),
+      alwaysUse24HourFormat: true,
+    );
+    final description = event.description;
+    final attendees = event.attendees;
     return Card(
-      child: ListTile(
-        leading: const Icon(Icons.event_outlined),
-        title: Text(event.title),
-        subtitle: Text('$day · $time\n${event.place}'),
-        isThreeLine: true,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 12,
+              children: [
+                Semantics(
+                  label: labels.formatFullDate(date),
+                  excludeSemantics: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.08),
+                      border: Border.all(
+                        color: colors.primary.withValues(alpha: 0.25),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          date.day.toString().padLeft(2, '0'),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: colors.primary,
+                          ),
+                        ),
+                        Text(
+                          _months[date.month - 1],
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: colors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 6,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            'Evento vecinal',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: colors.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Text(event.title, style: theme.textTheme.titleMedium),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (description != null) Text(description),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                _EventMetadata(icon: Icons.schedule, text: time),
+                _EventMetadata(icon: Icons.place_outlined, text: event.place),
+              ],
+            ),
+            if (attendees != null) ...[
+              const Divider(height: 1),
+              _EventMetadata(
+                icon: Icons.people_outline,
+                text: attendees == 1
+                    ? '1 asistente previsto'
+                    : '$attendees asistentes previstos',
+              ),
+            ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _EventMetadata extends StatelessWidget {
+  const _EventMetadata({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 6,
+      children: [
+        Icon(icon, size: 16, color: color),
+        Flexible(
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ),
+      ],
     );
   }
 }

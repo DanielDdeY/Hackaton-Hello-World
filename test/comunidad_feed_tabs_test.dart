@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 
 class _Feed implements ComunidadFeedRepository {
   final serviceRequests = <ServiceCategory?>[];
+  final events = StreamController<List<EventItem>>.broadcast();
   final news = StreamController<List<NewsItem>>.broadcast();
   int newsRequests = 0;
   bool failServices = false;
@@ -38,7 +39,10 @@ class _Feed implements ComunidadFeedRepository {
   }
 
   @override
-  Stream<List<EventItem>> watchEvents() => Stream.value(const []);
+  Stream<List<EventItem>> watchEvents() async* {
+    yield const [];
+    yield* events.stream;
+  }
 
   @override
   Stream<List<NewsItem>> watchNews() async* {
@@ -50,6 +54,7 @@ class _Feed implements ComunidadFeedRepository {
 
 Future<void> _open(WidgetTester tester, _Feed repository) async {
   addTearDown(repository.news.close);
+  addTearDown(repository.events.close);
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -124,6 +129,25 @@ void main() {
     expect(find.text('Aún no hay eventos programados'), findsOneWidget);
     expect(find.text('Noticias del barrio'), findsOneWidget);
     expect(find.text('Aún no hay noticias del barrio.'), findsOneWidget);
+
+    repository.events.add([
+      EventItem(
+        id: 'reunion',
+        title: 'Reunión de la junta vecinal',
+        place: 'Local comunal',
+        startsAt: DateTime(2099, 11, 9, 17, 30),
+        description: 'Coordinaremos el simulacro.',
+        attendees: 14,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('Reunión de la junta vecinal'), findsOneWidget);
+    expect(find.text('NOV'), findsOneWidget);
+    expect(find.text('17:30'), findsOneWidget);
+    expect(find.text('Local comunal'), findsOneWidget);
+    expect(find.text('Coordinaremos el simulacro.'), findsOneWidget);
+    expect(find.text('14 asistentes previstos'), findsOneWidget);
+    expect(find.text('Aún no hay eventos programados'), findsNothing);
 
     final item = NewsItem(
       id: 'aviso',

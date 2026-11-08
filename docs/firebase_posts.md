@@ -1,6 +1,6 @@
 # Publicaciones de Comunidad en Firebase
 
-Servicios y Noticias se guardan en Cloud Firestore dentro de `posts/{postId}`. En Comunidad, **Servicios** muestra el catálogo y **Eventos** reúne los próximos eventos y las noticias del barrio.
+Servicios, Noticias y Eventos se guardan en Cloud Firestore dentro de `posts/{postId}`. En Comunidad, **Servicios** muestra el catálogo y **Eventos** reúne los próximos eventos y las noticias del barrio.
 
 ## Estructura de las publicaciones
 
@@ -9,7 +9,7 @@ El [mapeador de Firestore](../lib/features/create_post/data/mappers/firestore_po
 | Campo común | Valor |
 |---|---|
 | `id` | Identificador del documento, igual a `postId`. |
-| `category` | `service` para Servicios, `news` para Noticias, `help` para Ayuda y `emergency` para Emergencia. |
+| `category` | `service` para Servicios, `news` para Noticias, `event` para Eventos, `help` para Ayuda y `emergency` para Emergencia. |
 | `status` | `active` al publicar. |
 | `schemaVersion` | `2`. |
 | `authorId` | UID de la sesión autenticada. |
@@ -45,18 +45,22 @@ Se guarda el campo de la modalidad elegida. En Brindar servicio con la disponibi
 | `title`, `content` | Título y contenido obligatorios. |
 | `quickCategory` | `general`, `lost_pet`, `neighborhood_life`, `service_cuts` o `null`. |
 
+### Eventos
+
+El formulario de **Publicar → Eventos** usa el mismo flujo de envío. Guarda `title`, `place` y `startsAt` en `details`. El día y la hora forman una sola marca de tiempo en Firestore. La fecha debe ser futura. Si se completan los campos opcionales, también guarda `attendees` como cantidad entera de asistentes previstos y `description` como detalle.
+
 ## Cómo consulta Comunidad
 
-[ComunidadFeedRepository](../lib/features/comunidad/domain/repositories/comunidad_feed_repository.dart) entrega listas tipadas por medio de flujos. Su [implementación de Firestore](../lib/features/comunidad/data/repositories/firestore_comunidad_feed_repository.dart) establece la sesión antes de abrir las consultas de Servicios y Noticias.
+[ComunidadFeedRepository](../lib/features/comunidad/domain/repositories/comunidad_feed_repository.dart) entrega listas tipadas por medio de flujos. Su [implementación de Firestore](../lib/features/comunidad/data/repositories/firestore_comunidad_feed_repository.dart) establece la sesión antes de abrir las consultas.
 
 | Método | Consulta y destino |
 |---|---|
 | `watchServices()` | Servicios con `category == 'service'` y `status == 'active'`. Corresponde al filtro **Todos**. |
 | `watchServices(category: ...)` | La misma consulta con una condición adicional de igualdad sobre `details.serviceCategory`. |
 | `watchNews()` | Publicaciones con `category == 'news'` y `status == 'active'`. Se muestran en **Eventos → Noticias del barrio**. |
-| `watchEvents()` | En producción emite una lista vacía. El repositorio de demostración ofrece un evento identificado como ejemplo. |
+| `watchEvents()` | Publicaciones activas de categoría `event` con `details.startsAt` posterior al momento de la consulta. Se muestran en **Eventos → Próximos eventos**. |
 
-Las consultas de `posts` ordenan por `createdAt` descendente y piden hasta 30 documentos. Las pestañas conservan las suscripciones al alternar entre ellas. Al cambiar el filtro de Servicios se abre la consulta de la categoría seleccionada.
+Cada consulta pide hasta 30 documentos. Servicios y Noticias ordenan por `createdAt` descendente. Eventos ordena por `details.startsAt` ascendente. Las pestañas conservan las suscripciones al alternar entre ellas. Al cambiar el filtro de Servicios se abre la consulta de la categoría seleccionada.
 
 En **Todos**, un servicio antiguo con categoría ausente o desconocida se presenta como **Otros**. Al elegir el filtro **Otros**, Firestore devuelve los documentos que guardan explícitamente `details.serviceCategory == 'other'`.
 
@@ -86,11 +90,12 @@ Para ampliar el vocabulario, agrega la palabra o frase a `strong` o `weak` en el
 
 Las [reglas de Firestore](../firestore.rules) requieren una sesión para leer `posts`. Al crear un documento comprueban la autoría, el esquema y los campos comunes. En Servicios validan la clave de categoría, el monto numérico no negativo y el patrón `^9[0-9]{8}$` del celular. En Noticias requieren título y contenido con texto. El autor puede actualizar `photos`, `mediaStatus` y `updatedAt`, o eliminar el documento.
 
-Los [índices compuestos](../firestore.indexes.json) de `posts` respaldan las dos variantes de consulta.
+Al publicar un evento, las reglas también validan el título, el lugar, la fecha futura y el tipo de los campos opcionales. Los [índices compuestos](../firestore.indexes.json) de `posts` respaldan las consultas de Comunidad.
 
 | Consulta | Campos del índice |
 |---|---|
 | Noticias y Servicios sin filtro de categoría de servicio | `category ASC`, `status ASC`, `createdAt DESC`. |
 | Servicios con filtro de categoría | `category ASC`, `status ASC`, `details.serviceCategory ASC`, `createdAt DESC`. |
+| Próximos eventos | `category ASC`, `status ASC`, `details.startsAt ASC`. |
 
 El celular de contacto se guarda en `details.contactPhone` y se muestra en el detalle del servicio. La decisión actual es que **cualquier usuario autenticado puede leerlo**, incluida una sesión anónima de Firebase, para facilitar el contacto entre vecinos. El número se puede seleccionar. Botones **Copiar** y **Llamar** serían una mejora futura.
