@@ -1,0 +1,42 @@
+checkpoint:
+  title: "Implementacion del respaldo SOS por SMS"
+  outcome: "partial"
+  completed_tasks: ["T022", "T023"]
+  partial_tasks: ["T024"]
+
+requirements:
+  - id: "REQ-011"
+    plan_items: ["8.1", "8.2", "8.3"]
+    tasks: ["T022", "T023", "T024"]
+    status: "partial"
+    evidence:
+      - "Contactos confiables configurados manualmente y guardados en almacenamiento seguro local."
+      - "Mensaje SOS con hora y ubicacion opcional; compositor nativo para un destinatario y confirmacion del usuario."
+      - "La app no afirma que el SMS fue enviado o entregado."
+  - id: "REQ-002"
+    plan_items: ["8.2", "8.3"]
+    tasks: ["T023", "T024"]
+    status: "partial"
+    evidence:
+      - "El compositor SMS se ofrece como alternativa explícita ante error de envío SOS y mantiene estados honestos."
+
+outputs:
+  - "lib/features/emergency/domain/sos_sms_contact.dart"
+  - "lib/features/emergency/data/sos_sms_contact_store.dart"
+  - "lib/features/emergency/data/sos_sms_composer.dart"
+  - "lib/features/emergency/presentation/sos_sms_contacts_page.dart"
+  - "lib/home/home.dart"
+  - "test/features/emergency/sos_sms_test.dart"
+
+validation:
+  focused_sms_tests: "passed: 10"
+  full_flutter_suite: "passed: 207"
+  changed_dart_analysis: "passed"
+  android_debug_build: "passed"
+  android_ios_device_validation: "pending: no connected device with SIM and carrier coverage"
+  full_flutter_analyze: "one pre-existing unused import warning at lib/features/mascota/presentation/pages/mascota_page.dart:7"
+
+remaining_work:
+  - "T024: validar en Android e iOS con SIM/operador: cancelar, sin SIM/cobertura/app SMS, ubicación y segundo contacto."
+  - "T019-T021: implementar la cola SOS local durable y su sincronización idempotente; el SMS no reemplaza la cola offline."
+  - "T006: confirmar el número oficial local de emergencias."
