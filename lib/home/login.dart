@@ -126,12 +126,58 @@ class _EntradaState extends State<_Entrada> {
     _cargar();
   }
 
+  bool _tieneUbicacion(UserProfile profile) =>
+      profile.department.isNotEmpty &&
+      profile.province.isNotEmpty &&
+      profile.district.isNotEmpty;
+
+  Future<void> _guardarPerfilLocal(UserProfile profile) async {
+    await _prefs.setString('vecino_departamento', profile.department);
+    await _prefs.setString('vecino_provincia', profile.province);
+    await _prefs.setString('vecino_distrito', profile.district);
+    await _prefs.setString('vecino_nombre', profile.name);
+    await _prefs.setString('vecino_telefono', profile.phoneNumber);
+  }
+
   Future<void> _cargar() async {
     _DatosBarrio? datos;
+    final auth = context.read<AuthGateway?>();
+    final store = context.read<UserProfileStore?>();
     try {
       _prefs = await SharedPreferences.getInstance();
+      final telefono = _prefs.getString('vecino_telefono') ?? '';
+      UserProfile? perfilRemoto;
+      if (store != null) {
+        try {
+          if (auth != null) await auth.ensureSignedIn();
+          perfilRemoto = telefono.isNotEmpty
+              ? await store.loadByPhone(
+                  telefono,
+                  fallbackName: 'Vecino',
+                  fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+                  fallbackDepartment: '',
+                  fallbackProvince: '',
+                  fallbackDistrict: '',
+                )
+              : auth?.currentUid == null
+              ? null
+              : await store.load(
+                  auth!.currentUid!,
+                  fallbackName: 'Vecino',
+                  fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+                  fallbackDepartment: '',
+                  fallbackProvince: '',
+                  fallbackDistrict: '',
+                );
+        } catch (error) {
+          debugPrint('No se pudo cargar el perfil remoto: $error');
+        }
+      }
+      if (perfilRemoto != null && _tieneUbicacion(perfilRemoto)) {
+        datos = _DatosBarrio(_prefs, perfilRemoto);
+      }
       final d = _prefs.getString('vecino_distrito');
-      if (d != null) {
+      if (datos == null && d != null) {
         datos = _DatosBarrio(
           _prefs,
           UserProfile(
@@ -153,6 +199,7 @@ class _EntradaState extends State<_Entrada> {
     } catch (e) {
       debugPrint('No se pudo cargar el perfil: $e');
     }
+
     if (mounted)
       setState(() {
         _datos = datos;
@@ -255,6 +302,14 @@ class _EntradaState extends State<_Entrada> {
           if (profile != null) {
             _perfilExistente = profile;
             _nombreAutenticado = profile.name;
+            if (_tieneUbicacion(profile)) {
+              await _guardarPerfilLocal(profile);
+              if (mounted) {
+                setState(() => _datos = _DatosBarrio(_prefs, profile));
+                widget.onAuthenticated?.call();
+              }
+              return;
+            }
           }
         }
       } else {
@@ -584,45 +639,7 @@ class _EntradaState extends State<_Entrada> {
       'Confirma tu barrio',
     ];
     final contenido = switch (_paso) {
-      0 => <Widget>[
-        label(
-          'Encuentra oficios, pide una mano y conoce a tu comunidad, estés donde estés en el Perú.',
-          17,
-          color: muted,
-        ),
-        tarjeta(
-          radius: 18,
-          color: const Color(0xfffbe1c4),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                icono('Firulais', 61),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: label('¡Vamos a encontrar tu barrio!', 19, bold: true),
-                ),
-              ],
-            ),
-          ),
-        ),
-        _accion('Continuar con celular', () => _ir(1)),
-        OutlinedButton.icon(
-          onPressed: _iniciandoGoogle ? null : _continuarConGoogle,
-          icon: _iniciandoGoogle
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.account_circle_outlined),
-          label: Text(
-            _iniciandoGoogle
-                ? 'Conectando con Google...'
-                : 'Continuar con Google',
-          ),
-        ),
-      ],
+      0 => <Widget>[_bienvenidaLogin()],
       1 => <Widget>[
         label(
           'Usa el código de verificación de prueba: 123456.',
@@ -764,7 +781,7 @@ class _EntradaState extends State<_Entrada> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              label(titulos[_paso], 29, bold: true),
+              if (_paso != 0) label(titulos[_paso], 29, bold: true),
               for (final widget in contenido) ...[
                 const SizedBox(height: 16),
                 widget,
@@ -775,6 +792,46 @@ class _EntradaState extends State<_Entrada> {
       ),
     );
   }
+
+  Widget _bienvenidaLogin() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 20),
+      Center(child: icono('Firulais', 116)),
+      const SizedBox(height: 12),
+      Center(child: label('MI BARRIO', 15, bold: true, color: orange)),
+      const SizedBox(height: 8),
+      Center(child: label('Hola, vecino', 28, bold: true)),
+      const SizedBox(height: 6),
+      Center(
+        child: label('Entra para conectar con tu comunidad.', 15, color: muted),
+      ),
+      const SizedBox(height: 30),
+      SizedBox(
+        width: double.infinity,
+        child: _accion('Continuar con celular', () => _ir(1)),
+      ),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: OutlinedButton.icon(
+          onPressed: _iniciandoGoogle ? null : _continuarConGoogle,
+          icon: _iniciandoGoogle
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.account_circle_outlined),
+          label: Text(
+            _iniciandoGoogle
+                ? 'Conectando con Google...'
+                : 'Continuar con Google',
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 Widget _campo(
@@ -951,7 +1008,7 @@ Widget _accion(String titulo, VoidCallback onPressed) => FilledButton(
 Widget _contenido(Widget child) => Center(
   child: ConstrainedBox(
     constraints: const BoxConstraints(maxWidth: 520),
-    child: ListView(padding: const EdgeInsets.all(22), children: [child]),
+    child: ListView(padding: const EdgeInsets.all(16), children: [child]),
   ),
 );
 

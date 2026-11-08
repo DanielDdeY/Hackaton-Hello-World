@@ -1,0 +1,169 @@
+metadata:
+  generated: "2026-11-07"
+  source_spec: "sos-emergencia/spec.md"
+  target_plan: "sos-emergencia/plan.md"
+
+summary:
+  total_requirements: 10
+  covered_requirements: 10
+  missing_requirements: 0
+  coverage_percentage: 100.0
+
+requirements:
+  - req_id: "REQ-001"
+    req_description: "Activar SOS con una sola pulsación antes de los detalles."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 2"
+      phase_name: "Activar SOS de un toque"
+      items:
+        - item_id: "2.1"
+          description: "Implementar entidad y repositorio de alertas."
+        - item_id: "2.2"
+          description: "Cambiar el botón SOS del inicio al flujo real."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-002"
+    req_description: "Distinguir estados, errores y reintentos sin duplicados."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 2"
+      phase_name: "Activar SOS de un toque"
+      items:
+        - item_id: "2.1"
+          description: "Implementar entidad y repositorio de alertas."
+        - item_id: "2.2"
+          description: "Cambiar el botón SOS del inicio al flujo real."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-003"
+    req_description: "Usar radio de 500 m y mostrarlo en rojo en el mapa."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 3, Fase 5 y Fase 6"
+      phase_name: "Notificación, mapa y validación"
+      items:
+        - item_id: "3.2"
+          description: "Enviar push de forma segura dentro del radio."
+        - item_id: "5.2"
+          description: "Dibujar círculo e icono rojos y permitir abrir el reporte."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-004"
+    req_description: "Enviar push a usuarios con consentimiento, token y ubicación reciente dentro del radio."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 1, Fase 3 y Fase 6"
+      phase_name: "Configuración, notificación y validación"
+      items:
+        - item_id: "1.1"
+          description: "Configurar identidad y servicios Firebase."
+        - item_id: "3.1"
+          description: "Gestionar consentimiento y ubicación reciente."
+        - item_id: "3.2"
+          description: "Enviar push de forma segura dentro del radio."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-005"
+    req_description: "Capturar categoría, título, descripción y foto opcional."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 4"
+      phase_name: "Completar y publicar el reporte"
+      items:
+        - item_id: "4.1"
+          description: "Ampliar el formulario de emergencia."
+        - item_id: "4.2"
+          description: "Subir foto y persistir publicación comunitaria."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-006"
+    req_description: "Publicar y mostrar el reporte prioritario en el feed local del distrito, enlazado al SOS."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 4"
+      phase_name: "Completar y publicar el reporte"
+      items:
+        - item_id: "4.2"
+          description: "Subir foto, persistir publicación y mostrarla en el feed comunitario."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-007"
+    req_description: "Mostrar alertas activas autorizadas y su cierre en el mapa."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 5"
+      phase_name: "Ver la emergencia en el mapa"
+      items:
+        - item_id: "5.1"
+          description: "Proveer alertas cercanas desde Firebase al mapa."
+        - item_id: "5.2"
+          description: "Dibujar círculo e icono rojos y permitir abrir el reporte."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-008"
+    req_description: "Persistir alertas y reportes en Firestore e imágenes en Storage."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 1, Fase 2, Fase 4 y Fase 5"
+      phase_name: "Firebase, alerta, publicación y mapa"
+      items:
+        - item_id: "1.1"
+          description: "Configurar identidad y servicios Firebase."
+        - item_id: "2.1"
+          description: "Implementar entidad y repositorio de alertas."
+        - item_id: "4.2"
+          description: "Subir foto, persistir publicación y mostrarla en el feed comunitario."
+        - item_id: "5.1"
+          description: "Proveer alertas cercanas desde Firebase al mapa."
+    notes: ""
+  - req_id: "REQ-009"
+    req_description: "Respetar consentimiento y vigencia de ubicación de receptores."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 1, Fase 3 y Fase 6"
+      phase_name: "Configuración, consentimiento y validación"
+      items:
+        - item_id: "1.1"
+          description: "Configurar identidad y servicios Firebase."
+        - item_id: "3.1"
+          description: "Gestionar consentimiento y ubicación reciente."
+        - item_id: "3.2"
+          description: "Enviar push de forma segura dentro del radio."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+  - req_id: "REQ-010"
+    req_description: "Autorizar acciones de dueño y proteger ubicaciones y tokens."
+    priority: "P1"
+    plan_mapping:
+      phase: "Fase 1, Fase 2, Fase 3, Fase 4 y Fase 6"
+      phase_name: "Autorización y protección Firebase"
+      items:
+        - item_id: "1.1"
+          description: "Configurar identidad y servicios Firebase."
+        - item_id: "2.1"
+          description: "Implementar entidad y repositorio de alertas."
+        - item_id: "3.2"
+          description: "Enviar push de forma segura dentro del radio."
+        - item_id: "4.2"
+          description: "Subir foto, persistir publicación y mostrarla en el feed comunitario."
+        - item_id: "6.1"
+          description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+    notes: ""
+
+missing_requirements: []
+orphan_plan_items: []
+
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "Firebase Auth y habilitación de Cloud Functions/Storage deben confirmarse antes de producción."

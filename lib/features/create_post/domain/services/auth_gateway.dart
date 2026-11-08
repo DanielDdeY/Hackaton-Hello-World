@@ -9,6 +9,8 @@ abstract interface class AuthGateway {
 
   Future<String> signInWithGoogle();
 
+  Future<void> signOut();
+
   Future<void> sendPhoneCode(String phoneNumber);
 
   Future<String> signInWithPhoneCode(String code);

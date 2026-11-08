@@ -3,16 +3,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == userId;
     }
 
     match /phoneIndex/{phoneNumber} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == request.auth.uid;
       allow update: if signedIn()
-        && resource.data.uid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
         && request.resource.data.uid == request.auth.uid;
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
@@ -99,6 +99,115 @@ service cloud.firestore {
         && validMedia(request.resource.data, postId);
 
       allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userCommunity(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.communityId;
+    }
+
+    match /users/{uid} {
+      allow read: if owns(uid);
+
+      allow create: if owns(uid)
+        && request.resource.data.communityId is string
+        && request.resource.data.keys().hasOnly([
+          'communityId', 'proximityEnabled', 'location', 'geohash',
+          'locationUpdatedAt', 'fcmToken', 'platform'
+        ]);
+
+      allow update: if owns(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'communityId', 'proximityEnabled', 'location', 'geohash',
+          'locationUpdatedAt', 'fcmToken', 'platform'
+        ])
+        && (
+          request.resource.data.communityId == resource.data.communityId
+          || (
+            !('communityId' in resource.data.keys())
+            || (
+              resource.data.communityId is string
+              && resource.data.communityId.matches('^\\s*$')
+            )
+          ) && (
+            request.resource.data.communityId is string
+            && request.resource.data.communityId.matches('.*\\S.*')
+          )
+        );
+
+      match /nearby_emergency_alerts/{alertId} {
+        allow read: if owns(uid);
+        allow write: if false;
+      }
+
+      match /notification_devices/{deviceId} {
+        allow read, write: if owns(uid);
+      }
+    }
+
+    match /emergency_alerts/{alertId} {
+      allow create: if signedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.communityId == userCommunity(request.auth.uid)
+        && request.resource.data.status == 'active'
+        && request.resource.data.radiusMeters == 500
+        && request.resource.data.location is latlng
+        && request.resource.data.keys().hasOnly([
+          'reporterUid', 'location', 'communityId', 'radiusMeters', 'status',
+          'createdAt', 'updatedAt'
+        ]);
+
+      allow get: if signedIn()
+        && (
+          !exists(/databases/$(database)/documents/emergency_alerts/$(alertId))
+          || resource.data.reporterUid == request.auth.uid
+        );
+      allow list: if signedIn()
+        && resource.data.reporterUid == request.auth.uid;
+
+      allow update: if signedIn()
+        && resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reporterUid == resource.data.reporterUid
+        && request.resource.data.communityId == resource.data.communityId
+        && request.resource.data.location == resource.data.location
+        && request.resource.data.status in ['active', 'cancelled', 'resolved']
+        && (
+          request.resource.data.status == resource.data.status
+          || (
+            resource.data.status == 'active'
+            && request.resource.data.status in ['cancelled', 'resolved']
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'title', 'description',
+          'emergencyType', 'photoPath'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /community_posts/{postId} {
+      allow read: if signedIn()
+        && resource.data.communityId == userCommunity(request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.communityId == userCommunity(request.auth.uid)
+        && request.resource.data.alertId == postId
+        && get(/databases/$(database)/documents/emergency_alerts/$(postId))
+          .data.reporterUid == request.auth.uid
+        && request.resource.data.category == 'emergency'
+        && request.resource.data.priority == 1
+        && request.resource.data.keys().hasOnly([
+          'alertId', 'authorUid', 'communityId', 'category', 'emergencyType',
+          'title', 'description', 'photoPath', 'approximateLocation',
+          'priority', 'status', 'createdAt'
+        ]);
+
+      allow update, delete: if false;
     }
   }
 }

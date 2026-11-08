@@ -1,0 +1,161 @@
+metadata:
+  generated: "2026-11-07"
+  source_plan: "sos-emergencia/plan.md"
+  target_tasks: "sos-emergencia/plan.md (desglose de tareas embebido)"
+
+summary:
+  total_plan_items: 10
+  covered_plan_items: 10
+  missing_plan_items: 0
+  coverage_percentage: 100.0
+  total_tasks_generated: 18
+  orphan_tasks: 0
+
+phases:
+  - phase_id: "Fase 1"
+    phase_name: "Fundamentos Firebase y seguridad"
+    items:
+      - item_id: "1.1"
+        description: "Configurar identidad y servicios Firebase."
+        tasks:
+          - task_id: "T001"
+            description: "Configurar Auth, FCM y Storage cliente y sincronizar el distrito."
+          - task_id: "T002"
+            description: "Crear Functions TypeScript y configuración Firebase."
+          - task_id: "T003"
+            description: "Crear reglas seguras de Firestore y Storage por UID y comunidad local."
+        notes: ""
+  - phase_id: "Fase 2"
+    phase_name: "US1 — Activar SOS de un toque"
+    items:
+      - item_id: "2.1"
+        description: "Implementar entidad y repositorio de alertas."
+        tasks:
+          - task_id: "T004"
+            description: "Crear modelo de alerta."
+          - task_id: "T005"
+            description: "Implementar repositorio Firestore."
+        notes: ""
+      - item_id: "2.2"
+        description: "Cambiar el botón SOS del inicio al flujo real."
+        tasks:
+          - task_id: "T006"
+            description: "Reemplazar flujo de demostración por activación SOS."
+        notes: ""
+  - phase_id: "Fase 3"
+    phase_name: "US2 — Notificar vecinos cercanos"
+    items:
+      - item_id: "3.1"
+        description: "Gestionar consentimiento y ubicación reciente de receptores."
+        tasks:
+          - task_id: "T007"
+            description: "Implementar consentimiento, tokens y actualización de ubicación."
+        notes: ""
+      - item_id: "3.2"
+        description: "Enviar push de forma segura dentro del radio."
+        tasks:
+          - task_id: "T008"
+            description: "Filtrar destinatarios por geohash y distancia exacta."
+          - task_id: "T009"
+            description: "Enviar y cerrar notificaciones FCM."
+        notes: ""
+  - phase_id: "Fase 4"
+    phase_name: "US3 — Detallar y publicar"
+    items:
+      - item_id: "4.1"
+        description: "Ampliar el formulario de emergencia."
+        tasks:
+          - task_id: "T010"
+            description: "Añadir categorías, título y descripción al formulario."
+        notes: ""
+      - item_id: "4.2"
+        description: "Subir foto, persistir publicación y mostrarla en el feed comunitario."
+        tasks:
+          - task_id: "T011"
+            description: "Subir foto opcional con validación y reglas."
+          - task_id: "T012"
+            description: "Persistir publicación enlazada e idempotente y conectarla al feed de Comunidad."
+        notes: ""
+  - phase_id: "Fase 5"
+    phase_name: "US4 — Ver y cerrar alertas en el mapa"
+    items:
+      - item_id: "5.1"
+        description: "Proveer alertas cercanas desde Firebase al mapa."
+        tasks:
+          - task_id: "T013"
+            description: "Crear stream del repositorio de alertas autorizadas."
+          - task_id: "T015"
+            description: "Sincronizar cierre y resolución del estado."
+        notes: ""
+      - item_id: "5.2"
+        description: "Dibujar círculo e icono rojos y permitir abrir el reporte."
+        tasks:
+          - task_id: "T014"
+            description: "Añadir círculo, marcador y detalle al mapa."
+          - task_id: "T015"
+            description: "Retirar alerta cerrada de la capa activa."
+        notes: ""
+  - phase_id: "Fase 6"
+    phase_name: "Pruebas y preparación operativa"
+    items:
+      - item_id: "6.1"
+        description: "Validar reglas, radio, FCM y fallos de extremo a extremo."
+        tasks:
+          - task_id: "T016"
+            description: "Añadir pruebas Flutter de los flujos críticos."
+          - task_id: "T017"
+            description: "Añadir pruebas de Functions y reglas con Emulator Suite."
+          - task_id: "T018"
+            description: "Validar push y zona con dos dispositivos de prueba."
+        notes: ""
+
+missing_plan_items: []
+orphan_tasks: []
+
+upstream_trace:
+  - plan_item: "1.1"
+    source_requirements: ["REQ-001", "REQ-004", "REQ-008", "REQ-009", "REQ-010"]
+    tasks: ["T001", "T002", "T003"]
+    full_trace: "REQ-001,REQ-004,REQ-008,REQ-009,REQ-010 → 1.1 → T001,T002,T003"
+  - plan_item: "2.1"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-008", "REQ-010"]
+    tasks: ["T004", "T005"]
+    full_trace: "REQ-001,REQ-002,REQ-008,REQ-010 → 2.1 → T004,T005"
+  - plan_item: "2.2"
+    source_requirements: ["REQ-001", "REQ-002"]
+    tasks: ["T006"]
+    full_trace: "REQ-001,REQ-002 → 2.2 → T006"
+  - plan_item: "3.1"
+    source_requirements: ["REQ-004", "REQ-009", "REQ-010"]
+    tasks: ["T007"]
+    full_trace: "REQ-004,REQ-009,REQ-010 → 3.1 → T007"
+  - plan_item: "3.2"
+    source_requirements: ["REQ-003", "REQ-004", "REQ-009", "REQ-010"]
+    tasks: ["T008", "T009"]
+    full_trace: "REQ-003,REQ-004,REQ-009,REQ-010 → 3.2 → T008,T009"
+  - plan_item: "4.1"
+    source_requirements: ["REQ-005"]
+    tasks: ["T010"]
+    full_trace: "REQ-005 → 4.1 → T010"
+  - plan_item: "4.2"
+    source_requirements: ["REQ-005", "REQ-006", "REQ-008", "REQ-010"]
+    tasks: ["T011", "T012"]
+    full_trace: "REQ-005,REQ-006,REQ-008,REQ-010 → 4.2 → T011,T012"
+  - plan_item: "5.1"
+    source_requirements: ["REQ-007", "REQ-008", "REQ-010"]
+    tasks: ["T013", "T015"]
+    full_trace: "REQ-007,REQ-008,REQ-010 → 5.1 → T013,T015"
+  - plan_item: "5.2"
+    source_requirements: ["REQ-003", "REQ-007"]
+    tasks: ["T014", "T015"]
+    full_trace: "REQ-003,REQ-007 → 5.2 → T014,T015"
+  - plan_item: "6.1"
+    source_requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009", "REQ-010"]
+    tasks: ["T016", "T017", "T018"]
+    full_trace: "REQ-001…REQ-010 → 6.1 → T016,T017,T018"
+
+validation:
+  passed: true
+  errors: []
+  warnings:
+    - "T002 requires choosing Firebase Functions generation/runtime and confirming the Firebase billing plan."
