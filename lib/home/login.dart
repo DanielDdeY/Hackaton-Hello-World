@@ -19,9 +19,14 @@ class _DatosBarrio extends ChangeNotifier {
         rol = profile.role,
         bio = profile.bio,
         xp = profile.xp,
+        fichas = profile.fichas,
         weeklyXp = profile.weeklyXp,
         stars = profile.stars,
-        availableCoins = preferencias.getInt('vecino_monedas') ?? 0,
+        availableCoins = profile.fichas > 0
+            ? profile.fichas
+            : (preferencias.getInt('vecino_fichas') ??
+                preferencias.getInt('vecino_monedas') ??
+                0),
         favores = profile.favors,
         herramientas = profile.tools,
         hambre = profile.petHunger,
@@ -40,6 +45,7 @@ class _DatosBarrio extends ChangeNotifier {
   String rol;
   String bio;
   int xp;
+  int fichas;
   int weeklyXp;
   int stars;
   int availableCoins;
@@ -51,8 +57,8 @@ class _DatosBarrio extends ChangeNotifier {
   int eventosAsistidos;
   int reconocimientos;
   int rachaSemanal;
-  bool get mascotaDesbloqueada => nivel >= 25;
-  int get nivel => xp ~/ 100;
+  bool get mascotaDesbloqueada => NivelXp.mascotaDesbloqueada(xp);
+  int get nivel => NivelXp.calcularNivel(xp);
 
   void syncEconomy(AppUser stats) {
     final nuevasEstrellas = stats.reviewCount > 0
@@ -64,6 +70,7 @@ class _DatosBarrio extends ChangeNotifier {
     final huboCambios =
         xp != stats.xpTotal ||
             weeklyXp != stats.effectiveMonthlyXp ||
+            fichas != stats.availableCoins ||
             availableCoins != stats.availableCoins ||
             stars != nuevasEstrellas ||
             distrito != nuevoDistrito;
@@ -71,6 +78,7 @@ class _DatosBarrio extends ChangeNotifier {
 
     xp = stats.xpTotal;
     weeklyXp = stats.effectiveMonthlyXp;
+    fichas = stats.availableCoins;
     availableCoins = stats.availableCoins;
     stars = nuevasEstrellas;
     distrito = nuevoDistrito;
@@ -79,9 +87,9 @@ class _DatosBarrio extends ChangeNotifier {
     unawaited(preferencias.setInt('vecino_xp', xp));
     unawaited(preferencias.setInt('vecino_xp_semana', weeklyXp));
     unawaited(preferencias.setInt('vecino_stars', stars));
+    unawaited(preferencias.setInt('vecino_fichas', fichas));
     unawaited(preferencias.setInt('vecino_monedas', availableCoins));
   }
-
   UserProfile toProfile() => UserProfile(
     name: nombre,
     phoneNumber: phoneNumber,
@@ -91,6 +99,7 @@ class _DatosBarrio extends ChangeNotifier {
     province: provincia,
     district: distrito,
     xp: xp,
+    fichas: fichas,
     weeklyXp: weeklyXp,
     stars: stars,
     favors: favores,
@@ -242,6 +251,7 @@ class _EntradaState extends State<_Entrada> {
             _prefs.getString('vecino_bio') ??
                 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
             xp: _prefs.getInt('vecino_xp') ?? 0,
+            fichas: _prefs.getInt('vecino_fichas') ?? _prefs.getInt('vecino_stars') ?? 0,
             stars: _prefs.getInt('vecino_stars') ?? 0,
             favors: _prefs.getInt('vecino_favores') ?? 0,
             tools: _prefs.getInt('vecino_herramientas') ?? 0,
@@ -295,6 +305,7 @@ class _EntradaState extends State<_Entrada> {
     try {
       final telefono = _telefono();
       final uid = await gateway.ensureSignedIn();
+      final existe = await store.phoneExists(telefono);
       final perfilPropio = await store.load(
         uid,
         fallbackName: 'Vecino',
@@ -305,7 +316,7 @@ class _EntradaState extends State<_Entrada> {
         fallbackDistrict: '',
       );
       _perfilExistente = perfilPropio;
-      _registroNuevo = perfilPropio == null;
+      _registroNuevo = !existe && perfilPropio == null;
       await gateway.sendPhoneCode(telefono);
       _telefonoVerificado = telefono;
       if (mounted) _ir(_registroNuevo ? 2 : 3);
@@ -357,10 +368,10 @@ class _EntradaState extends State<_Entrada> {
       if (!_registroNuevo) {
         UserProfile? profile = _perfilExistente;
         final currentUid = gateway.currentUid;
-        if (profile == null && store != null && currentUid != null) {
+        if (profile == null && store != null) {
           try {
-            profile = await store.load(
-              currentUid,
+            profile = await store.loadByPhone(
+              _telefonoVerificado,
               fallbackName: 'Vecino',
               fallbackBio:
               'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
@@ -368,6 +379,17 @@ class _EntradaState extends State<_Entrada> {
               fallbackProvince: '',
               fallbackDistrict: '',
             );
+            if (profile == null && currentUid != null) {
+              profile = await store.load(
+                currentUid,
+                fallbackName: 'Vecino',
+                fallbackBio:
+                'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+                fallbackDepartment: '',
+                fallbackProvince: '',
+                fallbackDistrict: '',
+              );
+            }
           } on FirebaseException catch (error) {
             debugPrint(
               'No se pudo cargar el perfil del UID '
@@ -739,6 +761,7 @@ class _EntradaState extends State<_Entrada> {
           _perfilExistente?.bio ??
               'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
           xp: _perfilExistente?.xp ?? 0,
+          fichas: _perfilExistente?.fichas ?? 0,
           stars: _perfilExistente?.stars ?? 0,
           favors: _perfilExistente?.favors ?? 0,
           tools: _perfilExistente?.tools ?? 0,

@@ -33,7 +33,7 @@ class _MiPerfilPage extends StatelessWidget {
               final star = stats != null && stats.reviewCount > 0
                   ? stats.averageStars.round()
                   : datos.stars;
-              final monedas = stats?.availableCoins ?? datos.availableCoins;
+              final monedas = stats?.availableCoins ?? datos.fichas;
               final xpMes = stats?.effectiveMonthlyXp ?? datos.weeklyXp;
 
               return ListView(
@@ -77,8 +77,14 @@ class _MiPerfilPage extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text('Tu participación', style: theme.textTheme.titleLarge),
                   const SizedBox(height: 8),
-                  Text(
-                    'Nivel $nivel · XP: $xp · Star: $star · Monedas: $monedas',
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    children: [
+                      Text('Nivel $nivel · $xp XP · '),
+                      SvgPicture.asset('assets/ficha.svg', width: 14, height: 14),
+                      Text('$monedas fichas · $star ★'),
+                    ],
                   ),
                   Text('$xpMes XP este mes en el barrio'),
                   Text('Favores completados: ${datos.favoresCompletados}'),

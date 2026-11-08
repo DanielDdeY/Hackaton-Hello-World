@@ -2,6 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /config/economia {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     match /phoneIndex/{phoneNumber} { allow read, write: if false; }
 
     function signedIn() {
@@ -94,13 +99,28 @@ service cloud.firestore {
         && validMedia(request.resource.data, postId);
 
       allow update: if signedIn()
-        && resource.data.authorId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['photos', 'mediaStatus', 'updatedAt'])
-        && request.resource.data.updatedAt == request.time
-        && validMedia(request.resource.data, postId);
+        && (
+          (
+            resource.data.authorId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['photos', 'mediaStatus', 'updatedAt'])
+            && request.resource.data.updatedAt == request.time
+            && validMedia(request.resource.data, postId)
+          )
+          || (
+            resource.data.category == 'help'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['details', 'updatedAt'])
+            && request.resource.data.updatedAt == request.time
+          )
+        );
 
       allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+
+      match /attendance/{responseId} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == responseId;
+      }
     }
 
     match /posts/{postId}/helpOffers/{uid} {
@@ -446,6 +466,10 @@ service cloud.firestore {
         allow write: if false;
       }
       match /notification_devices/{deviceId} {
+        allow read, write: if owns(uid);
+      }
+
+      match /mascota/{docId} {
         allow read, write: if owns(uid);
       }
     }

@@ -81,6 +81,9 @@ flutter:
 
   assets:
     - assets/fonts/OFL-Inter.txt
+    - assets/
+    - assets/mascota/
+    - assets/mascota/items/
 
   fonts:
     - family: Inter

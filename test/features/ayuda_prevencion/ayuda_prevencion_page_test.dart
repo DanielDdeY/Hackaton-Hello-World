@@ -50,6 +50,25 @@ void main() {
       await tester.pumpAndSettle();
     }
     expect(find.text('Validado por Jefe de Grupo'), findsOneWidget);
+    expect(
+      find.text('Reclamar bono de preparación (+50 fichas, +100 XP)'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.text('Reclamar bono de preparación (+50 fichas, +100 XP)'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Insignia "Vecino preparado" obtenida'),
+      findsOneWidget,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('mochila_bono_reclamado_v1'), isTrue);
+    expect(prefs.getInt('vecino_fichas'), 50);
+    expect(prefs.getInt('vecino_xp'), 100);
+    expect(prefs.getStringList('vecino_insignias'), contains('vecino-preparado'));
   });
 
   testWidgets('conserva los productos guardados al ampliar el checklist', (
