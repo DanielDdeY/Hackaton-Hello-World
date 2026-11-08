@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../../features/emergency/data/firebase_emergency_post_repository.dart';
+import '../../../../../features/emergency/domain/emergency_type_labels.dart';
 import '../../../../../core/constants/input_limits.dart';
 import '../../../../../core/constants/photo_limits.dart';
 import '../../../../../core/validators/required_field_validator.dart';
@@ -49,18 +50,15 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
   static const _red = Color(0xFFB72F29);
   static const _selectedRed = Color(0xFF8C211D);
   static const _typeRows = [
-    [(EmergencyType.robbery, 'ROBO'), (EmergencyType.accident, 'ACCIDENTE')],
-    [(EmergencyType.tragedy, 'TRAGEDIA'), (EmergencyType.health, 'SALUD')],
+    [EmergencyType.robbery, EmergencyType.accident],
+    [EmergencyType.tragedy, EmergencyType.health],
   ];
 
   final _formKey = GlobalKey<FormState>();
 
-  Widget _typeButton(
-    EmergencyFormController controller,
-    EmergencyType type,
-    String label,
-  ) {
+  Widget _typeButton(EmergencyFormController controller, EmergencyType type) {
     final selected = controller.type == type;
+    final label = emergencyTypeLabel(type.name);
     return Semantics(
       selected: selected,
       inMutuallyExclusiveGroup: true,
@@ -162,13 +160,9 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                                 spacing: 12,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  for (final (type, label) in row)
+                                  for (final type in row)
                                     Expanded(
-                                      child: _typeButton(
-                                        controller,
-                                        type,
-                                        label,
-                                      ),
+                                      child: _typeButton(controller, type),
                                     ),
                                 ],
                               ),

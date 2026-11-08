@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../emergency/domain/emergency_type_labels.dart';
+
 class CommunityFeedPage extends StatefulWidget {
   const CommunityFeedPage({super.key});
 
@@ -462,7 +464,7 @@ class _CommunityPostCard extends StatelessWidget {
     final theme = Theme.of(context);
     final photoPath = data['photoPath'] as String?;
     final description = data['description'] as String? ?? '';
-    final type = data['emergencyType'] as String? ?? 'Emergencia';
+    final type = emergencyTypeLabel(data['emergencyType'] as String?);
     final detailsPending = data['detailsPending'] == true;
     return Card(
       color: isEmergency && isActive ? const Color(0xfffff1f0) : null,
@@ -488,7 +490,7 @@ class _CommunityPostCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${isActive ? 'EMERGENCIA' : _statusLabel(emergencyStatus)} · ${type.toUpperCase()}',
+                    '${isActive ? 'EMERGENCIA' : _statusLabel(emergencyStatus)} · $type',
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: isActive
                           ? const Color(0xffb71c1c)

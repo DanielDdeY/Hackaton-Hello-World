@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import 'core/firebase/configure_firebase_emulators.dart';
@@ -39,6 +40,7 @@ import 'home/user_profile.dart';
 import 'screens/map/data/map_location_provider.dart'
     show GeolocatorLocationProvider;
 import 'screens/map/data/firebase_emergency_map_repository.dart';
+import 'screens/map/data/map_focus_controller.dart';
 import 'screens/map/map_screen.dart';
 
 void main() async {
@@ -134,7 +136,14 @@ class MyApp extends StatelessWidget {
         supportedLocales: const [Locale('es', 'PE')],
         theme: createAppTheme(),
         home: const _AppGate(),
-        routes: {'/map': (_) => const MapScreen()},
+        routes: {
+          '/map': (_) => MapScreen(
+            emergencyRepository: FirebaseEmergencyMapRepository(
+              firestore: FirebaseFirestore.instance,
+              auth: FirebaseAuth.instance,
+            ),
+          ),
+        },
       ),
     );
   }
@@ -204,8 +213,23 @@ class _NeighborhoodShell extends StatefulWidget {
 }
 
 class _NeighborhoodShellState extends State<_NeighborhoodShell> {
+  final _mapFocusController = MapFocusController();
   _Destination _selected = _Destination.home;
   bool _mapVisited = false;
+
+  @override
+  void dispose() {
+    _mapFocusController.dispose();
+    super.dispose();
+  }
+
+  void _openMap([LatLng? location]) {
+    if (location != null) _mapFocusController.focus(location);
+    setState(() {
+      _mapVisited = true;
+      _selected = _Destination.map;
+    });
+  }
 
   void _openCategorySelector() {
     Navigator.of(context).push<void>(
@@ -232,16 +256,21 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
       body: IndexedStack(
         index: _selected.index,
         children: [
-          MiBarrioHome(homeOnly: true, onSignedOut: widget.onSignedOut),
+          MiBarrioHome(
+            homeOnly: true,
+            onSignedOut: widget.onSignedOut,
+            onOpenMap: _openMap,
+          ),
           _mapVisited
               ? MapScreen(
                   emergencyRepository: FirebaseEmergencyMapRepository(
                     firestore: FirebaseFirestore.instance,
                     auth: FirebaseAuth.instance,
                   ),
+                  focusController: _mapFocusController,
                 )
               : _PlaceholderPage(description: _Destination.map.description),
-          const ComunidadPage(),
+          ComunidadPage(onOpenMap: _openMap),
 
           const AyudaPrevencionPage(),
         ],
