@@ -148,7 +148,6 @@ class _Profiles extends Fake implements UserProfileStore {
     return UserProfile(
       name: name!,
       phoneNumber: '',
-      role: 'Vecino',
       bio: '',
       department: '',
       province: '',

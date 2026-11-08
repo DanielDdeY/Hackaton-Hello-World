@@ -91,7 +91,6 @@ class VecinoPerfil {
     required this.uid,
     required this.nombre,
     required this.iniciales,
-    required this.rol,
     required this.bio,
     required this.distrito,
     required this.provincia,
@@ -113,7 +112,6 @@ class VecinoPerfil {
   final String uid;
   final String nombre;
   final String iniciales;
-  final String rol;
   final String bio;
   final String distrito;
   final String provincia;
@@ -139,7 +137,6 @@ class VecinoPerfil {
     uid: vecino.uid,
     nombre: vecino.nombre,
     iniciales: vecino.iniciales,
-    rol: 'Vecino',
     bio: vecino.bio,
     distrito: vecino.distrito,
     provincia: '',

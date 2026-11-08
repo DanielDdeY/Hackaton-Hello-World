@@ -14,12 +14,11 @@ final class DemoRankingSeeder {
   final FirebaseFirestore firestore;
   final PeriodProvider periods;
 
-  static const List<({String id, String name, String role, int xp, int monthlyXp, double stars, int reviews})>
+  static const List<({String id, String name, int xp, int monthlyXp, double stars, int reviews})>
   _demoNeighbors = [
     (
     id: 'demo_vecino_1',
     name: 'Elena Quispe',
-    role: 'Brigadista Vecinal',
     xp: 640,
     monthlyXp: 185,
     stars: 4.9,
@@ -28,7 +27,6 @@ final class DemoRankingSeeder {
     (
     id: 'demo_vecino_2',
     name: 'Marco Huamán',
-    role: 'Gasfitero del Barrio',
     xp: 520,
     monthlyXp: 140,
     stars: 4.8,
@@ -37,7 +35,6 @@ final class DemoRankingSeeder {
     (
     id: 'demo_vecino_3',
     name: 'Lucía Paredes',
-    role: 'Voluntaria Solidaria',
     xp: 390,
     monthlyXp: 95,
     stars: 5.0,
@@ -46,7 +43,6 @@ final class DemoRankingSeeder {
     (
     id: 'demo_vecino_4',
     name: 'Jorge Rojas',
-    role: 'Vecino Activo',
     xp: 260,
     monthlyXp: 55,
     stars: 4.7,
@@ -78,7 +74,6 @@ final class DemoRankingSeeder {
         'name': item.name,
         'firstName': item.name.split(' ').first,
         'lastName': item.name.split(' ').skip(1).join(' '),
-        'role': item.role,
         'bio': 'Vecino de demostración del barrio $cleanDistrict.',
         'district': cleanDistrict,
         'districtKey': key,

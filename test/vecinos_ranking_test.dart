@@ -53,7 +53,6 @@ void main() {
       final profile = UserProfile(
         name: 'Roberto Huamán',
         phoneNumber: '+51987111001',
-        role: 'Coordinador de Defensa Civil',
         bio: 'Coordino la brigada del barrio.',
         department: 'Lima',
         province: 'Lima',

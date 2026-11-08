@@ -297,9 +297,6 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       uid: uid,
       nombre: ranking.nombre,
       iniciales: ranking.iniciales,
-      rol: (data['role'] as String?)?.trim().isNotEmpty == true
-          ? data['role'] as String
-          : 'Vecino',
       bio: ranking.bio,
       distrito: ranking.distrito,
       provincia: (data['province'] as String?) ?? '',

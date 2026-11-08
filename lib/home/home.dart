@@ -55,7 +55,6 @@ class _EditarInformacionPage extends StatefulWidget {
 
 class _EditarInformacionPageState extends State<_EditarInformacionPage> {
   late final TextEditingController _nombre;
-  late final TextEditingController _rol;
   late final TextEditingController _bio;
   bool _guardando = false;
 
@@ -63,14 +62,12 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
   void initState() {
     super.initState();
     _nombre = TextEditingController(text: widget.datos.nombre);
-    _rol = TextEditingController(text: widget.datos.rol);
     _bio = TextEditingController(text: widget.datos.bio);
   }
 
   @override
   void dispose() {
     _nombre.dispose();
-    _rol.dispose();
     _bio.dispose();
     super.dispose();
   }
@@ -87,7 +84,6 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
         nombre,
         _bio.text.trim(),
         widget.datos.foto,
-        nuevoRol: _rol.text.trim(),
       );
       final uid = auth?.currentUid;
       if (store != null && uid != null) {
@@ -135,15 +131,6 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
           textCapitalization: TextCapitalization.words,
           decoration: const InputDecoration(
             labelText: 'Nombre completo',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: _rol,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Rol en la comunidad (ej. Vecino, Brigadista, etc.)',
             border: OutlineInputBorder(),
           ),
         ),
@@ -315,7 +302,6 @@ class _InicioProfileLoader extends StatelessWidget {
     final fallback = UserProfile(
       name: preferences.getString('vecino_nombre') ?? 'Carlos Mendoza',
       phoneNumber: preferences.getString('vecino_telefono') ?? '',
-      role: preferences.getString('vecino_rol') ?? 'Vecino',
       bio:
       preferences.getString('vecino_bio') ??
           'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
@@ -619,7 +605,6 @@ class _InicioState extends State<Inicio> {
         'vecino_telefono',
         'vecino_profile_uid',
         'vecino_bio',
-        'vecino_rol',
         'vecino_xp',
         'vecino_xp_semana',
         'vecino_stars',
@@ -657,7 +642,7 @@ class _InicioState extends State<Inicio> {
           UserAccountsDrawerHeader(
             accountName: Text(widget.datos.nombre),
             accountEmail: Text(
-              '${widget.datos.rol} · ${widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito}',
+              widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito,
             ),
             currentAccountPicture: _avatarVecino(
               widget.datos.iniciales,
@@ -1004,7 +989,7 @@ class _InicioState extends State<Inicio> {
               label(widget.datos.nombre, 19, bold: true),
               const SizedBox(height: 5),
               label(
-                '${widget.datos.rol} · ${widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito}',
+                widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito,
                 12,
                 color: muted,
               ),

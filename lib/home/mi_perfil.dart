@@ -50,7 +50,6 @@ class _MiPerfilPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(datos.nombre, style: theme.textTheme.headlineSmall),
-                  Text(datos.rol, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 16),
                   if (datos.bio.isNotEmpty) ...[
                     Text(datos.bio),

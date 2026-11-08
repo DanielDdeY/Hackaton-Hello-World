@@ -205,7 +205,7 @@ service cloud.firestore {
           || (stored >= period && after.rankingPeriod == stored
             && after.monthlyXp == before.get('monthlyXp', 0)))
         && after.diff(before).affectedKeys().hasOnly([
-          'name', 'firstName', 'lastName', 'role', 'bio', 'department', 'province',
+          'name', 'firstName', 'lastName', 'bio', 'department', 'province',
           'district', 'districtKey', 'petHunger', 'communityId', 'updatedAt',
           'profileVersion', 'xp', 'monthlyXp', 'rankingPeriod', 'averageStars', 'reviewCount',
           'phoneNumber', 'telefono', 'email', 'availableCoins', 'monedasDisponibles',
