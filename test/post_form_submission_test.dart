@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackaton_hello_world/features/create_post/data/mappers/firestore_post_mapper.dart';
 import 'package:hackaton_hello_world/features/create_post/data/mocks/mock_photo_picker.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/emergency_post_data.dart';
 import 'package:hackaton_hello_world/features/create_post/domain/entities/location_result.dart';
@@ -15,6 +17,7 @@ import 'package:hackaton_hello_world/features/create_post/domain/services/post_c
 import 'package:hackaton_hello_world/features/create_post/domain/services/post_repository.dart';
 import 'package:hackaton_hello_world/features/create_post/presentation/forms/emergency/emergency_form.dart';
 import 'package:hackaton_hello_world/features/create_post/presentation/forms/help/help_form.dart';
+import 'package:hackaton_hello_world/features/create_post/presentation/pages/category_selector_page.dart';
 import 'package:provider/provider.dart';
 
 class _Auth implements AuthGateway {
@@ -141,6 +144,72 @@ Future<void> _tap(WidgetTester tester, Finder target) async {
 }
 
 void main() {
+  testWidgets('Publicar abre Eventos y admite publicar sin campos opcionales', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final auth = _Auth();
+    final repository = _Repository();
+    await _open(
+      tester,
+      const CategorySelectorPage(),
+      auth,
+      _Location(),
+      repository,
+    );
+    expect(find.text('Servicios'), findsOneWidget);
+    expect(find.text('Emergencia'), findsNothing);
+    await _tap(tester, find.text('Eventos'));
+    await tester.pumpAndSettle();
+    expect(find.text('Publicar evento'), findsOneWidget);
+
+    await _tap(tester, find.text('Publicar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Selecciona un día y una hora.'), findsOneWidget);
+    expect(repository.drafts, isEmpty);
+    expect(auth.requests, 0);
+
+    for (final (label, text) in [
+      ('Título (obligatorio)', 'Reunión vecinal'),
+      ('Lugar (obligatorio)', 'Local comunal'),
+    ]) {
+      final input = _input(label);
+      await tester.ensureVisible(input);
+      await tester.enterText(input, text);
+      await tester.pumpAndSettle();
+    }
+    await _tap(tester, find.text('Elegir día'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('15').hitTestable());
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Elegir hora'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Publicar'));
+    await tester.pumpAndSettle();
+
+    final saved = FirestorePostMapper.create(
+      repository.drafts.single,
+      postId: 'event',
+      authorId: 'owner',
+      mediaStatus: PostMediaStatus.none,
+    );
+    expect(saved['category'], 'event');
+    expect(saved['details'], {
+      'title': 'Reunión vecinal',
+      'place': 'Local comunal',
+      'startsAt': isA<Timestamp>(),
+    });
+    expect(find.text('Publicación creada.'), findsOneWidget);
+  });
+
   testWidgets(
     'emergency with denied GPS submits the manually entered address',
     (tester) async {

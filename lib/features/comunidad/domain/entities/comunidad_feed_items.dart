@@ -63,10 +63,14 @@ final class EventItem {
     required this.title,
     required this.startsAt,
     required this.place,
+    this.attendees,
+    this.description,
   });
 
   final String id;
   final String title;
   final DateTime startsAt;
   final String place;
+  final int? attendees;
+  final String? description;
 }

@@ -53,6 +53,7 @@ async function signIn() {
 
 function encode(value) {
   if (value === null) return { nullValue: null };
+  if (value instanceof Date) return { timestampValue: value.toISOString() };
   if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
   if (typeof value === 'string') return { stringValue: value };
   if (typeof value === 'number') {
@@ -258,7 +259,7 @@ await write(otherServiceId, {
 }, owner);
 await write(newsId, news, owner);
 
-async function readFeed(category, session, { serviceCategory, status = 200 } = {}) {
+async function readFeed(category, session, { serviceCategory, startsAfter, status = 200 } = {}) {
   const equalTo = (fieldPath, value) => ({
     fieldFilter: { field: { fieldPath }, op: 'EQUAL', value: encode(value) },
   });
@@ -275,10 +276,19 @@ async function readFeed(category, session, { serviceCategory, status = 200 } = {
               equalTo('category', category),
               equalTo('status', 'active'),
               ...(serviceCategory ? [equalTo('details.serviceCategory', serviceCategory)] : []),
+              ...(startsAfter ? [{
+                fieldFilter: {
+                  field: { fieldPath: 'details.startsAt' },
+                  op: 'GREATER_THAN',
+                  value: encode(startsAfter),
+                }
+              }] : []),
             ]
           }
         },
-        orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+        orderBy: [startsAfter
+          ? { field: { fieldPath: 'details.startsAt' }, direction: 'ASCENDING' }
+          : { field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
         limit: 30,
       },
     },
@@ -295,5 +305,37 @@ assert.ok(filteredServices.some((path) => path.endsWith('/' + serviceId)));
 assert.ok(!filteredServices.some((path) => path.endsWith('/' + otherServiceId)));
 assert.ok((await readFeed('news', stranger)).some((path) => path.endsWith('/' + newsId)));
 await readFeed('news', null, { status: [401, 403] });
+
+const eventId = 'event-' + randomUUID();
+const laterId = 'event-later-' + randomUUID();
+const soonId = 'event-soon-' + randomUUID();
+const afterDays = (days) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+const event = {
+  ...emergency, id: eventId, category: 'event', mediaStatus: 'none',
+  details: { title: 'Reunión vecinal', place: 'Local comunal', startsAt: afterDays(2) },
+};
+for (const patch of [
+  { title: '   ' },
+  { place: '' },
+  { startsAt: afterDays(-1) },
+  { startsAt: 'mañana' },
+  { attendees: -1 },
+  { attendees: 2.5 },
+  { description: 123 },
+]) {
+  await write(eventId, { ...event, details: { ...event.details, ...patch } }, owner, { status: 403 });
+}
+await write(eventId, event, stranger, { status: 403 });
+await write(eventId, event, owner);
+await write(laterId, {
+  ...event, id: laterId,
+  details: { ...event.details, startsAt: afterDays(3), attendees: 14, description: 'Simulacro' },
+}, owner);
+await write(soonId, {
+  ...event, id: soonId, details: { ...event.details, startsAt: afterDays(0.5) },
+}, owner);
+const eventPaths = await readFeed('event', stranger, { startsAfter: afterDays(1) });
+assert.deepEqual(eventPaths, [documents + '/posts/' + eventId, documents + '/posts/' + laterId]);
+await readFeed('event', null, { startsAfter: afterDays(1), status: [401, 403] });
 
 console.log('Reglas de Firestore y Storage verificadas con dos sesiones anónimas locales.');
