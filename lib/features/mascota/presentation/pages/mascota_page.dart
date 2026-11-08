@@ -4,7 +4,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../domain/entities/item_mascota.dart';
 import '../../domain/entities/mascota.dart';
 import '../../domain/repositories/mascota_repository.dart';
-import '../../domain/services/caja_sorpresas_service.dart';
 import '../dialogs/apertura_caja_dialog.dart';
 import '../widgets/coleccion_items_sheet.dart';
 import '../widgets/cuy_stage.dart';

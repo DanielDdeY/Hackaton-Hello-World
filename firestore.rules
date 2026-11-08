@@ -175,6 +175,51 @@ service cloud.firestore {
       return string(lima.year()) + '-' + (lima.month() < 10 ? '0' : '') + string(lima.month());
     }
 
+    match /recognitions/{recognitionId} {
+      function participant() {
+        return resource.data.authorId == request.auth.uid
+          || resource.data.recipientId == request.auth.uid;
+      }
+
+      function sameDistrict(authorId, recipientId) {
+        let author = get(/databases/$(database)/documents/users/$(authorId)).data;
+        let recipient = get(/databases/$(database)/documents/users/$(recipientId)).data;
+        let district = author.get('districtKey', '');
+        return author.profileVersion == 1 && recipient.profileVersion == 1
+          && nonBlank(district) && district == recipient.districtKey
+          && !author.get('isDemo', false) && !recipient.get('isDemo', false);
+      }
+
+      function validRecognition(data) {
+        return data.keys().hasAll([
+            'authorId', 'authorName', 'recipientId', 'recipientName',
+            'message', 'period', 'createdAt', 'schemaVersion'
+          ])
+          && data.keys().hasOnly([
+            'authorId', 'authorName', 'recipientId', 'recipientName', 'districtId',
+            'message', 'period', 'createdAt', 'schemaVersion'
+          ])
+          && data.authorId == request.auth.uid
+          && data.recipientId is string && data.recipientId.matches('[A-Za-z0-9_-]+')
+          && data.recipientId != data.authorId
+          && nonBlank(data.authorName) && nonBlank(data.recipientName)
+          && (!('districtId' in data) || nonBlank(data.districtId))
+          && nonBlank(data.message) && data.message.size() <= 280
+          && data.period == currentPeriod() && data.createdAt == request.time
+          && data.schemaVersion == 1
+          && recognitionId == data.period + '_' + data.authorId + '_' + data.recipientId
+          && sameDistrict(data.authorId, data.recipientId);
+      }
+
+      allow create: if signedIn() && validRecognition(request.resource.data);
+      // The create transaction may look up its own ID before any data exists.
+      allow get: if signedIn() && (resource != null ? participant() :
+        request.auth.uid.matches('[A-Za-z0-9_-]+')
+          && recognitionId.matches(currentPeriod() + '_' + request.auth.uid + '_[A-Za-z0-9_-]+'));
+      allow list: if signedIn() && participant();
+      allow update, delete: if false;
+    }
+
     function sanitized(data) {
       return !data.keys().hasAny([
         'phoneNumber', 'telefono', 'email', 'availableCoins', 'monedasDisponibles',
