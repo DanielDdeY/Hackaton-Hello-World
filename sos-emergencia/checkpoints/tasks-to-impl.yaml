@@ -1,0 +1,471 @@
+metadata:
+  generated: "2026-11-07"
+  source_tasks: "sos-emergencia/plan.md"
+  last_updated: "2026-11-07"
+
+summary:
+  total_tasks: 18
+  completed_tasks: 14
+  in_progress_tasks: 2
+  pending_tasks: 2
+  completion_percentage: 77.8
+
+tasks:
+  - task_id: "T001"
+    description: "Configurar identidad y servicios Firebase en el cliente."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "pubspec.yaml"
+          change_type: "modified"
+          description: "Agrega firebase_auth, firebase_messaging, firebase_storage e image_picker."
+        - file: "lib/main.dart"
+          change_type: "modified"
+          description: "Crea sesión anónima e inicializa proveedores."
+    verification:
+      build_passed: true
+      test_results:
+        command: "dart analyze lib test"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "La activación del proveedor Anonymous en Firebase Console debe confirmarse."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-008", "REQ-009", "REQ-010"]
+      full_trace: "REQ-008/009/010 → 1.1 → T001 → Firebase client configuration"
+  - task_id: "T002"
+    description: "Crear Functions TypeScript y configuración Firebase."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "functions/src/index.ts"
+          change_type: "created"
+          description: "Implementa alertas vecinales y cierre."
+        - file: "firebase.json"
+          change_type: "modified"
+          description: "Registra Functions, reglas e índices."
+    verification:
+      build_passed: true
+      test_results:
+        command: "cd functions && npm test"
+        passed: 2
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Fuente y pruebas listas; el despliegue a hackaton-hello-world requiere el plan Blaze."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-004", "REQ-008", "REQ-009", "REQ-010"]
+      full_trace: "REQ-004/008/009/010 → 1.1 → T002 → functions/src/index.ts"
+  - task_id: "T003"
+    description: "Definir reglas Firestore y Storage."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "firestore.rules"
+          change_type: "created"
+          description: "Aplica autorización por UID y comunidad."
+        - file: "storage.rules"
+          change_type: "created"
+          description: "Restringe lectura y subida de fotos."
+    verification:
+      build_passed: false
+      test_results:
+        command: "firebase emulators:exec --project demo-sos --only firestore,storage ..."
+        passed: 0
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "Reglas e índices se desplegaron a hackaton-hello-world. Storage no está inicializado y sus reglas siguen pendientes."
+    upstream_trace:
+      plan_item: "1.1"
+      requirements: ["REQ-008", "REQ-010"]
+      full_trace: "REQ-008/010 → 1.1 → T003 → firestore.rules/storage.rules"
+  - task_id: "T004"
+    description: "Crear modelo EmergencyAlert."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/emergency/domain/emergency_alert.dart"
+          change_type: "created"
+          description: "Modela ubicación, estado, radio y metadatos."
+    verification:
+      build_passed: true
+      test_results:
+        command: "dart analyze lib test"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Modelo analizado."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-001", "REQ-002"]
+      full_trace: "REQ-001/002 → 2.1 → T004 → emergency_alert.dart"
+  - task_id: "T005"
+    description: "Crear repositorio Firestore de alertas."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/emergency/data/firebase_emergency_alert_repository.dart"
+          change_type: "created"
+          description: "Crea alertas idempotentes y permite cerrarlas."
+    verification:
+      build_passed: true
+      test_results:
+        command: "dart analyze lib test"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "La persistencia real depende de reglas desplegadas."
+    upstream_trace:
+      plan_item: "2.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-008"]
+      full_trace: "REQ-001/002/008 → 2.1 → T005 → FirebaseEmergencyAlertRepository"
+  - task_id: "T006"
+    description: "Reemplazar SOS de demostración por activación real."
+    status: "in-progress"
+    implementation:
+      files_changed:
+        - file: "lib/home/home.dart"
+          change_type: "modified"
+          description: "GPS, creación SOS, reintento con ID estable, errores y acceso al formulario."
+    verification:
+      build_passed: true
+      test_results:
+        command: "Revisión/análisis Dart; prueba de flujo end-to-end pendiente"
+        passed: 0
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "Falta una alternativa telefónica configurable para GPS/red no disponibles."
+    upstream_trace:
+      plan_item: "2.2"
+      requirements: ["REQ-001", "REQ-002"]
+      full_trace: "REQ-001/002 → 2.2 → T006 → confirmarSos"
+  - task_id: "T007"
+    description: "Añadir consentimiento, token FCM y ubicación opt-in."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/community/presentation/community_feed_page.dart"
+          change_type: "created"
+          description: "Gestiona consentimiento y ubicación reciente del dispositivo."
+    verification:
+      build_passed: true
+      test_results:
+        command: "dart analyze lib test"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Ubicación se actualiza al habilitar avisos y al reanudar la app, no en segundo plano."
+    upstream_trace:
+      plan_item: "3.1"
+      requirements: ["REQ-004", "REQ-009", "REQ-010"]
+      full_trace: "REQ-004/009/010 → 3.1 → T007 → nearby consent controls"
+  - task_id: "T008"
+    description: "Seleccionar destinatarios por geohash y distancia exacta."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "functions/src/index.ts"
+          change_type: "created"
+          description: "Filtra por consentimiento, antigüedad y radio de 500 m."
+    verification:
+      build_passed: true
+      test_results:
+        command: "cd functions && npm test"
+        passed: 2
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "El trigger requiere activar el plan Blaze para desplegar Cloud Functions."
+    upstream_trace:
+      plan_item: "3.2"
+      requirements: ["REQ-003", "REQ-004", "REQ-009", "REQ-010"]
+      full_trace: "REQ-003/004/009/010 → 3.2 → T008 → onEmergencyAlertCreated"
+  - task_id: "T009"
+    description: "Enviar FCM y propagar cierre de alerta."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "functions/src/index.ts"
+          change_type: "created"
+          description: "Envía mensajes sin coordenadas y limpia tokens inválidos."
+    verification:
+      build_passed: true
+      test_results:
+        command: "cd functions && npm test"
+        passed: 2
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Entrega FCM no verificada en dispositivo."
+    upstream_trace:
+      plan_item: "3.2"
+      requirements: ["REQ-004", "REQ-009", "REQ-010"]
+      full_trace: "REQ-004/009/010 → 3.2 → T009 → FCM trigger"
+  - task_id: "T010"
+    description: "Ampliar formulario de emergencia."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/create_post/presentation/forms/emergency/emergency_form.dart"
+          change_type: "modified"
+          description: "Agrega ocho categorías, título y descripción obligatoria."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test .../emergency_post_data_test.dart"
+        passed: 2
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "El reporte parte de una alerta SOS existente."
+    upstream_trace:
+      plan_item: "4.1"
+      requirements: ["REQ-005"]
+      full_trace: "REQ-005 → 4.1 → T010 → emergency_form.dart"
+  - task_id: "T011"
+    description: "Subir foto opcional a Storage."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/emergency/data/firebase_emergency_post_repository.dart"
+          change_type: "created"
+          description: "Valida tipo y tamaño y guarda una ruta privada."
+        - file: "storage.rules"
+          change_type: "created"
+          description: "Limita la carga a 5 MB y formatos de imagen permitidos."
+    verification:
+      build_passed: true
+      test_results:
+        command: "dart analyze lib test"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Prueba de carga con Storage Emulator/dispositivo pendiente."
+    upstream_trace:
+      plan_item: "4.2"
+      requirements: ["REQ-005", "REQ-008", "REQ-010"]
+      full_trace: "REQ-005/008/010 → 4.2 → T011 → FirebaseEmergencyPostRepository"
+  - task_id: "T012"
+    description: "Persistir reportes y conectar feed comunitario."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/features/emergency/data/firebase_emergency_post_repository.dart"
+          change_type: "created"
+          description: "Escribe un post por alertId y actualiza la alerta."
+        - file: "lib/features/community/presentation/community_feed_page.dart"
+          change_type: "created"
+          description: "Consulta solo comunidad del perfil y prioriza emergencias."
+    verification:
+      build_passed: true
+      test_results:
+        command: "dart analyze lib test"
+        passed: 0
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Firestore Emulator y feed real pendientes."
+    upstream_trace:
+      plan_item: "4.2"
+      requirements: ["REQ-005", "REQ-006", "REQ-008", "REQ-010"]
+      full_trace: "REQ-005/006/008/010 → 4.2 → T012 → community_posts/feed"
+  - task_id: "T013"
+    description: "Conectar stream privado de alertas al mapa."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/screens/map/data/firebase_emergency_map_repository.dart"
+          change_type: "created"
+          description: "Escucha proyecciones activas del usuario."
+        - file: "lib/main.dart"
+          change_type: "modified"
+          description: "Inyecta repositorio Firebase en Mapa."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test test/map_screen_test.dart"
+        passed: 1
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "La prueba inyecta un repositorio falso."
+    upstream_trace:
+      plan_item: "5.1"
+      requirements: ["REQ-007", "REQ-008", "REQ-010"]
+      full_trace: "REQ-007/008/010 → 5.1 → T013 → FirebaseEmergencyMapRepository"
+  - task_id: "T014"
+    description: "Dibujar círculo, marcador y detalle SOS en el mapa."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "lib/screens/map/map_screen.dart"
+          change_type: "modified"
+          description: "Agrega círculo rojo de 500 m, icono y detalle seleccionable."
+    verification:
+      build_passed: true
+      test_results:
+        command: "flutter test test/map_screen_test.dart"
+        passed: 1
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Se conserva el límite de 1.8 km para sitios."
+    upstream_trace:
+      plan_item: "5.2"
+      requirements: ["REQ-003", "REQ-007"]
+      full_trace: "REQ-003/007 → 5.2 → T014 → map emergency layer"
+  - task_id: "T015"
+    description: "Sincronizar cierre y retirar alertas del mapa."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "functions/src/index.ts"
+          change_type: "created"
+          description: "Actualiza proyecciones y notifica el cierre."
+        - file: "lib/screens/map/data/firebase_emergency_map_repository.dart"
+          change_type: "created"
+          description: "Observa solo proyecciones activas."
+    verification:
+      build_passed: true
+      test_results:
+        command: "cd functions && npm test"
+        passed: 2
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Actualización real requiere Functions desplegada."
+    upstream_trace:
+      plan_item: "5.1, 5.2"
+      requirements: ["REQ-007"]
+      full_trace: "REQ-007 → 5.1/5.2 → T015 → functions + map stream"
+  - task_id: "T016"
+    description: "Completar pruebas unitarias, widget y de flujo SOS."
+    status: "in-progress"
+    implementation:
+      files_changed:
+        - file: "test/map_screen_test.dart"
+          change_type: "modified"
+          description: "Prueba círculo, marcador y detalle."
+        - file: "test/features/emergency/emergency_post_data_test.dart"
+          change_type: "created"
+          description: "Prueba validación del modelo y categorías."
+        - file: "functions/test/geo.test.js"
+          change_type: "created"
+          description: "Prueba límites de distancia 499 m/501 m."
+    verification:
+      build_passed: true
+      test_results:
+        command: "VS Code runTests (Flutter suite) + cd functions && npm test"
+        passed: 28
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Faltan pruebas de Firestore, reglas, reintentos, fallos y flujo SOS."
+    upstream_trace:
+      plan_item: "6.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009", "REQ-010"]
+      full_trace: "REQ-001..010 → 6.1 → T016 → targeted tests"
+  - task_id: "T017"
+    description: "Probar Functions y reglas con Firebase Emulator Suite."
+    status: "pending"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: false
+      test_results:
+        command: "firebase emulators:exec --project demo-sos --only firestore,storage ..."
+        passed: 0
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "Intentado; el emulador Firestore no pudo descargarse durante la validación. Requiere reintento."
+    upstream_trace:
+      plan_item: "6.1"
+      requirements: ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-008", "REQ-009", "REQ-010"]
+      full_trace: "REQ-001..010 → 6.1 → T017 → emulator integration tests"
+  - task_id: "T018"
+    description: "Validar push, alcance, cierre y foto en dos dispositivos."
+    status: "pending"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: false
+      test_results:
+        command: "No ejecutado"
+        passed: 0
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "Requiere despliegue Firebase, APNs/plataforma y dos dispositivos."
+    upstream_trace:
+      plan_item: "6.1"
+      requirements: ["REQ-004", "REQ-007"]
+      full_trace: "REQ-004/007 → 6.1 → T018 → two-device verification"
+
+pending_tasks:
+  - task_id: "T006"
+    description: "Agregar alternativa telefónica local configurable ante fallo de GPS/red."
+    blocked_by: []
+    priority: "P1"
+  - task_id: "T016"
+    description: "Ampliar cobertura a pruebas de Firebase, fallos y reintentos."
+    blocked_by: []
+    priority: "P1"
+  - task_id: "T017"
+    description: "Configurar y ejecutar pruebas de reglas y Functions con emuladores."
+    blocked_by: ["T001", "T002", "T003"]
+    priority: "P1"
+  - task_id: "T018"
+    description: "Probar entrega FCM y foto en dispositivos reales."
+    blocked_by: ["T017"]
+    priority: "P1"
+
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-SOS-001"
+    requirement: "REQ-001"
+    plan_phase: "Phase-2"
+    plan_item: "2.1, 2.2"
+    tasks: ["T004", "T005", "T006"]
+    files:
+      - "lib/home/home.dart"
+      - "lib/features/emergency/"
+    status: "partial"
+  - chain_id: "TRACE-SOS-003"
+    requirement: "REQ-003"
+    plan_phase: "Phase-3, Phase-5"
+    plan_item: "3.2, 5.2"
+    tasks: ["T008", "T014"]
+    files:
+      - "functions/src/index.ts"
+      - "lib/screens/map/map_screen.dart"
+    status: "partial"
+  - chain_id: "TRACE-SOS-006"
+    requirement: "REQ-006"
+    plan_phase: "Phase-4"
+    plan_item: "4.2"
+    tasks: ["T012"]
+    files:
+      - "lib/features/community/presentation/community_feed_page.dart"
+      - "lib/features/emergency/data/firebase_emergency_post_repository.dart"
+    status: "partial"
+validation:
+  passed: false
+  errors: []
+  warnings:
+    - "Reglas e índices Firestore desplegados a hackaton-hello-world."
+    - "Functions bloqueadas hasta activar el plan Blaze; Storage debe inicializarse en Firebase Console."
+    - "El emulador Firestore quedó bloqueado descargando su JAR; no se completaron pruebas de reglas."
+    - "No se completaron pruebas manuales de push/foto en dos dispositivos."
+  blocking_issues:
+    - "Anonymous Auth, Firestore, Storage, FCM/APNs y facturación de Functions deben habilitarse en Firebase Console."
+    - "Falta definir la alternativa telefónica local para completar T006."

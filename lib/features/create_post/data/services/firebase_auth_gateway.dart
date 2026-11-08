@@ -61,6 +61,9 @@ final class FirebaseAuthGateway implements AuthGateway {
   }
 
   @override
+  Future<void> signOut() => _auth.signOut();
+
+  @override
   Future<void> sendPhoneCode(String phoneNumber) async {
     // The SMS step is intentionally simulated for the current prototype.
   }
