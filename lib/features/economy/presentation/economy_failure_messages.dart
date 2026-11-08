@@ -26,6 +26,8 @@ String economyFailureMessage(
   EconomyFailureReason.permissionDenied => 'No se pudo autorizar la confirmación. Actualiza la app o consulta al administrador.',
   EconomyFailureReason.simulationActive =>
     'Sal de la simulación para otorgar XP.',
+  EconomyFailureReason.activityNotEligible =>
+    'Esta participación todavía no cumple los requisitos para recibir XP.',
   EconomyFailureReason.unsupportedSource =>
     'Esta actividad todavía no otorga recompensas.',
   EconomyFailureReason.unavailable =>

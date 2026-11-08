@@ -110,12 +110,28 @@ service cloud.firestore {
 
       allow get: if owns(uid) || (signedIn() && favor().authorId == request.auth.uid);
       allow list: if signedIn() && favor().authorId == request.auth.uid;
-      allow create, update: if owns(uid)
-        && favor().category == 'help'
-        && favor().status == 'active'
-        && favor().authorId != uid
-        && request.resource.data.keys().hasOnly(['offeredAt'])
-        && request.resource.data.offeredAt == request.time;
+      function validOffer() {
+        let after = request.resource.data;
+        return owns(uid) && favor().category == 'help'
+          && favor().status == 'active' && favor().authorId != uid
+          && after.keys().hasOnly(['offeredAt', 'helperName'])
+          && after.offeredAt == request.time
+          && (!('helperName' in after)
+            || (nonBlank(after.helperName) && after.helperName.size() <= 100));
+      }
+
+      function validConfirmation() {
+        let movement = activityMovement(uid, 'favor_completed_' + postId);
+        return signedIn() && favor().authorId == request.auth.uid
+          && resource.data.get('confirmedAt', null) == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedAt'])
+          && request.resource.data.confirmedAt == request.time
+          && !exists(movement) && getAfter(movement).data.type == 'favor_completed';
+      }
+
+      allow create: if validOffer();
+      allow update: if (resource.data.get('confirmedAt', null) == null && validOffer())
+        || validConfirmation();
     }
 
     match /posts/{postId}/attendance/{uid} {
@@ -277,6 +293,79 @@ service cloud.firestore {
         && data.rating == confirmation.rating && data.createdAt == request.time;
     }
 
+    function activityMovement(uid, id) {
+      return /databases/$(database)/documents/users/$(uid)/movimientos/$(id);
+    }
+
+    function activityXpChange(before, after, movement) {
+      let period = currentPeriod();
+      let monthBase = before.rankingPeriod == period ? before.monthlyXp : 0;
+      return validEconomy(before) && validEconomy(after)
+        && before.rankingPeriod <= period && after.rankingPeriod == period
+        && movement.period == period
+        && after.xp == before.xp + movement.deltaXpTotal
+        && after.monthlyXp == monthBase + movement.deltaXpMonth
+        && after.updatedAt == request.time
+        && after.diff(before).affectedKeys().hasOnly([
+          'xp', 'monthlyXp', 'rankingPeriod', 'lastActivityReward', 'updatedAt'
+        ]);
+    }
+
+    function activityRewardUpdate(uid) {
+      let after = request.resource.data;
+      let id = after.get('lastActivityReward', '');
+      let movement = activityMovement(uid, id);
+      return id != '' && !exists(movement)
+        && activityXpChange(resource.data, after, getAfter(movement).data);
+    }
+
+    function validFavorReward(uid, postId, post, data) {
+      let offer = /databases/$(database)/documents/posts/$(postId)/helpOffers/$(uid);
+      return signedIn() && request.auth.uid == post.authorId && uid != post.authorId
+        && data.counterpartyUid == post.authorId && data.deltaCoins == 0
+        && get(offer).data.get('confirmedAt', null) == null
+        && getAfter(offer).data.confirmedAt == request.time;
+    }
+
+    function validEventReward(uid, postId, post, data) {
+      let attendance = get(/databases/$(database)/documents/posts/$(postId)/attendance/$(uid)).data;
+      let account = /databases/$(database)/documents/users/$(uid)/private/account;
+      return owns(uid) && post.authorId != uid && data.counterpartyUid == uid
+        && attendance.response == 'going' && attendance.updatedAt <= post.details.startsAt
+        && data.deltaCoins == 3
+        && getAfter(account).data.availableCoins == get(account).data.availableCoins + 3;
+    }
+
+    function validActivityMovement(uid, id, data) {
+      let postId = data.sourceId;
+      let post = get(/databases/$(database)/documents/posts/$(postId)).data;
+      let user = /databases/$(database)/documents/users/$(uid);
+      let after = getAfter(user).data;
+      return data.keys().hasOnly([
+          'id', 'confirmationId', 'uid', 'counterpartyUid', 'type', 'sourceId',
+          'deltaXpTotal', 'deltaXpMonth', 'deltaCoins', 'period', 'status', 'createdAt'
+        ])
+        && data.id == id && data.confirmationId == id && data.uid == uid
+        && id == data.type + '_' + postId && after.lastActivityReward == id
+        && data.deltaXpTotal == 10 && data.deltaXpMonth == 10
+        && data.status == 'released' && data.createdAt == request.time
+        && post.status == 'active' && activityXpChange(get(user).data, after, data)
+        && ((data.type == 'favor_completed' && post.category == 'help'
+            && validFavorReward(uid, postId, post, data))
+          || (data.type == 'event_attended' && post.category == 'event'
+            && validEventReward(uid, postId, post, data)));
+    }
+
+    function eventCoinsUpdate(uid) {
+      let id = getAfter(/databases/$(database)/documents/users/$(uid)).data.get('lastActivityReward', '');
+      let movement = activityMovement(uid, id);
+      let after = request.resource.data;
+      return owns(uid) && id != '' && !exists(movement)
+        && getAfter(movement).data.type == 'event_attended'
+        && after.diff(resource.data).affectedKeys().hasOnly(['availableCoins'])
+        && after.availableCoins == resource.data.availableCoins + 3;
+    }
+
 
     match /users/{uid} {
       // Old documents remain owner-only until the atomic privacy migration.
@@ -298,7 +387,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && getAfter(/databases/$(database)/documents/users/$(uid)/private/account).data.availableCoins == 10)
       );
-      allow update: if serviceRewardUpdate(uid) || owns(uid) && (
+      allow update: if serviceRewardUpdate(uid) || activityRewardUpdate(uid) || owns(uid) && (
         profileUpdateAllowed()
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['communityId'])
           && request.resource.data.communityId is string)
@@ -321,7 +410,7 @@ service cloud.firestore {
                 get(/databases/$(database)/documents/users/$(uid)).data.get('availableCoins',
                   get(/databases/$(database)/documents/users/$(uid)).data.get('monedasDisponibles', 0)))
           );
-        allow update: if owns(uid)
+        allow update: if eventCoinsUpdate(uid) || owns(uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phoneNumber', 'email'])
           && request.resource.data.phoneNumber is string && request.resource.data.email is string;
       }
@@ -341,7 +430,8 @@ service cloud.firestore {
 
       match /movimientos/{movementId} {
         allow read: if owns(uid);
-        allow create: if validServiceMovement(uid, movementId, request.resource.data);
+        allow create: if validServiceMovement(uid, movementId, request.resource.data)
+          || validActivityMovement(uid, movementId, request.resource.data);
         allow update, delete: if false;
       }
 

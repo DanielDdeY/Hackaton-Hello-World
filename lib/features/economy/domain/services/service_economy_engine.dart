@@ -75,34 +75,17 @@ final class ServiceEconomyEngine implements EconomyEngine {
       throw const EconomyFailure(EconomyFailureReason.invalidOperation);
     }
     final period = periods.currentPeriod;
-    final confirmationId = '${period}_${uid}_${movementType}_$sourceId';
-    final receiptPath = 'users/$uid/serviceOperations/$operationId';
+    final confirmationId = '${movementType}_$sourceId';
     final userPath = 'users/$uid';
     final accountPath = 'users/$uid/private/account';
     final movementPath = 'users/$uid/movimientos/$confirmationId';
 
     return store.runTransaction((tx) async {
-      final receipt = await tx.get(receiptPath);
-      if (receipt != null) {
-        if (receipt['postId'] != sourceId) {
-          throw const EconomyFailure(EconomyFailureReason.operationConflict);
-        }
-        return EconomyResult(
-          confirmationId: receipt['confirmationId'] as String,
-          period: receipt['period'] as String,
-          slot: 1,
-          alreadyApplied: true,
-          clientXp: xp,
-          providerXp: 0,
-          coins: coins,
-        );
-      }
-
       final existingMovement = await tx.get(movementPath);
       if (existingMovement != null) {
         return EconomyResult(
           confirmationId: confirmationId,
-          period: period,
+          period: existingMovement['period'] as String,
           slot: 1,
           alreadyApplied: true,
           clientXp: xp,
@@ -111,42 +94,38 @@ final class ServiceEconomyEngine implements EconomyEngine {
         );
       }
 
+      if (movementType == 'event_attended') {
+        final post = await tx.get('posts/$sourceId');
+        final response = await tx.get('posts/$sourceId/attendance/$uid');
+        if (post?['category'] != 'event' ||
+            post?['status'] != 'active' ||
+            post?['authorId'] == uid ||
+            response?['response'] != 'going') {
+          throw const EconomyFailure(EconomyFailureReason.activityNotEligible);
+        }
+      }
       final userData = await tx.get(userPath);
       final accountData = await tx.get(accountPath);
       _validateUser(userData, period);
+      if (coins > 0 && accountData?['availableCoins'] is! num) {
+        throw const EconomyFailure(EconomyFailureReason.profileNotReady);
+      }
       final timestamp = store.serverTimestamp;
       final currentCoins =
-          (accountData?['availableCoins'] as num?)?.toInt() ?? 0;
+          (accountData?['availableCoins'] as num?) ?? 0;
 
       tx.update(
         userPath,
-        _reward(userData!, xp, period, confirmationId, timestamp),
+        _reward(userData!, xp, period, confirmationId, timestamp, activity: true),
       );
-      if (coins > 0 && accountData != null) {
+      if (coins > 0) {
         tx.update(accountPath, {'availableCoins': currentCoins + coins});
       }
-      tx.create(receiptPath, {
-        'confirmationId': confirmationId,
-        'postId': sourceId,
-        'providerUid': uid,
-        'period': period,
-        'slot': 1,
-        'rating': 5,
-        'createdAt': timestamp,
-      });
       tx.create(movementPath, {
-        'id': confirmationId,
-        'confirmationId': confirmationId,
-        'uid': uid,
-        'counterpartyUid': uid,
-        'type': movementType,
-        'sourceId': sourceId,
-        'deltaXpTotal': xp,
-        'deltaXpMonth': xp,
+        ..._movement(
+          confirmationId, uid, uid, sourceId, period, movementType, xp, timestamp,
+        ),
         'deltaCoins': coins,
-        'period': period,
-        'status': 'released',
-        'createdAt': timestamp,
       });
 
       return EconomyResult(
@@ -156,6 +135,59 @@ final class ServiceEconomyEngine implements EconomyEngine {
         clientXp: xp,
         providerXp: 0,
         coins: coins,
+      );
+    });
+  }
+
+  @override
+  Future<void> confirmFavor({
+    required String postId,
+    required String helperUid,
+  }) async {
+    if (!_writesEnabled()) {
+      throw const EconomyFailure(EconomyFailureReason.simulationActive);
+    }
+    final author = auth.currentUid;
+    if (author == null || author.isEmpty) {
+      throw const EconomyFailure(EconomyFailureReason.noSession);
+    }
+    if (postId.isEmpty ||
+        postId.contains('/') ||
+        helperUid.isEmpty ||
+        helperUid.contains('/') ||
+        author == helperUid) {
+      throw const EconomyFailure(EconomyFailureReason.invalidOperation);
+    }
+    final period = periods.currentPeriod;
+    final offerPath = 'posts/$postId/helpOffers/$helperUid';
+    final userPath = 'users/$helperUid';
+    final movementId = 'favor_completed_$postId';
+    const xp = EconomyResult.favorXp;
+    await store.runTransaction((tx) async {
+      final post = await tx.get('posts/$postId');
+      if (post?['category'] != 'help' ||
+          post?['status'] != 'active' ||
+          post?['authorId'] != author) {
+        throw const EconomyFailure(EconomyFailureReason.activityNotEligible);
+      }
+      final offer = await tx.get(offerPath);
+      if (offer == null) {
+        throw const EconomyFailure(EconomyFailureReason.activityNotEligible);
+      }
+      if (offer['confirmedAt'] != null) return;
+      final helper = await tx.get(userPath);
+      _validateUser(helper, period);
+      final timestamp = store.serverTimestamp;
+      tx.update(offerPath, {'confirmedAt': timestamp});
+      tx.update(
+        userPath,
+        _reward(helper!, xp, period, movementId, timestamp, activity: true),
+      );
+      tx.create(
+        '$userPath/movimientos/$movementId',
+        _movement(
+          movementId, helperUid, author, postId, period, 'favor_completed', xp, timestamp,
+        ),
       );
     });
   }
@@ -323,13 +355,14 @@ final class ServiceEconomyEngine implements EconomyEngine {
       int xp,
       String period,
       String confirmation,
-      Object timestamp,
-      ) => {
+      Object timestamp, {
+      bool activity = false,
+      }) => {
     'xp': (data['xp'] as num) + xp,
     'monthlyXp':
     (data['rankingPeriod'] == period ? data['monthlyXp'] as num : 0) + xp,
     'rankingPeriod': period,
-    'lastServiceConfirmation': confirmation,
+    (activity ? 'lastActivityReward' : 'lastServiceConfirmation'): confirmation,
     'updatedAt': timestamp,
   };
 

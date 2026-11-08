@@ -119,6 +119,10 @@ void main() {
     expect(find.text('Con recompensa', findRichText: true), findsOneWidget);
     expect(find.text('Recompensa: Un almuerzo'), findsOneWidget);
     expect(find.text('Sin recompensa', findRichText: true), findsOneWidget);
+    expect(
+      find.text('+10 XP (Al confirmar la ayuda)', findRichText: true),
+      findsNWidgets(2),
+    );
     expect(find.text('Ayudar'), findsNWidgets(2));
 
     await tester.tap(find.text('Ayudar').first);
@@ -208,7 +212,7 @@ void main() {
     expect(find.text('Local comunal'), findsOneWidget);
     expect(find.text('14 asistentes previstos'), findsOneWidget);
     expect(
-      find.text('Bono pendiente (+3 monedas · +10 XP)', findRichText: true),
+      find.text('+10 XP (+3 monedas al marcar «Voy»)', findRichText: true),
       findsOneWidget,
     );
     expect(find.text('Aún no hay eventos programados'), findsNothing);

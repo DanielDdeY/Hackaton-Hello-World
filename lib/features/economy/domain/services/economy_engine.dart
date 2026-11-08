@@ -8,6 +8,7 @@ abstract interface class EconomyEngine {
     required int rating,
     required String operationId,
   });
+  Future<void> confirmFavor({required String postId, required String helperUid});
 
   /// Extension point. New sources must define their evidence and server rules.
   /// Callers can never supply their own XP or coin amounts.

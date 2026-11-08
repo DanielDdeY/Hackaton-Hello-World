@@ -126,6 +126,43 @@ void main() {
   ]) =>
       engine.confirmService(postId: 'service', rating: rating, operationId: op);
 
+  test('Confirmar un favor registra la ayuda y otorga XP una sola vez', () async {
+    store.docs['posts/favor'] = {
+      'category': 'help',
+      'status': 'active',
+      'authorId': 'client',
+    };
+    const offer = 'posts/favor/helpOffers/provider';
+    store.docs[offer] = {'offeredAt': 'earlier'};
+    await engine.confirmFavor(postId: 'favor', helperUid: 'provider');
+    expect(store.docs[offer]!['confirmedAt'], 'server-time');
+    expect(store.docs['users/provider']!['xp'], 210);
+    expect(store.docs['users/provider/movimientos/favor_completed_favor'], isNotNull);
+    await engine.confirmFavor(postId: 'favor', helperUid: 'provider');
+    expect(store.commits, 1);
+  });
+
+  test('El bono del evento requiere Voy y se conserva entre meses', () async {
+    store.docs['posts/event'] = {
+      'category': 'event',
+      'status': 'active',
+      'authorId': 'provider',
+    };
+    Future<EconomyResult> claim() => engine.award(
+      source: EconomySource.attendedEvent,
+      sourceId: 'event',
+      operationId: engine.newOperationId(),
+    );
+    await expectLater(claim(), failure(EconomyFailureReason.activityNotEligible));
+    store.docs['posts/event/attendance/client'] = {'response': 'going'};
+    expect((await claim()).alreadyApplied, isFalse);
+    expect(store.docs['users/client']!['xp'], 110);
+    expect(store.docs['users/client/private/account']!['availableCoins'], 80);
+    periods.currentPeriod = '2026-12';
+    expect((await claim()).alreadyApplied, isTrue);
+    expect(store.commits, 1);
+  });
+
   test('Premia ambos usuarios y registra dos movimientos en un solo commit', () async {
     final result = await confirm();
     expect(store.commits, 1);
@@ -325,8 +362,8 @@ void main() {
   test('Fuentes sin regla definida no inventan recompensas', () {
     expect(
       () => engine.award(
-        source: EconomySource.attendedEvent,
-        sourceId: 'event',
+        source: EconomySource.completedFavor,
+        sourceId: 'favor',
         operationId: 'operation-00000001',
       ),
       failure(EconomyFailureReason.unsupportedSource),

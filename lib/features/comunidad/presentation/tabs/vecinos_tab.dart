@@ -20,6 +20,8 @@ class VecinosTab extends StatefulWidget {
 
 class _VecinosTabState extends State<VecinosTab> {
   int _reloadToken = 0;
+  (UserRepository?, String, String, int)? _query;
+  Stream<List<AppUser>>? _leaderboard;
 
   void _reintentar(ComunidadController controller) {
     setState(() => _reloadToken++);
@@ -57,16 +59,45 @@ class _VecinosTabState extends State<VecinosTab> {
     final distrito = controller.distritoRanking.trim().isEmpty
         ? 'Ate'
         : controller.distritoRanking.trim();
-    final theme = Theme.of(context);
+    if (userRepository != null && !controller.distritoResuelto) {
+      return controller.error == null
+          ? const Center(child: CircularProgressIndicator())
+          : _EstadoErrorRanking(onReintentar: () => _reintentar(controller));
+    }
+    final query = (userRepository, distrito, activePeriod, _reloadToken);
+    if (_query != query) {
+      _query = query;
+      _leaderboard = userRepository?.watchMonthlyLeaderboard(district: distrito);
+    }
+    return StreamBuilder<List<AppUser>>(
+      key: ValueKey(query),
+      stream: _leaderboard,
+      builder: (context, snapshot) => _buildRanking(
+        context,
+        controller: controller,
+        distrito: distrito,
+        currentUid: currentUid,
+        monthlySnapshot: userRepository == null ? null : snapshot,
+      ),
+    );
+  }
 
+  Widget _buildRanking(
+    BuildContext context, {
+    required ComunidadController controller,
+    required String distrito,
+    required String? currentUid,
+    required AsyncSnapshot<List<AppUser>>? monthlySnapshot,
+  }) {
+    final theme = Theme.of(context);
     return RefreshIndicator(
       onRefresh: () async => _reintentar(controller),
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           TopThreeMonthlyCard(
-            key: ValueKey('top3_${distrito}_${activePeriod}_$_reloadToken'),
             district: distrito,
+            monthlySnapshot: monthlySnapshot,
             currentUid: currentUid,
             fallbackRanking: controller.ranking,
             onRetry: () => _reintentar(controller),
@@ -120,47 +151,25 @@ class _VecinosTabState extends State<VecinosTab> {
           ),
           const SizedBox(height: 10),
 
-          if (userRepository != null)
-            StreamBuilder<List<AppUser>>(
-              key: ValueKey(
-                'leaderboard_${distrito}_${activePeriod}_$_reloadToken',
-              ),
-              stream: userRepository.watchMonthlyLeaderboard(
-                district: distrito,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    !snapshot.hasData) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return _EstadoErrorRanking(
-                    onReintentar: () => _reintentar(controller),
-                  );
-                }
-                final users = snapshot.data ?? const <AppUser>[];
-                if (users.isEmpty) {
-                  return _EstadoVacioRanking(
-                    onReintentar: () => _reintentar(controller),
-                  );
-                }
-                final ranking = _mapUsersToRanking(
-                  users,
-                  currentUid: currentUid,
-                  fallbackDistrito: distrito,
-                );
-                return Column(
-                  children: ranking
-                      .map((v) => _FilaVecinoRanking(vecino: v))
-                      .toList(growable: false),
-                );
-              },
-            )
+          if (monthlySnapshot case final snapshot?)
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (snapshot.hasError)
+              _EstadoErrorRanking(onReintentar: () => _reintentar(controller))
+            else if (snapshot.data?.isNotEmpty != true)
+              _EstadoVacioRanking(onReintentar: () => _reintentar(controller))
+            else
+              ..._mapUsersToRanking(
+                snapshot.data!,
+                currentUid: currentUid,
+                fallbackDistrito: distrito,
+              ).map((vecino) => _FilaVecinoRanking(vecino: vecino))
           else if (controller.cargando && controller.ranking.isEmpty)
             const Center(
               child: Padding(
@@ -257,6 +266,7 @@ class TopThreeMonthlyCard extends StatelessWidget {
     super.key,
     required this.district,
     this.currentUid,
+    this.monthlySnapshot,
     this.fallbackRanking = const [],
     this.onRetry,
     this.onOpenDemoTools,
@@ -265,6 +275,7 @@ class TopThreeMonthlyCard extends StatelessWidget {
 
   final String district;
   final String? currentUid;
+  final AsyncSnapshot<List<AppUser>>? monthlySnapshot;
   final List<VecinoRanking> fallbackRanking;
   final VoidCallback? onRetry;
   final VoidCallback? onOpenDemoTools;
@@ -295,50 +306,55 @@ class TopThreeMonthlyCard extends StatelessWidget {
           ),
         ),
         padding: const EdgeInsets.all(16),
-        child: userRepository != null
+        child: monthlySnapshot != null
+            ? _buildMonthlySnapshot(context, monthlySnapshot!)
+            : userRepository != null
             ? StreamBuilder<List<AppUser>>(
-          stream: userRepository.watchTopThreeOfMonth(district: district),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                !snapshot.hasData) {
-              return _buildHeaderAndBody(
-                context,
-                body: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: SizedBox.square(
-                      dimension: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    ),
-                  ),
-                ),
-              );
-            }
-            if (snapshot.hasError) {
-              return _buildHeaderAndBody(
-                context,
-                body: _TopThreeErrorBody(onRetry: onRetry),
-              );
-            }
-            final topUsers = _mapUsersToRanking(
-              (snapshot.data ?? const <AppUser>[])
-                  .take(3)
-                  .toList(growable: false),
-              currentUid: currentUid,
-              fallbackDistrito: district,
-            );
-            return _buildTopThreeContent(context, topUsers);
-          },
-        )
+                stream: userRepository.watchTopThreeOfMonth(district: district),
+                builder: _buildMonthlySnapshot,
+              )
             : _buildTopThreeContent(
-          context,
-          fallbackRanking
-              .where((v) => v.xpPeriodo > 0)
-              .take(3)
-              .toList(growable: false),
-        ),
+                context,
+                fallbackRanking
+                    .where((v) => v.xpPeriodo > 0)
+                    .take(3)
+                    .toList(growable: false),
+              ),
       ),
     );
+  }
+
+  Widget _buildMonthlySnapshot(
+    BuildContext context,
+    AsyncSnapshot<List<AppUser>> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting &&
+        !snapshot.hasData) {
+      return _buildHeaderAndBody(
+        context,
+        body: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(
+            child: SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          ),
+        ),
+      );
+    }
+    if (snapshot.hasError) {
+      return _buildHeaderAndBody(
+        context,
+        body: _TopThreeErrorBody(onRetry: onRetry),
+      );
+    }
+    final topUsers = _mapUsersToRanking(
+      (snapshot.data ?? const <AppUser>[]).take(3).toList(growable: false),
+      currentUid: currentUid,
+      fallbackDistrito: district,
+    );
+    return _buildTopThreeContent(context, topUsers);
   }
 
   Widget _buildTopThreeContent(

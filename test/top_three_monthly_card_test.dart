@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:hackaton_hello_world/core/theme/app_theme.dart';
+import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunidad_repository.dart';
+import 'package:hackaton_hello_world/features/comunidad/presentation/controllers/comunidad_controller.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/tabs/vecinos_tab.dart';
 import 'package:hackaton_hello_world/features/economy/domain/models/app_user.dart';
 import 'package:hackaton_hello_world/features/economy/domain/repositories/user_repository.dart';
@@ -13,6 +15,8 @@ class _FakeUserRepository implements UserRepository {
   _FakeUserRepository(this.topThreeStream);
 
   final Stream<List<AppUser>> topThreeStream;
+  final requestedDistricts = <String>[];
+  int topThreeRequests = 0;
 
   @override
   Future<AppUser> ensureUser({required String uid, String name = 'Vecino'}) {
@@ -23,11 +27,16 @@ class _FakeUserRepository implements UserRepository {
   Stream<List<AppUser>> watchMonthlyLeaderboard({
     required String district,
     int limit = 50,
-  }) => topThreeStream;
+  }) {
+    requestedDistricts.add(district);
+    return topThreeStream;
+  }
 
   @override
-  Stream<List<AppUser>> watchTopThreeOfMonth({required String district}) =>
-      topThreeStream;
+  Stream<List<AppUser>> watchTopThreeOfMonth({required String district}) {
+    topThreeRequests++;
+    return topThreeStream;
+  }
 
   @override
   Stream<AppUser> watchUserStats(String uid) => const Stream.empty();
@@ -50,6 +59,45 @@ Widget _wrapWithApp(UserRepository repository, {VoidCallback? onRetry}) {
 }
 
 void main() {
+  testWidgets('Vecinos conserva una consulta al reconstruir la vista', (
+    tester,
+  ) async {
+    final stream = StreamController<List<AppUser>>();
+    final users = _FakeUserRepository(stream.stream);
+    final controller = ComunidadController(
+      repository: MockComunidadRepository(),
+    );
+    addTearDown(stream.close);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          Provider<UserRepository?>.value(value: users),
+          ChangeNotifierProvider<ComunidadController>.value(value: controller),
+        ],
+        child: const MaterialApp(home: Scaffold(body: VecinosTab())),
+      ),
+    );
+    await tester.pump();
+    stream.add(const [
+      AppUser(
+        uid: 'vecino1',
+        name: 'Vecino real',
+        district: 'Ate',
+        currentPeriod: '2026-11',
+        monthlyXp: 10,
+        rankingPeriod: '2026-11',
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('Vecino real'), findsWidgets);
+    controller.limpiarError();
+    await tester.pumpAndSettle();
+    expect(find.text('Vecino real'), findsWidgets);
+    expect(users.requestedDistricts, [controller.distritoRanking]);
+    expect(users.topThreeRequests, 0);
+  });
+
   testWidgets('TopThreeMonthlyCard muestra estado de carga', (tester) async {
     final controller = StreamController<List<AppUser>>();
     addTearDown(controller.close);
