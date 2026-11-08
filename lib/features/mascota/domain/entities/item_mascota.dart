@@ -56,24 +56,24 @@ class ItemMascota {
       escala: 0.95,
     ),
     ItemMascota(
-      id: 'piruleta',
-      nombre: 'Piruleta Dulce',
+      id: 'fiesta',
+      nombre: 'Gorrito de Fiesta',
       rareza: RarezaItem.raro,
       probabilidad: 0.18,
-      assetPath: 'assets/mascota/items/piruleta.svg',
-      dx: 30.0,
-      dy: 20.0,
-      escala: 0.85,
+      assetPath: 'assets/mascota/items/fiesta.svg',
+      dx: 0.0,
+      dy: -22.0,
+      escala: 0.95,
     ),
     ItemMascota(
-      id: 'shrek',
-      nombre: 'Orejas de Ogro',
+      id: 'vikingo',
+      nombre: 'Casco Vikingo',
       rareza: RarezaItem.raro,
       probabilidad: 0.09,
-      assetPath: 'assets/mascota/items/shrek.svg',
+      assetPath: 'assets/mascota/items/vikingo.svg',
       dx: 0.0,
-      dy: -15.0,
-      escala: 1.05,
+      dy: -18.0,
+      escala: 1.35,
     ),
     ItemMascota(
       id: 'mugiwara',
@@ -82,17 +82,22 @@ class ItemMascota {
       probabilidad: 0.03,
       assetPath: 'assets/mascota/items/mugiwara.svg',
       dx: 0.0,
-      dy: -5.0,
-      escala: 1.1,
+      dy: -8.0,
+      escala: 1.15,
     ),
   ];
 
   static ItemMascota? porId(String? id) {
     if (id == null || id.isEmpty) return null;
+    // Soporte de compatibilidad con alias anteriores
+    final idNormalizado = switch (id) {
+      'piruleta' => 'fiesta',
+      'shrek' => 'vikingo',
+      _ => id,
+    };
     return catalogoOficial.cast<ItemMascota?>().firstWhere(
-      (item) => item?.id == id,
+      (item) => item?.id == idNormalizado,
       orElse: () => null,
     );
   }
 }
-

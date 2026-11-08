@@ -57,6 +57,7 @@ class _CuyStageState extends State<CuyStage> with SingleTickerProviderStateMixin
     final double stageSize = widget.size;
     final double k = stageSize / 540.0;
     final item = widget.itemEquipado;
+    final scaleFactor = stageSize / 280.0;
 
     return Center(
       child: GestureDetector(
@@ -67,17 +68,18 @@ class _CuyStageState extends State<CuyStage> with SingleTickerProviderStateMixin
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Fondo del escenario
+              // Fondo del escenario anclado al piso de la habitacion
               ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20 * scaleFactor),
                 child: Image.asset(
                   'assets/mascota/fondo.png',
                   width: stageSize,
                   height: stageSize,
                   fit: BoxFit.cover,
+                  alignment: Alignment.bottomCenter,
                   errorBuilder: (_, _, _) => Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(20 * scaleFactor),
                       gradient: const LinearGradient(
                         colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
                         begin: Alignment.topCenter,
@@ -88,11 +90,11 @@ class _CuyStageState extends State<CuyStage> with SingleTickerProviderStateMixin
                 ),
               ),
 
-              // Mascota y accesorio con animacion de balanceo/respiracion
+              // Mascota y accesorio con animacion relacional de balanceo/respiracion
               AnimatedBuilder(
                 animation: _animController,
                 builder: (context, child) {
-                  final offsetY = _reaccionActiva ? -12.0 : _respiracion.value;
+                  final offsetY = _reaccionActiva ? (-12.0 * scaleFactor) : (_respiracion.value * scaleFactor);
                   return Transform.translate(
                     offset: Offset(0, offsetY),
                     child: child,
@@ -100,20 +102,28 @@ class _CuyStageState extends State<CuyStage> with SingleTickerProviderStateMixin
                 },
                 child: Stack(
                   children: [
-                    // Base del Cuy
+                    // Base del Cuy asentada sobre el suelo
                     Image.asset(
                       'assets/mascota/cuy-base.png',
                       width: stageSize,
                       height: stageSize,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.pets,
-                        size: 96,
-                        color: Color(0xFF006D77),
+                      alignment: Alignment.bottomCenter,
+                      errorBuilder: (_, _, _) => Image.asset(
+                        'assets/mascota/cuy-base1.png',
+                        width: stageSize,
+                        height: stageSize,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.bottomCenter,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.pets,
+                          size: 96 * scaleFactor,
+                          color: const Color(0xFF006D77),
+                        ),
                       ),
                     ),
 
-                    // Accesorio anclado a la cabeza
+                    // Accesorio anclado a la cabeza de forma relacional
                     if (item != null)
                       Positioned(
                         left: (_cuyAnclaje.dx + item.dx - (96 * item.escala)) * k,
@@ -135,28 +145,37 @@ class _CuyStageState extends State<CuyStage> with SingleTickerProviderStateMixin
                 ),
               ),
 
-              // Efecto visual al tocar
+              // Efecto visual al tocar (escalado relacionalmente)
               if (_reaccionActiva)
                 Positioned(
-                  top: 24,
+                  top: 24 * scaleFactor,
                   child: AnimatedOpacity(
                     opacity: _reaccionActiva ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 300),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10 * scaleFactor,
+                        vertical: 4 * scaleFactor,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(12 * scaleFactor),
                         boxShadow: const [
                           BoxShadow(color: Colors.black12, blurRadius: 4),
                         ],
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.favorite, color: Colors.redAccent, size: 16),
-                          SizedBox(width: 4),
-                          Text('¡Cui cui!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          Icon(Icons.favorite, color: Colors.redAccent, size: 16 * scaleFactor),
+                          SizedBox(width: 4 * scaleFactor),
+                          Text(
+                            '¡Cui cui!',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12 * scaleFactor,
+                            ),
+                          ),
                         ],
                       ),
                     ),

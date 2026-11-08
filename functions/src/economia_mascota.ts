@@ -11,8 +11,8 @@ export interface ItemCatalogo {
 export const CATALOGO_OFICIAL: ItemCatalogo[] = [
   { id: "sombrero", nombre: "Sombrero Clásico", rareza: "comun", probabilidad: 0.40 },
   { id: "sombrero-papel-barco", nombre: "Barco de Papel", rareza: "comun", probabilidad: 0.30 },
-  { id: "piruleta", nombre: "Piruleta Dulce", rareza: "raro", probabilidad: 0.18 },
-  { id: "shrek", nombre: "Orejas de Ogro", rareza: "raro", probabilidad: 0.09 },
+  { id: "fiesta", nombre: "Gorrito de Fiesta", rareza: "raro", probabilidad: 0.18 },
+  { id: "vikingo", nombre: "Casco Vikingo", rareza: "raro", probabilidad: 0.09 },
   { id: "mugiwara", nombre: "Sombrero Mugiwara", rareza: "legendario", probabilidad: 0.03 },
 ];
 

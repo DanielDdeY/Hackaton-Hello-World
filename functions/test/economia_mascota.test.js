@@ -23,10 +23,10 @@ test("sortearItem devuelve artículos según rango de probabilidad acumulada", (
   assert.equal(sortearItem(0.1).id, "sombrero");
   // 0.40 a 0.70 -> sombrero-papel-barco
   assert.equal(sortearItem(0.5).id, "sombrero-papel-barco");
-  // 0.70 a 0.88 -> piruleta
-  assert.equal(sortearItem(0.75).id, "piruleta");
-  // 0.88 a 0.97 -> shrek
-  assert.equal(sortearItem(0.92).id, "shrek");
+  // 0.70 a 0.88 -> fiesta
+  assert.equal(sortearItem(0.75).id, "fiesta");
+  // 0.88 a 0.97 -> vikingo
+  assert.equal(sortearItem(0.92).id, "vikingo");
   // 0.97 a 1.00 -> mugiwara
   assert.equal(sortearItem(0.99).id, "mugiwara");
 });
