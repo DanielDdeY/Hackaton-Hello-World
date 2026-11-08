@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 part 'tutorial_inicio.dart';
 part 'entrada.dart';
 part 'modulos.dart';
+part 'wrapped.dart';
 
 void main() => runApp(const MiBarrioApp());
 
@@ -366,10 +367,7 @@ class _InicioState extends State<Inicio> {
   Widget _wrapped() => tarjeta(
         color: const Color(0xfff6dfec),
         radius: 18,
-        onTap: () => detalle(
-          'Tu Wrapped del mes',
-          'Este mes completaste 4 favores y prestaste 2 herramientas.',
-        ),
+        onTap: () => _abrir(_WrappedBarrio(widget.datos)),
         child: SizedBox(
           key: _wrappedTutorial,
           height: 79,
