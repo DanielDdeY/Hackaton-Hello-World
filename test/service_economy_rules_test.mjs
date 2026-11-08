@@ -78,6 +78,23 @@ async function setupPost(provider,suffix='') {
   return id;
 }
 const key=(p,c,s,n)=>p+'_'+c+'_'+s+'_'+n;
+const serviceRequest=(postId,uid)=>'posts/'+postId+'/serviceRequests/'+uid;
+const openServiceRequest=(postId,uid)=>write(serviceRequest(postId,uid),{},{
+  timestamps:['requestedAt'],
+});
+const deliverService=(postId,uid,operation)=>write(serviceRequest(postId,uid),{
+  completionOperationId:operation,
+},{update:true,timestamps:['providerCompletedAt']});
+async function prepareService(client, provider, postId, operation) {
+  await commit(client,[openServiceRequest(postId,client.uid)]);
+  await commit(provider,[deliverService(postId,client.uid,operation)]);
+}
+const incrementServiceCoins=(uid,gain=5)=>({
+  transform:{document:base+'/'+account(uid),fieldTransforms:[
+    {fieldPath:'availableCoins',increment:{integerValue:String(gain)}},
+  ]},
+  currentDocument:{exists:true},
+});
 async function build(client,provider,postId,operationId,rating=4,slot=1,p=period) {
   const beforeC=await get(client,root(client.uid));
   const beforeP=await get(client,root(provider.uid));
@@ -89,7 +106,7 @@ async function build(client,provider,postId,operationId,rating=4,slot=1,p=period
   });
   const movement=(uid,other,type,xp)=>({
     id,confirmationId:id,uid,counterpartyUid:other,type,sourceId:postId,
-    deltaXpTotal:xp,deltaXpMonth:xp,deltaCoins:0,period:p,status:'released',
+    deltaXpTotal:xp,deltaXpMonth:xp,deltaCoins:5,period:p,status:'released',
   });
   const writes=[
     write(root(client.uid),reward(c,15),{update:true,timestamps:['updatedAt']}),
@@ -100,12 +117,17 @@ async function build(client,provider,postId,operationId,rating=4,slot=1,p=period
       id,clientUid:client.uid,providerUid:provider.uid,postId,period:p,slot,rating,operationId,
     },{exists:false,timestamps:['createdAt']}),
     write(root(client.uid)+'/serviceOperations/'+operationId,{
-      confirmationId:id,postId,providerUid:provider.uid,period:p,slot,rating,
+      confirmationId:id,postId,providerUid:provider.uid,period:p,slot,rating,coins:5,
     },{exists:false,timestamps:['createdAt']}),
     write(root(client.uid)+'/movimientos/'+id,
       movement(client.uid,provider.uid,'service_used_client',15),{exists:false,timestamps:['createdAt']}),
     write(root(provider.uid)+'/movimientos/'+id,
       movement(provider.uid,client.uid,'service_provided',25),{exists:false,timestamps:['createdAt']}),
+    incrementServiceCoins(client.uid),
+    incrementServiceCoins(provider.uid),
+    write(serviceRequest(postId,client.uid),{confirmationId:id},{
+      update:true,timestamps:['completedAt'],
+    }),
   ];
   // Optimistic preconditions mimic the snapshots read by the Flutter transaction.
   writes[0].currentDocument={updateTime:beforeC.body.updateTime};
@@ -116,9 +138,17 @@ const client=await newUser('Cliente'), provider=await newUser('Proveedor');
 const stranger=await newUser('Ajeno');
 const post=await setupPost(provider);
 const first=await build(client,provider,post,'operation-00000001');
+await commit(client,first.writes,[403]);
+await commit(client,[openServiceRequest(post,client.uid)]);
+await commit(client,first.writes,[403]);
+await commit(client,[deliverService(post,client.uid,'operation-00000001')],[403]);
+await commit(stranger,[deliverService(post,client.uid,'operation-00000001')],[403]);
+await commit(provider,[deliverService(post,client.uid,'operation-00000001')]);
+await commit(client,[first.writes[8]],[403]);
+await get(client,account(provider.uid),[403]);
 
-// Atomicity: omitting either user, either ledger or the receipt is denied.
-for (const index of [0,1,3,4,5]) {
+// Each document of the completion and both rewards must be committed together.
+for (const index of [0,1,2,3,4,5,6,7,8]) {
   await commit(client,first.writes.filter((_,i)=>i!==index),[403]);
 }
 assert.equal((await get(client,root(client.uid))).body.fields.xp.integerValue,'20');
@@ -131,7 +161,7 @@ for (const [index,field,value] of [[0,'xp',500],[1,'xp',500],[1,'averageStars',5
   bad[index].update.fields[field]=encode(value);
   await commit(client,bad,[403]);
 }
-const extraCoins=[...first.writes,write(account(client.uid),{availableCoins:11},{update:true})];
+const extraCoins=first.writes.map((write,index)=>index===6 ? incrementServiceCoins(client.uid,6) : write);
 await commit(client,extraCoins,[403]);
 for (const invalidRating of [0,6,4.5]) {
   const bad=await build(client,provider,post,'operation-00000001',invalidRating);
@@ -150,8 +180,9 @@ const p=decode((await get(provider,root(provider.uid))).body.fields);
 assert.equal(c.xp,35);assert.equal(c.monthlyXp,35);
 assert.equal(p.xp,45);assert.equal(p.monthlyXp,45);
 assert.equal(p.averageStars,4);assert.equal(p.reviewCount,1);
-assert.equal(decode((await get(client,account(client.uid))).body.fields).availableCoins,10);
-assert.equal(decode((await get(provider,account(provider.uid))).body.fields).availableCoins,10);
+assert.equal(decode((await get(client,account(client.uid))).body.fields).availableCoins,15);
+assert.equal(decode((await get(provider,account(provider.uid))).body.fields).availableCoins,15);
+assert.ok((await get(client,serviceRequest(post,client.uid))).body.fields.completedAt.timestampValue);
 await get(client,root(client.uid)+'/movimientos/'+first.id);
 await get(provider,root(provider.uid)+'/movimientos/'+first.id);
 await get(stranger,'serviceConfirmations/'+first.id,[403]);
@@ -166,9 +197,11 @@ for (const path of ['serviceConfirmations/'+first.id,
 }
 const replay=await build(client,provider,post,'operation-00000001',4,2);
 await commit(client,replay.writes,[400,403,409]);
+await prepareService(client,provider,post,'operation-00000002');
 const second=await build(client,provider,post,'operation-00000002',2,2);
 await commit(client,second.writes);
 assert.equal(decode((await get(provider,root(provider.uid))).body.fields).averageStars,3);
+await prepareService(client,provider,post,'operation-00000003');
 const third=await build(client,provider,post,'operation-00000003',5,3);
 await commit(client,third.writes,[403]);
 assert.equal(decode((await get(client,root(client.uid))).body.fields).xp,50);
@@ -186,7 +219,8 @@ await commit(null,[
   write(root(oldProvider.uid),{xp:200,monthlyXp:70,rankingPeriod:'2020-01'},{update:true}),
 ]);
 const oldPost=await setupPost(oldProvider);
-const future=await build(oldClient,oldProvider,oldPost,'operation-future01',5,1,'2099-01');
+await prepareService(oldClient,oldProvider,oldPost,'operation-reset001');
+const future=await build(oldClient,oldProvider,oldPost,'operation-reset001',5,1,'2099-01');
 await commit(oldClient,future.writes,[403]);
 const reset=await build(oldClient,oldProvider,oldPost,'operation-reset001',5);
 await commit(oldClient,reset.writes);
@@ -194,10 +228,11 @@ const resetC=decode((await get(oldClient,root(oldClient.uid))).body.fields);
 const resetP=decode((await get(oldProvider,root(oldProvider.uid))).body.fields);
 assert.equal(resetC.xp,115);assert.equal(resetC.monthlyXp,15);
 assert.equal(resetP.xp,225);assert.equal(resetP.monthlyXp,25);
-assert.equal(decode((await get(oldClient,account(oldClient.uid))).body.fields).availableCoins,10);
+assert.equal(decode((await get(oldClient,account(oldClient.uid))).body.fields).availableCoins,15);
 
 // Racing commits of one operation: one succeeds, the other cannot issue XP twice.
 const racer=await newUser('Concurrente');
+await prepareService(racer,provider,post,'operation-racing01');
 const race=await build(racer,provider,post,'operation-racing01',5);
 const raced=await Promise.all([
   commit(racer,race.writes,[200,400,403,409]),
@@ -284,5 +319,5 @@ await commit(helper,[...eventWrites,coinWrite]);
 await commit(helper,[...eventWrites,coinWrite],[400,403,409]);
 assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,40);
 assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,18);
-console.log('Visto Bueno y recompensas de actividad: atomicidad, evidencia, privacidad e idempotencia verificadas.');
+console.log('Servicios y recompensas de actividad: atomicidad, evidencia, privacidad e idempotencia verificadas.');
 

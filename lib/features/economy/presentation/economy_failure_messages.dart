@@ -3,9 +3,9 @@ import '../domain/models/economy_result.dart';
 String economyFailureMessage(
   EconomyFailure failure,
 ) => switch (failure.reason) {
-  EconomyFailureReason.noSession => 'Inicia sesión para dar tu Visto Bueno.',
+  EconomyFailureReason.noSession => 'Inicia sesión para confirmar.',
   EconomyFailureReason.selfConfirmation =>
-    'No puedes dar Visto Bueno a tu propio servicio.',
+    'No puedes confirmar tu propio servicio.',
   EconomyFailureReason.monthlyPairLimitReached =>
     'Ya recibiste XP por dos usos con este proveedor este mes.',
   EconomyFailureReason.invalidRating =>
@@ -16,6 +16,8 @@ String economyFailureMessage(
     'Esta confirmación ya se usó con otros datos.',
   EconomyFailureReason.serviceNotFound => 'El servicio ya no está disponible.',
   EconomyFailureReason.inactiveService => 'Este servicio ya no está activo.',
+  EconomyFailureReason.serviceNotDelivered =>
+    'El proveedor debe marcar el trabajo como realizado antes de que confirmes.',
   EconomyFailureReason.userNotFound =>
     'Falta el perfil del cliente o del proveedor.',
   EconomyFailureReason.profileNotReady =>

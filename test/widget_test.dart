@@ -49,6 +49,18 @@ class _TestPublicationActivity implements PublicationActivityRepository {
 
   @override
   Future<bool> requestService(String postId) async => requests.add(postId);
+
+  @override
+  Stream<List<ServiceRequest>> watchServiceRequests(
+    String postId, {
+    required bool asProvider,
+  }) => Stream.value(const []);
+
+  @override
+  Future<void> markServiceDelivered({
+    required String postId,
+    required String requesterUid,
+  }) async {}
 }
 
 void main() {
@@ -74,6 +86,7 @@ void main() {
                 information: 'Instalaciones',
                 category: ServiceCategory.homeTrades,
                 mode: ServiceMode.provideService,
+                contactPhone: '987654321',
               ),
             ],
           ),
@@ -120,6 +133,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Contratar'));
       await tester.pumpAndSettle();
+      expect(find.text('WhatsApp'), findsOneWidget);
+      expect(find.text('Llamar'), findsNothing);
       expect(activity.requests, isEmpty);
       await tester.tap(find.text('Enviar solicitud'));
       await tester.pumpAndSettle();

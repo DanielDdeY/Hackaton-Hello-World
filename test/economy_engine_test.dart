@@ -103,6 +103,13 @@ void main() {
     'name': 'Vecino',
     'districtKey': 'ate',
   };
+  void deliver(String operationId, {String postId = 'service'}) {
+    store.docs['posts/$postId/serviceRequests/client'] = {
+      'requestedAt': 'earlier',
+      'providerCompletedAt': 'earlier',
+      'completionOperationId': operationId,
+    };
+  }
   setUp(() {
     store = _Store()
       ..docs = {
@@ -116,6 +123,7 @@ void main() {
         'users/client/private/account': {'availableCoins': 77},
         'users/provider/private/account': {'availableCoins': 88},
       };
+    deliver('operation-00000001');
     auth = _Auth();
     periods = FakePeriodProvider('2026-11');
     engine = ServiceEconomyEngine(
@@ -188,25 +196,34 @@ void main() {
   test('Premia ambos usuarios y registra dos movimientos en un solo commit', () async {
     final result = await confirm();
     expect(store.commits, 1);
-    expect(store.lastWriteCount, 6);
+    expect(store.lastWriteCount, 9);
+    expect(
+      store.docs['posts/service/serviceRequests/client']!['confirmationId'],
+      result.confirmationId,
+    );
     expect(store.docs['users/client']!['xp'], 115);
     expect(store.docs['users/provider']!['xp'], 225);
     expect(store.docs['users/client']!['monthlyXp'], 25);
     expect(store.docs['users/provider']!['monthlyXp'], 35);
     expect(store.docs['users/provider']!['averageStars'], 4);
     expect(store.docs['users/provider']!['reviewCount'], 1);
-    expect(store.docs['users/client/private/account']!['availableCoins'], 77);
-    expect(store.docs['users/provider/private/account']!['availableCoins'], 88);
+    expect(store.docs['users/client/private/account']!['availableCoins'], 82);
+    expect(store.docs['users/provider/private/account']!['availableCoins'], 93);
     expect(
       store
           .docs['users/client/movimientos/${result.confirmationId}']!['deltaCoins'],
-      0,
+      5,
     );
     expect(
       store
           .docs['users/provider/movimientos/${result.confirmationId}']!['deltaXpTotal'],
       25,
     );
+  });
+  test('El cliente no cobra antes de que el proveedor marque el trabajo', () async {
+    store.docs['posts/service/serviceRequests/client'] = {'requestedAt': 'earlier'};
+    await expectLater(confirm(), failure(EconomyFailureReason.serviceNotDelivered));
+    expect(store.commits, 0);
   });
   test(
     'Un fallo de commit no deja XP ni documentos aplicados a medias',
@@ -237,10 +254,12 @@ void main() {
     'Dos usos distintos del mismo post, tercero rechazado, promedio correcto',
     () async {
       await confirm();
+      deliver('operation-00000002');
       await confirm('operation-00000002', 2);
       expect(store.docs['users/provider']!['averageStars'], 3);
       expect(store.docs['users/provider']!['reviewCount'], 2);
       expect(store.docs['users/client']!['xp'], 130);
+      deliver('operation-00000003');
       await expectLater(
         confirm('operation-00000003'),
         failure(EconomyFailureReason.monthlyPairLimitReached),
@@ -252,8 +271,10 @@ void main() {
     'El límite se comparte entre publicaciones del mismo proveedor',
     () async {
       await confirm();
+      deliver('operation-00000002');
       await confirm('operation-00000002');
       store.docs['posts/other'] = Map.of(store.docs['posts/service']!);
+      deliver('operation-00000003', postId: 'other');
       await expectLater(
         engine.confirmService(
           postId: 'other',
@@ -266,13 +287,16 @@ void main() {
   );
   test('Otra pareja conserva sus propios cupos', () async {
     await confirm();
+    deliver('operation-00000002');
     await confirm('operation-00000002');
     store.docs['users/other'] = user(0);
+    store.docs['users/other/private/account'] = {'availableCoins': 0};
     store.docs['posts/other'] = {
       'category': 'service',
       'status': 'active',
       'authorId': 'other',
     };
+    deliver('operation-00000003', postId: 'other');
     await engine.confirmService(
       postId: 'other',
       rating: 5,
@@ -307,13 +331,15 @@ void main() {
     'Mes nuevo reinicia solo el XP mensual y libera los dos cupos',
     () async {
       await confirm();
+      deliver('operation-00000002');
       await confirm('operation-00000002');
       periods.currentPeriod = '2026-12';
+      deliver('operation-00000003');
       await confirm('operation-00000003');
       expect(store.docs['users/client']!['xp'], 145);
       expect(store.docs['users/client']!['monthlyXp'], 15);
       expect(store.docs['users/provider']!['monthlyXp'], 25);
-      expect(store.docs['users/client/private/account']!['availableCoins'], 77);
+      expect(store.docs['users/client/private/account']!['availableCoins'], 92);
     },
   );
   test('Nunca retrocede un periodo futuro', () async {
