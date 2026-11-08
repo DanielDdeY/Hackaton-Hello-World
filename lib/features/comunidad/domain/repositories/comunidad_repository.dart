@@ -32,7 +32,11 @@ abstract class ComunidadRepository {
   /// Valida la asistencia física a una reunión vecinal (RF-10)
   Future<void> verificarAsistencia(String eventoId, String codigo);
 
-  Future<List<VecinoRanking>> obtenerRanking({String ambito = 'cuadra'});
+  Future<String> obtenerDistritoActual();
+
+  Future<List<VecinoRanking>> obtenerRanking({String ambito = 'distrito'});
+
+  Future<VecinoPerfil?> obtenerVecino(String uid);
 
   Future<BuenVecinoSemana?> obtenerBuenVecinoSemana();
 

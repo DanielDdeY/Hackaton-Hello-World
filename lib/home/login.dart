@@ -19,10 +19,16 @@ class _DatosBarrio extends ChangeNotifier {
       rol = profile.role,
       bio = profile.bio,
       xp = profile.xp,
+      weeklyXp = profile.weeklyXp,
       stars = profile.stars,
       favores = profile.favors,
       herramientas = profile.tools,
-      hambre = profile.petHunger;
+      hambre = profile.petHunger,
+      insignias = profile.badges,
+      favoresCompletados = profile.favoresCompletados,
+      eventosAsistidos = profile.eventosAsistidos,
+      reconocimientos = profile.reconocimientos,
+      rachaSemanal = profile.rachaSemanal;
 
   final SharedPreferences preferencias;
   String departamento;
@@ -33,10 +39,16 @@ class _DatosBarrio extends ChangeNotifier {
   String rol;
   String bio;
   int xp;
+  int weeklyXp;
   int stars;
   int favores;
   int herramientas;
   double hambre;
+  List<String> insignias;
+  int favoresCompletados;
+  int eventosAsistidos;
+  int reconocimientos;
+  int rachaSemanal;
   bool get mascotaDesbloqueada => nivel >= 25;
   int get nivel => xp ~/ 100;
   UserProfile toProfile() => UserProfile(
@@ -48,10 +60,16 @@ class _DatosBarrio extends ChangeNotifier {
     province: provincia,
     district: distrito,
     xp: xp,
+    weeklyXp: weeklyXp,
     stars: stars,
     favors: favores,
     tools: herramientas,
     petHunger: hambre,
+    badges: insignias,
+    favoresCompletados: favoresCompletados,
+    eventosAsistidos: eventosAsistidos,
+    reconocimientos: reconocimientos,
+    rachaSemanal: rachaSemanal,
   );
   bool foto = false;
   String get zona => [
@@ -69,15 +87,20 @@ class _DatosBarrio extends ChangeNotifier {
   Future<void> guardarPerfil(
     String nuevoNombre,
     String nuevaBio,
-    bool nuevaFoto,
-  ) async {
+    bool nuevaFoto, {
+    String? nuevoRol,
+  }) async {
     nombre = nuevoNombre;
     bio = nuevaBio;
     foto = nuevaFoto;
+    if (nuevoRol != null && nuevoRol.trim().isNotEmpty) {
+      rol = nuevoRol.trim();
+    }
     notifyListeners();
     try {
       await preferencias.setString('vecino_nombre', nombre);
       await preferencias.setString('vecino_bio', bio);
+      await preferencias.setString('vecino_rol', rol);
       await preferencias.setBool('vecino_foto_demo', foto);
     } catch (e) {
       debugPrint('No se pudo guardar el perfil: $e');
