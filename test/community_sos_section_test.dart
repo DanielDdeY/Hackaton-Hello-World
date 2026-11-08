@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackaton_hello_world/features/community/presentation/community_sos_section.dart';
+import 'package:latlong2/latlong.dart';
 
 void main() {
   testWidgets('shows SOS details in the community section', (tester) async {
@@ -24,11 +28,129 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alertas SOS cercanas'), findsOneWidget);
-    expect(find.text('SOS · ACCIDENT'), findsOneWidget);
+    expect(find.text('SOS · ACCIDENTE'), findsOneWidget);
+    expect(find.text('1 activa'), findsOneWidget);
     expect(find.text('Choque en la avenida'), findsOneWidget);
     expect(
       find.text('Un carro chocó con el bus de la ruta 47.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('traduce el tipo robbery a ROBO', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommunitySosSection(
+            alerts: Stream.value([
+              {
+                'alertId': 'sos-2',
+                'emergencyType': 'robbery',
+                'title': 'Robo en la esquina',
+                'status': 'active',
+              },
+            ]),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SOS · ROBO'), findsOneWidget);
+  });
+
+  testWidgets('abre el mapa centrado en la alerta desde la tarjeta', (
+    tester,
+  ) async {
+    LatLng? focused;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CommunitySosSection(
+            alerts: Stream.value([
+              {
+                'alertId': 'sos-3',
+                'emergencyType': 'robbery',
+                'title': 'Robo en la esquina',
+                'location': const GeoPoint(-12.1, -77.0),
+                'status': 'active',
+              },
+            ]),
+            onOpenMap: (location) => focused = location,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ver en mapa'));
+    await tester.pumpAndSettle();
+
+    expect(focused, const LatLng(-12.1, -77.0));
+  });
+
+  testWidgets('la X oculta una alerta y el contador se actualiza', (
+    tester,
+  ) async {
+    final controller = StreamController<List<Map<String, dynamic>>>();
+    addTearDown(controller.close);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: CommunitySosSection(alerts: controller.stream)),
+      ),
+    );
+
+    controller.add([
+      {
+        'alertId': 'sos-1',
+        'emergencyType': 'robbery',
+        'title': 'Robo en la esquina',
+        'createdAt': Timestamp.fromMillisecondsSinceEpoch(2000),
+        'status': 'active',
+      },
+      {
+        'alertId': 'sos-2',
+        'emergencyType': 'accident',
+        'title': 'Choque en la avenida',
+        'createdAt': Timestamp.fromMillisecondsSinceEpoch(1000),
+        'status': 'active',
+      },
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('2 activas'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Ocultar aviso SOS').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 activa'), findsOneWidget);
+    expect(find.text('SOS · ACCIDENTE'), findsOneWidget);
+    expect(find.text('SOS · ROBO'), findsNothing);
+  });
+
+  testWidgets('al ocultar todas las alertas la sección desaparece', (
+    tester,
+  ) async {
+    final controller = StreamController<List<Map<String, dynamic>>>();
+    addTearDown(controller.close);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: CommunitySosSection(alerts: controller.stream)),
+      ),
+    );
+
+    controller.add([
+      {
+        'alertId': 'sos-1',
+        'emergencyType': 'robbery',
+        'title': 'Robo en la esquina',
+        'createdAt': Timestamp.fromMillisecondsSinceEpoch(1000),
+        'status': 'active',
+      },
+    ]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Ocultar aviso SOS'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alertas SOS cercanas'), findsNothing);
   });
 }

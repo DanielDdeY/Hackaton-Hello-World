@@ -31,9 +31,12 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       _auth?.currentUser?.uid ?? _usuarioActualIdFallback;
 
   // Colecciones según la especificación de docs/comunidad-ayuda.md
-  CollectionReference<Map<String, dynamic>> get _favoresCol => _firestore.collection('favores');
-  CollectionReference<Map<String, dynamic>> get _eventosCol => _firestore.collection('eventos');
-  CollectionReference<Map<String, dynamic>> get _reportesCol => _firestore.collection('reportes');
+  CollectionReference<Map<String, dynamic>> get _favoresCol =>
+      _firestore.collection('favores');
+  CollectionReference<Map<String, dynamic>> get _eventosCol =>
+      _firestore.collection('eventos');
+  CollectionReference<Map<String, dynamic>> get _reportesCol =>
+      _firestore.collection('reportes');
 
   @override
   Future<List<Favor>> obtenerFavores({
@@ -41,7 +44,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
     TamanoFavor? tamano,
     bool soloConCupo = false,
   }) async {
-    Query<Map<String, dynamic>> query = _favoresCol.orderBy('creadoEn', descending: true);
+    Query<Map<String, dynamic>> query = _favoresCol.orderBy(
+      'creadoEn',
+      descending: true,
+    );
 
     if (categoria != null) {
       query = query.where('categoria', isEqualTo: categoria.name);
@@ -111,7 +117,9 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       }
 
       final nuevoTomados = cuposTomados + 1;
-      final nuevoEstado = nuevoTomados >= cuposTotales ? 'cuposLlenos' : 'enCurso';
+      final nuevoEstado = nuevoTomados >= cuposTotales
+          ? 'cuposLlenos'
+          : 'enCurso';
 
       transaction.update(docRef, {
         'cuposTomados': nuevoTomados,
@@ -160,7 +168,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   }
 
   @override
-  Future<void> responderEvento(String eventoId, RespuestaEvento respuesta) async {
+  Future<void> responderEvento(
+    String eventoId,
+    RespuestaEvento respuesta,
+  ) async {
     final docRef = _eventosCol.doc(eventoId);
     final asistenciaRef = docRef.collection('asistencias').doc(usuarioActualId);
 
@@ -172,7 +183,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
 
   @override
   Future<void> verificarAsistencia(String eventoId, String codigo) async {
-    final asistenciaRef = _eventosCol.doc(eventoId).collection('asistencias').doc(usuarioActualId);
+    final asistenciaRef = _eventosCol
+        .doc(eventoId)
+        .collection('asistencias')
+        .doc(usuarioActualId);
     await asistenciaRef.set({
       'respuesta': 'voy',
       'verificada': true,
@@ -667,7 +681,8 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       ubicacionExacta: data['ubicacionExacta'],
       creadoEn: (data['creadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
       venceEn: (data['venceEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      monedasRecompensa: data['monedasRecompensa'] ?? TamanoFavor.medio.monedasBase,
+      monedasRecompensa:
+          data['monedasRecompensa'] ?? TamanoFavor.medio.monedasBase,
       xpRecompensa: data['xpRecompensa'] ?? TamanoFavor.medio.xpBase,
     );
   }

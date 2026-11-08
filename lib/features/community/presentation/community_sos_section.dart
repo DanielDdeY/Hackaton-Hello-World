@@ -1,109 +1,58 @@
-import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
-class CommunitySosSection extends StatelessWidget {
-  const CommunitySosSection({super.key, this.alerts});
+import '../../emergency/data/active_sos_alerts.dart';
+import '../../emergency/domain/emergency_type_labels.dart';
+
+class CommunitySosSection extends StatefulWidget {
+  const CommunitySosSection({super.key, this.alerts, this.onOpenMap});
 
   final Stream<List<Map<String, dynamic>>>? alerts;
+  final void Function(LatLng? location)? onOpenMap;
 
-  Stream<List<Map<String, dynamic>>> _watchAlerts() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return Stream.value(const []);
+  @override
+  State<CommunitySosSection> createState() => _CommunitySosSectionState();
+}
 
-    final firestore = FirebaseFirestore.instance;
-    final ownAlerts = firestore
-        .collection('emergency_alerts')
-        .where('reporterUid', isEqualTo: uid)
-        .where('status', isEqualTo: 'active')
-        .snapshots();
-    final nearbyAlerts = firestore
-        .collection('users')
-        .doc(uid)
-        .collection('nearby_emergency_alerts')
-        .where('status', isEqualTo: 'active')
-        .snapshots();
+class _CommunitySosSectionState extends State<CommunitySosSection> {
+  final Set<String> _dismissed = {};
 
-    return Stream<List<Map<String, dynamic>>>.multi((controller) {
-      List<Map<String, dynamic>> own = const [];
-      List<Map<String, dynamic>> nearby = const [];
-      void emit() {
-        final byId = <String, Map<String, dynamic>>{
-          for (final alert in nearby) alert['alertId'] as String: alert,
-          for (final alert in own) alert['alertId'] as String: alert,
-        };
-        controller.add(byId.values.toList(growable: false));
-      }
-
-      final subscriptions = <StreamSubscription<dynamic>>[
-        ownAlerts.listen((snapshot) {
-          own = snapshot.docs
-              .map(
-                (document) => {
-                  ...document.data(),
-                  'alertId': document.id,
-                  'detailsPending': false,
-                },
-              )
-              .toList(growable: false);
-          emit();
-        }, onError: controller.addError),
-        nearbyAlerts.listen((snapshot) {
-          nearby = snapshot.docs
-              .map((document) => {...document.data(), 'alertId': document.id})
-              .toList(growable: false);
-          emit();
-        }, onError: controller.addError),
-      ];
-      controller.onCancel = () async {
-        await Future.wait(
-          subscriptions.map((subscription) => subscription.cancel()),
-        );
-      };
-    });
-  }
+  String? _alertId(Map<String, dynamic> alert) => alert['alertId'] as String?;
 
   @override
   Widget build(BuildContext context) {
-    final alertsStream =
-        alerts ??
-        (Firebase.apps.isEmpty
-            ? Stream.value(const <Map<String, dynamic>>[])
-            : _watchAlerts());
+    final alertsStream = widget.alerts ?? ActiveSosAlerts().watch();
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: alertsStream,
       builder: (context, snapshot) {
+        final sorted = snapshot.hasData
+            ? sortSosAlerts(snapshot.data!)
+            : const <Map<String, dynamic>>[];
+        final activeIds = <String>{};
+        for (final alert in sorted) {
+          final id = _alertId(alert);
+          if (id != null) activeIds.add(id);
+        }
+        _dismissed.removeWhere((id) => !activeIds.contains(id));
+        final visible = sorted
+            .where((alert) => !_dismissed.contains(_alertId(alert)))
+            .toList(growable: false);
+        if (sorted.isNotEmpty && visible.isEmpty) {
+          return const SizedBox.shrink();
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Color(0xffb71c1c)),
-                SizedBox(width: 8),
-                Text(
-                  'Alertas SOS cercanas',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
+            _SosHeader(count: visible.length),
             const SizedBox(height: 8),
-            if (snapshot.hasError)
-              const Text('No se pudieron cargar las alertas SOS.')
-            else if (!snapshot.hasData)
-              const Center(child: CircularProgressIndicator())
-            else if (snapshot.data!.isEmpty)
-              const Text('No hay alertas SOS activas en este momento.')
-            else
-              for (final alert in _sorted(snapshot.data!)) ...[
-                _SosAlertCard(alert: alert),
-                const SizedBox(height: 8),
-              ],
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: _body(context, snapshot, sorted, visible),
+            ),
             const SizedBox(height: 12),
           ],
         );
@@ -111,33 +60,174 @@ class CommunitySosSection extends StatelessWidget {
     );
   }
 
-  List<Map<String, dynamic>> _sorted(List<Map<String, dynamic>> alerts) {
-    final sorted = alerts.toList()
-      ..sort((a, b) {
-        final aDate = a['createdAt'] as Timestamp?;
-        final bDate = b['createdAt'] as Timestamp?;
-        return (bDate?.millisecondsSinceEpoch ?? 0).compareTo(
-          aDate?.millisecondsSinceEpoch ?? 0,
-        );
-      });
-    return sorted;
+  Widget _body(
+    BuildContext context,
+    AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+    List<Map<String, dynamic>> sorted,
+    List<Map<String, dynamic>> visible,
+  ) {
+    if (snapshot.hasError) {
+      return const _CompactMessage(
+        key: ValueKey('sos-error'),
+        icon: Icons.cloud_off_outlined,
+        message: 'No se pudieron cargar las alertas SOS.',
+      );
+    }
+    if (!snapshot.hasData) {
+      return const Padding(
+        key: ValueKey('sos-loading'),
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (sorted.isEmpty) {
+      return const _CompactMessage(
+        key: ValueKey('sos-empty'),
+        icon: Icons.notifications_none_outlined,
+        message: 'No hay alertas SOS activas en este momento.',
+      );
+    }
+    return Column(
+      key: ValueKey('sos-list-${visible.length}'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < visible.length; index++) ...[
+          if (index > 0) const SizedBox(height: 8),
+          _SosAlertCard(
+            alert: visible[index],
+            initiallyExpanded: index == 0,
+            onOpenMap: widget.onOpenMap,
+            onDismiss: (id) => setState(() => _dismissed.add(id)),
+          ),
+        ],
+      ],
+    );
   }
 }
 
-class _SosAlertCard extends StatelessWidget {
-  const _SosAlertCard({required this.alert});
+class _SosHeader extends StatelessWidget {
+  const _SosHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const _PulsingDot(),
+      const SizedBox(width: 8),
+      const Text(
+        'Alertas SOS cercanas',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      const Spacer(),
+      if (count > 0)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xffb71c1c),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$count activa${count == 1 ? '' : 's'}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+class _CompactMessage extends StatelessWidget {
+  const _CompactMessage({super.key, required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 18, color: const Color(0xff5c5c5c)),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          message,
+          style: const TextStyle(fontSize: 13, color: Color(0xff5c5c5c)),
+        ),
+      ),
+    ],
+  );
+}
+
+class _PulsingDot extends StatelessWidget {
+  const _PulsingDot();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 16,
+    height: 16,
+    child: TweenAnimationBuilder<double>(
+      tween: Tween(begin: .55, end: 1),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOut,
+      builder: (context, pulse, child) => Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 16 * pulse,
+            height: 16 * pulse,
+            decoration: BoxDecoration(
+              color: const Color(0xffb71c1c).withValues(alpha: .18 * pulse),
+              shape: BoxShape.circle,
+            ),
+          ),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: Color(0xffb71c1c),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _SosAlertCard extends StatefulWidget {
+  const _SosAlertCard({
+    required this.alert,
+    required this.onDismiss,
+    this.initiallyExpanded = true,
+    this.onOpenMap,
+  });
 
   final Map<String, dynamic> alert;
+  final ValueChanged<String> onDismiss;
+  final bool initiallyExpanded;
+  final void Function(LatLng? location)? onOpenMap;
+
+  @override
+  State<_SosAlertCard> createState() => _SosAlertCardState();
+}
+
+class _SosAlertCardState extends State<_SosAlertCard> {
+  late bool _expanded = widget.initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
-    final type = (alert['emergencyType'] as String? ?? 'emergencia')
-        .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
-        .toUpperCase();
+    final alert = widget.alert;
+    final type = emergencyTypeLabel(alert['emergencyType'] as String?);
     final title = alert['title'] as String? ?? 'Alerta SOS cercana';
     final description = alert['description'] as String? ?? '';
     final photoPath = alert['photoPath'] as String?;
     final detailsPending = alert['detailsPending'] == true;
+    final relativeTime = sosRelativeTime(alert['createdAt']);
+    final hasDetails =
+        description.isNotEmpty || photoPath != null || detailsPending;
 
     return Card(
       color: const Color(0xfffff1f0),
@@ -150,34 +240,86 @@ class _SosAlertCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.warning_rounded, color: Color(0xffb71c1c)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'SOS · $type',
-                    style: const TextStyle(
-                      color: Color(0xffb71c1c),
-                      fontWeight: FontWeight.bold,
+            InkWell(
+              onTap: hasDetails
+                  ? () => setState(() => _expanded = !_expanded)
+                  : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_rounded, color: Color(0xffb71c1c)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'SOS · $type',
+                      style: const TextStyle(
+                        color: Color(0xffb71c1c),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  Text(
+                    relativeTime,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xff5c5c5c),
+                    ),
+                  ),
+                  if (hasDetails)
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: const Color(0xffb71c1c),
+                    ),
+                  IconButton(
+                    onPressed: () {
+                      final id = alert['alertId'] as String?;
+                      if (id != null) widget.onDismiss(id);
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    tooltip: 'Ocultar aviso SOS',
+                    color: const Color(0xffb71c1c),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 28,
+                      height: 28,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 6),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
-            if (detailsPending) ...[
-              const SizedBox(height: 6),
-              const Text('Se están completando los detalles de la alerta.'),
-            ],
-            if (description.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(description),
-            ],
-            if (photoPath != null) ...[
-              const SizedBox(height: 10),
-              _SosPhoto(path: photoPath),
+            if (_expanded) ...[
+              if (detailsPending) ...[
+                const SizedBox(height: 6),
+                const Text('Se están completando los detalles de la alerta.'),
+              ],
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(description),
+              ],
+              if (photoPath != null) ...[
+                const SizedBox(height: 10),
+                _SosPhoto(path: photoPath),
+              ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () {
+                    final location = sosAlertLocation(alert);
+                    if (widget.onOpenMap != null) {
+                      widget.onOpenMap!(location);
+                    } else {
+                      Navigator.of(context).pushNamed('/map');
+                    }
+                  },
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('Ver en mapa'),
+                ),
+              ),
             ],
           ],
         ),

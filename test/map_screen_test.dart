@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:hackaton_hello_world/screens/map/data/map_focus_controller.dart';
 import 'package:hackaton_hello_world/screens/map/data/map_location_provider.dart';
 import 'package:hackaton_hello_world/screens/map/data/map_places_repository.dart';
 import 'package:hackaton_hello_world/screens/map/data/emergency_map_repository.dart';
@@ -96,7 +97,52 @@ void main() {
       ),
       isTrue,
     );
-    expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.car_crash_rounded), findsOneWidget);
+  });
+
+  testWidgets('la leyenda muestra los tipos activos y los radios', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          emergencyRepository: _FakeEmergencyRepository([
+            const EmergencyMapAlert(
+              id: 'sos-1',
+              location: alertLocation,
+              radiusMeters: 200,
+              title: 'Robo en la esquina',
+              type: 'robbery',
+              status: 'active',
+            ),
+            const EmergencyMapAlert(
+              id: 'sos-2',
+              location: alertLocation,
+              radiusMeters: 200,
+              title: 'Desastre natural',
+              type: 'disaster',
+              status: 'active',
+            ),
+          ]),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Leyenda'), findsOneWidget);
+    expect(find.text('ROBO'), findsNothing);
+
+    await tester.tap(find.text('Leyenda'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ROBO'), findsOneWidget);
+    expect(find.text('DESASTRE'), findsOneWidget);
+    expect(find.text('Tu zona (1.8 km)'), findsOneWidget);
+    expect(find.text('Alerta SOS (200 m)'), findsOneWidget);
   });
 
   testWidgets('bloquea el mapa sin permiso y lo desbloquea al concederlo', (
@@ -204,6 +250,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(FlutterMap), findsOneWidget);
     expect(find.text('Mostrando tu última ubicación conocida'), findsOneWidget);
+  });
+
+  testWidgets('centra la cámara en la alerta solicitada', (tester) async {
+    final focus = MapFocusController();
+    addTearDown(focus.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+          focusController: focus,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    focus.focus(alertLocation);
+    await tester.pumpAndSettle();
+
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.mapController!.camera.center, alertLocation);
+  });
+
+  testWidgets('aplica el foco inicial cuando el mapa termina de cargar', (
+    tester,
+  ) async {
+    final focus = MapFocusController()..focus(alertLocation);
+    addTearDown(focus.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+          focusController: focus,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.mapController!.camera.center, alertLocation);
   });
 }
 
