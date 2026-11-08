@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 final class UserProfile {
   const UserProfile({
@@ -186,18 +187,18 @@ final class FirestoreUserProfileStore implements UserProfileStore {
   }
 
   @override
-  Future<void> save(String uid, UserProfile profile) {
-    final batch = _firestore.batch();
-    batch.set(
-      _firestore.collection('users').doc(uid),
+  Future<void> save(String uid, UserProfile profile) async {
+    await _firestore.collection('users').doc(uid).set(
       profile.toMap(),
       SetOptions(merge: true),
     );
-    if (profile.phoneNumber.isNotEmpty) {
-      batch.set(_firestore.collection('phoneIndex').doc(profile.phoneNumber), {
+    if (profile.phoneNumber.isEmpty) return;
+    try {
+      await _firestore.collection('phoneIndex').doc(profile.phoneNumber).set({
         'uid': uid,
       }, SetOptions(merge: true));
+    } catch (error) {
+      debugPrint('No se pudo actualizar el índice del teléfono: $error');
     }
-    return batch.commit();
   }
 }

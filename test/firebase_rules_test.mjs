@@ -10,7 +10,7 @@ function localEmulator(...names) {
   const url = new URL(value.includes('://') ? value : 'http://' + value);
   assert.ok(
     url.protocol === 'http:' &&
-      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname),
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname),
     'The rules test only accepts local emulators.',
   );
   return url.origin;
@@ -36,7 +36,7 @@ async function request(url, { status = 200, json, ...options } = {}) {
   assert.ok(
     accepted.includes(response.status),
     response.status + ' instead of ' + accepted + ' on ' + new URL(url).pathname +
-      ': ' + (await response.clone().text()).slice(0, 500),
+    ': ' + (await response.clone().text()).slice(0, 500),
   );
   return response;
 }
@@ -154,6 +154,12 @@ await request(firestore + '/v1/' + documents + '/users/' + owner.uid, {
   headers: firestoreAuth(stranger),
   status: 403,
 });
+const ownerProfileUrl = firestore + '/v1/' + documents + '/users/' + owner.uid;
+await request(ownerProfileUrl, { headers: firestoreAuth(owner) });
+// El login por celular lee el perfil del uid guardado en phoneIndex, que puede
+// pertenecer a otra sesión anónima del mismo vecino.
+await request(ownerProfileUrl, { headers: firestoreAuth(stranger) });
+await request(ownerProfileUrl, { status: [401, 403] });
 await writeDocument('emergency_alerts', missingAlertId, {
   reporterUid: { stringValue: owner.uid },
   location: { geoPointValue: { latitude: -12.0464, longitude: -77.0428 } },
@@ -263,11 +269,15 @@ async function readFeed(category, session, { serviceCategory, status = 200 } = {
     json: {
       structuredQuery: {
         from: [{ collectionId: 'posts' }],
-        where: { compositeFilter: { op: 'AND', filters: [
-          equalTo('category', category),
-          equalTo('status', 'active'),
-          ...(serviceCategory ? [equalTo('details.serviceCategory', serviceCategory)] : []),
-        ] } },
+        where: {
+          compositeFilter: {
+            op: 'AND', filters: [
+              equalTo('category', category),
+              equalTo('status', 'active'),
+              ...(serviceCategory ? [equalTo('details.serviceCategory', serviceCategory)] : []),
+            ]
+          }
+        },
         orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
         limit: 30,
       },

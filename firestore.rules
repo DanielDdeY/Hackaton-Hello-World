@@ -7,6 +7,8 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == request.auth.uid;
+      // Un usuario autenticado puede reclamar el número desde un nuevo
+      // dispositivo anónimo (el uid de Firebase Auth cambia por navegador).
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
         && request.resource.data.uid == request.auth.uid;

@@ -290,26 +290,50 @@ class _EntradaState extends State<_Entrada> {
     try {
       await gateway.signInWithPhoneCode(_codigo.text.trim());
       if (!_registroNuevo) {
+        UserProfile? profile;
         if (store != null) {
-          final profile = await store.loadByPhone(
-            _telefonoVerificado,
-            fallbackName: 'Vecino',
-            fallbackBio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
-            fallbackDepartment: '',
-            fallbackProvince: '',
-            fallbackDistrict: '',
-          );
-          if (profile != null) {
-            _perfilExistente = profile;
-            _nombreAutenticado = profile.name;
-            if (_tieneUbicacion(profile)) {
-              await _guardarPerfilLocal(profile);
-              if (mounted) {
-                setState(() => _datos = _DatosBarrio(_prefs, profile));
-                widget.onAuthenticated?.call();
-              }
-              return;
+          try {
+            profile = await store.loadByPhone(
+              _telefonoVerificado,
+              fallbackName: 'Vecino',
+              fallbackBio:
+                  'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+              fallbackDepartment: '',
+              fallbackProvince: '',
+              fallbackDistrict: '',
+            );
+          } on FirebaseException catch (error) {
+            debugPrint(
+              'No se pudo cargar el perfil por teléfono '
+              '(code=${error.code}): ${error.message}',
+            );
+            if (mounted) {
+              _mostrarErrorTelefono(
+                error.code == 'permission-denied'
+                    ? 'Firebase rechazó el acceso. Completa tus datos para continuar.'
+                    : 'No se pudo recuperar tu perfil. Completa tus datos para continuar.',
+              );
             }
+          } catch (error) {
+            debugPrint('No se pudo cargar el perfil por teléfono: $error');
+            if (mounted) {
+              _mostrarErrorTelefono(
+                'No se pudo recuperar tu perfil. Completa tus datos para continuar.',
+              );
+            }
+          }
+        }
+        final loadedProfile = profile;
+        if (loadedProfile != null) {
+          _perfilExistente = loadedProfile;
+          _nombreAutenticado = loadedProfile.name;
+          if (_tieneUbicacion(loadedProfile)) {
+            await _guardarPerfilLocal(loadedProfile);
+            if (mounted) {
+              setState(() => _datos = _DatosBarrio(_prefs, loadedProfile));
+              widget.onAuthenticated?.call();
+            }
+            return;
           }
         }
       } else {
@@ -326,6 +350,21 @@ class _EntradaState extends State<_Entrada> {
           _ => 'No se pudo verificar el código.',
         });
       }
+    } on FirebaseException catch (error) {
+      debugPrint(
+        'No se pudo verificar el código '
+        '(code=${error.code}): ${error.message}',
+      );
+      if (mounted) {
+        _mostrarErrorTelefono(
+          error.code == 'permission-denied'
+              ? 'Firebase rechazó el acceso. Publica las reglas de Firestore.'
+              : 'No se pudo verificar el código (${error.code}).',
+        );
+      }
+    } catch (error) {
+      debugPrint('No se pudo verificar el código: $error');
+      if (mounted) _mostrarErrorTelefono('No se pudo verificar el código.');
     } finally {
       if (mounted) setState(() => _verificandoTelefono = false);
     }
