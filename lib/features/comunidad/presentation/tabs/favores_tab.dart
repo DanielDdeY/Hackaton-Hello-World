@@ -1,825 +1,213 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../domain/entities/favor.dart';
-import '../controllers/comunidad_controller.dart';
+import '../../domain/entities/comunidad_feed_items.dart';
+import '../../domain/repositories/comunidad_feed_repository.dart';
+import 'feed_widgets.dart';
 
-class FavoresTab extends StatelessWidget {
-  const FavoresTab({super.key});
+class FavoresTab extends StatefulWidget {
+  const FavoresTab({super.key, required this.repository});
+
+  final ComunidadFeedRepository repository;
+
+  @override
+  State<FavoresTab> createState() => _FavoresTabState();
+}
+
+class _FavoresTabState extends State<FavoresTab>
+    with AutomaticKeepAliveClientMixin<FavoresTab> {
+  late Stream<List<HelpItem>> _favors = widget.repository.watchFavors();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void didUpdateWidget(covariant FavoresTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.repository, widget.repository)) {
+      _favors = widget.repository.watchFavors();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<ComunidadController>();
-    final favores = controller.favores;
-
-    return RefreshIndicator(
-      onRefresh: controller.cargarFavores,
-      child: Column(
-        children: [
-          _BarraFiltros(controller: controller),
-          Expanded(
-            child: controller.cargando && favores.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : favores.isEmpty
-                ? _EstadoVacioFavores(
-                    onReset: () => controller.setFiltrosFavores(
-                      categoria: null,
-                      tamano: null,
-                      soloConCupo: false,
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    itemCount: favores.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      return _TarjetaFavor(favor: favores[index]);
-                    },
-                  ),
-          ),
-        ],
-      ),
+    super.build(context);
+    return StreamBuilder<List<HelpItem>>(
+      stream: _favors,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              semanticsLabel: 'Cargando favores',
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: FeedMessage(
+              'No se pudieron cargar los favores.',
+              onRetry: () =>
+                  setState(() => _favors = widget.repository.watchFavors()),
+            ),
+          );
+        }
+        final items = snapshot.data ?? const <HelpItem>[];
+        if (items.isEmpty) {
+          return const Center(
+            child: FeedMessage('Aún no hay favores publicados.'),
+          );
+        }
+        return ListView.separated(
+          key: const PageStorageKey('comunidad-favores'),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (context, index) => _HelpCard(item: items[index]),
+        );
+      },
     );
   }
 }
 
-class _BarraFiltros extends StatelessWidget {
-  const _BarraFiltros({required this.controller});
+class _HelpCard extends StatelessWidget {
+  const _HelpCard({required this.item});
 
-  final ComunidadController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          FilterChip(
-            label: const Text('Solo con cupo'),
-            selected: controller.filtroSoloConCupo,
-            onSelected: (val) => controller.setFiltrosFavores(soloConCupo: val),
-          ),
-          const SizedBox(width: 8),
-          PopupMenuButton<TamanoFavor?>(
-            tooltip: 'Filtrar por tamaño',
-            initialValue: controller.filtroTamano,
-            onSelected: (tamano) =>
-                controller.setFiltrosFavores(tamano: tamano),
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: null, child: Text('Cualquier tamaño')),
-              ...TamanoFavor.values.map(
-                (t) => PopupMenuItem(
-                  value: t,
-                  child: Text('${t.etiqueta} (${t.duracionAprox})'),
-                ),
-              ),
-            ],
-            child: Chip(
-              avatar: const Icon(Icons.timer_outlined, size: 16),
-              label: Text(
-                controller.filtroTamano?.etiqueta ?? 'Tamaño',
-                style: TextStyle(
-                  fontWeight: controller.filtroTamano != null
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          PopupMenuButton<CategoriaFavor?>(
-            tooltip: 'Filtrar por categoría',
-            initialValue: controller.filtroCategoria,
-            onSelected: (cat) => controller.setFiltrosFavores(categoria: cat),
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: null,
-                child: Text('Todas las categorías'),
-              ),
-              ...CategoriaFavor.values.map(
-                (c) => PopupMenuItem(value: c, child: Text(c.etiqueta)),
-              ),
-            ],
-            child: Chip(
-              avatar: const Icon(Icons.category_outlined, size: 16),
-              label: Text(
-                controller.filtroCategoria?.etiqueta ?? 'Categoría',
-                style: TextStyle(
-                  fontWeight: controller.filtroCategoria != null
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-              ),
-            ),
-          ),
-          if (controller.filtroCategoria != null ||
-              controller.filtroTamano != null ||
-              controller.filtroSoloConCupo) ...[
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18),
-              tooltip: 'Limpiar filtros',
-              onPressed: () => controller.setFiltrosFavores(
-                categoria: null,
-                tamano: null,
-                soloConCupo: false,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TarjetaFavor extends StatelessWidget {
-  const _TarjetaFavor({required this.favor});
-
-  final Favor favor;
+  final HelpItem item;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tieneCupo = favor.tieneCupo;
+    final location = item.location ?? 'N/A';
+    final people = item.peopleNeeded;
+    final peopleColor = people == null
+        ? theme.colorScheme.onSurfaceVariant
+        : theme.colorScheme.primary;
 
     return Card(
-      elevation: 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _mostrarDetalleFavor(context, favor),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          favor.titulo,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 10,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
+                    children: [
+                      Text(
+                        item.title ?? _titleFromDescription(item.description),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          favor.solicitanteNombre,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _BadgeRecompensa(
-                    monedas: favor.monedasRecompensa,
-                    xp: favor.xpRecompensa,
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: 'Opciones',
-                    padding: EdgeInsets.zero,
-                    iconSize: 20,
-                    onSelected: (val) {
-                      if (val == 'reportar') {
-                        _mostrarDialogoReporte(context, 'favor', favor.id);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'reportar',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.flag_outlined,
-                              size: 16,
-                              color: Colors.red,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Reportar',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ],
+                      ),
+                      Text(
+                        item.authorName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                favor.descripcion,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    size: 16,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
+                ),
+                const _PointsBadge(),
+                const ExcludeSemantics(child: Icon(Icons.more_vert, size: 20)),
+              ],
+            ),
+            Text(item.description, style: theme.textTheme.bodyMedium),
+            Row(
+              spacing: 6,
+              children: [
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+                Expanded(
+                  child: Semantics(
+                    label: 'Ubicación: $location',
+                    excludeSemantics: true,
                     child: Text(
-                      favor.ubicacionAproximada,
+                      location,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  _BadgeCupo(
-                    tomados: favor.cuposTomados,
-                    totales: favor.cuposTotales,
-                    tieneCupo: tieneCupo,
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
                   ),
-                ],
-              ),
-            ],
-          ),
+                  decoration: BoxDecoration(
+                    color: peopleColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: peopleColor.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    'Personas: ${people ?? 'N/A'}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: peopleColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
+
+  static String _titleFromDescription(String description) {
+    final firstLine = description.split('\n').first.trim().characters;
+    return firstLine.length <= 54
+        ? firstLine.toString()
+        : '${firstLine.take(54)}…';
+  }
 }
 
-class _BadgeRecompensa extends StatelessWidget {
-  const _BadgeRecompensa({required this.monedas, required this.xp});
-
-  final int monedas;
-  final int xp;
+class _PointsBadge extends StatelessWidget {
+  const _PointsBadge();
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 122),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF3CD),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFFFB703), width: 0.8),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: 4,
         children: [
-          const Icon(Icons.stars_rounded, size: 16, color: Color(0xFFD48B00)),
-          const SizedBox(width: 4),
-          Text(
-            '+$monedas pts',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF7A4A00),
+          Icon(Icons.stars_rounded, size: 16, color: Color(0xFFD48B00)),
+          Flexible(
+            child: Text.rich(
+              TextSpan(
+                style: TextStyle(color: Color(0xFF7A4A00)),
+                children: [
+                  TextSpan(
+                    text: '+5 pts',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  TextSpan(text: ' (10 XP)', style: TextStyle(fontSize: 10)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '($xp XP)',
-            style: const TextStyle(fontSize: 10, color: Color(0xFF7A4A00)),
           ),
         ],
       ),
     );
   }
-}
-
-class _BadgeCupo extends StatelessWidget {
-  const _BadgeCupo({
-    required this.tomados,
-    required this.totales,
-    required this.tieneCupo,
-  });
-
-  final int tomados;
-  final int totales;
-  final bool tieneCupo;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = tieneCupo ? const Color(0xFF2A9D8F) : const Color(0xFF9E9E9E);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        tieneCupo ? 'Cupos: ${totales - tomados}/$totales' : 'Cupos llenos',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _EstadoVacioFavores extends StatelessWidget {
-  const _EstadoVacioFavores({required this.onReset});
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.volunteer_activism_outlined,
-              size: 54,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'No hay favores con estos filtros',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Prueba restableciendo los filtros para ver todos los pedidos del barrio.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: onReset,
-              child: const Text('Ver todos los favores'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-void _mostrarDetalleFavor(BuildContext context, Favor favor) {
-  final controller = context.read<ComunidadController>();
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) => ChangeNotifierProvider.value(
-      value: controller,
-      child: _DetalleFavorSheet(favor: favor),
-    ),
-  );
-}
-
-class _DetalleFavorSheet extends StatefulWidget {
-  const _DetalleFavorSheet({required this.favor});
-  final Favor favor;
-
-  @override
-  State<_DetalleFavorSheet> createState() => _DetalleFavorSheetState();
-}
-
-class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
-  bool _procesando = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final favor = widget.favor;
-    final controller = context.watch<ComunidadController>();
-    final participanteActual = favor.participantes
-        .where((p) => p.uid == controller.repository.usuarioActualId)
-        .firstOrNull;
-
-    final estaParticipando = participanteActual != null;
-    final haTerminado = participanteActual?.estado == 'terminado';
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    favor.titulo,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _BadgeRecompensa(
-                  monedas: favor.monedasRecompensa,
-                  xp: favor.xpRecompensa,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Solicitado por: ${favor.solicitanteNombre}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const Divider(height: 24),
-            Text(
-              favor.descripcion,
-              style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
-            ),
-            const SizedBox(height: 16),
-            _FilaInfo(
-              icono: Icons.timer_outlined,
-              titulo: 'Tamaño y duración:',
-              valor: '${favor.tamano.etiqueta} (${favor.tamano.duracionAprox})',
-            ),
-            const SizedBox(height: 8),
-            _FilaInfo(
-              icono: Icons.place_outlined,
-              titulo: estaParticipando
-                  ? 'Dirección exacta:'
-                  : 'Ubicación aprox.:',
-              valor: estaParticipando && favor.ubicacionExacta != null
-                  ? favor.ubicacionExacta!
-                  : favor.ubicacionAproximada,
-            ),
-            const SizedBox(height: 8),
-            _FilaInfo(
-              icono: Icons.people_outline,
-              titulo: 'Cupos disponibles:',
-              valor: '${favor.cuposDisponibles} de ${favor.cuposTotales}',
-            ),
-            const SizedBox(height: 20),
-
-            // Acciones según estado (Regla de 3 toques)
-            if (!estaParticipando && favor.tieneCupo) ...[
-              FilledButton.icon(
-                onPressed: _procesando
-                    ? null
-                    : () async {
-                        setState(() => _procesando = true);
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          await controller.aceptarFavor(favor.id);
-                          if (mounted) navigator.pop();
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                '¡Favor aceptado! Ya puedes coordinar con el vecino.',
-                              ),
-                              backgroundColor: Color(0xFF2A9D8F),
-                            ),
-                          );
-                        } catch (e) {
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        } finally {
-                          if (mounted) setState(() => _procesando = false);
-                        }
-                      },
-                icon: const Icon(Icons.handshake_outlined),
-                label: const Text('Aceptar favor'),
-              ),
-            ] else if (estaParticipando && !haTerminado) ...[
-              FilledButton.icon(
-                onPressed: _procesando
-                    ? null
-                    : () async {
-                        setState(() => _procesando = true);
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          await controller.marcarTerminado(favor.id);
-                          if (mounted) navigator.pop();
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Marcado como terminado. Esperando confirmación del vecino.',
-                              ),
-                              backgroundColor: Color(0xFF006D77),
-                            ),
-                          );
-                        } finally {
-                          if (mounted) setState(() => _procesando = false);
-                        }
-                      },
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Marcar como terminado'),
-              ),
-            ] else if (estaParticipando && haTerminado) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.hourglass_top, color: Color(0xFF2E7D32)),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Completado por tu parte. En espera de confirmación vecinal para liberar tus puntos.',
-                        style: TextStyle(
-                          color: Color(0xFF1B5E20),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else if (favor.estado == EstadoFavor.esperandoConfirmacion) ...[
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2A9D8F),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _mostrarDialogoCalificar(context, controller, favor);
-                },
-                icon: const Icon(Icons.star_rate_rounded),
-                label: const Text('Confirmar favor y calificar'),
-              ),
-            ] else if (favor.estado == EstadoFavor.completado) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.verified, color: Color(0xFF2E7D32)),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Favor completado y confirmado por ambas partes.',
-                        style: TextStyle(
-                          color: Color(0xFF1B5E20),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            // Botón de WhatsApp solo visible si ya aceptó (RN-07 / RF-07)
-            if (estaParticipando) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Abriendo WhatsApp con ${favor.solicitanteTelefono}...',
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.chat_outlined, color: Colors.green),
-                label: Text(
-                  'Contactar por WhatsApp (${favor.solicitanteTelefono})',
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilaInfo extends StatelessWidget {
-  const _FilaInfo({
-    required this.icono,
-    required this.titulo,
-    required this.valor,
-  });
-
-  final IconData icono;
-  final String titulo;
-  final String valor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icono, size: 18, color: Colors.grey[700]),
-        const SizedBox(width: 8),
-        Text(
-          titulo,
-          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            valor,
-            style: const TextStyle(fontSize: 13, color: Colors.black87),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-void _mostrarDialogoReporte(BuildContext context, String tipo, String id) {
-  String motivoSeleccionado = 'Información falsa o engañosa';
-  final motivos = [
-    'Información falsa o engañosa',
-    'Contenido inapropiado u ofensivo',
-    'Incumplimiento de acuerdo vecinal',
-    'Sospecha de estafa o lucro',
-  ];
-
-  showDialog<void>(
-    context: context,
-    builder: (dialogCtx) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Reportar publicación'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'El reporte retendrá recompensas asociadas y enviará el caso a moderación vecinal.',
-                  style: TextStyle(fontSize: 13, color: Colors.black87),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: motivoSeleccionado,
-                  decoration: const InputDecoration(
-                    labelText: 'Motivo del reporte',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: motivos
-                      .map(
-                        (m) => DropdownMenuItem(
-                          value: m,
-                          child: Text(m, style: const TextStyle(fontSize: 13)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => motivoSeleccionado = val);
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFD62828),
-                ),
-                onPressed: () async {
-                  final controller = dialogCtx.read<ComunidadController>();
-                  await controller.repository.reportarContenido(
-                    tipo,
-                    id,
-                    motivoSeleccionado,
-                  );
-                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Publicación enviada a revisión.'),
-                        backgroundColor: Color(0xFFD62828),
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Enviar reporte'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-}
-
-void _mostrarDialogoCalificar(
-  BuildContext context,
-  ComunidadController controller,
-  Favor favor,
-) {
-  int estrellas = 5;
-
-  showDialog<void>(
-    context: context,
-    builder: (dialogCtx) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Confirmar ayuda recibida'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Califica la ayuda brindada por tu vecino para validar su reputación comunitaria:',
-                  style: TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (index) {
-                    final valor = index + 1;
-                    return IconButton(
-                      icon: Icon(
-                        valor <= estrellas
-                            ? Icons.star_rounded
-                            : Icons.star_outline_rounded,
-                        color: const Color(0xFFFFB703),
-                        size: 36,
-                      ),
-                      onPressed: () => setState(() => estrellas = valor),
-                    );
-                  }),
-                ),
-                Text(
-                  '$estrellas de 5 estrellas',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2A9D8F),
-                ),
-                onPressed: () async {
-                  await controller.confirmarYCalificar(
-                    favor.id,
-                    estrellas.toDouble(),
-                  );
-                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          '¡Favor confirmado y calificado! Recompensa liberada al ayudante.',
-                        ),
-                        backgroundColor: Color(0xFF2A9D8F),
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Confirmar y calificar'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
 }

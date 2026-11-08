@@ -50,7 +50,11 @@ class _EventosTabState extends State<EventosTab>
                 errorMessage: 'No se pudieron cargar los eventos.',
                 onRetry: () =>
                     setState(() => _events = widget.repository.watchEvents()),
-                itemBuilder: (context, item) => _EventCard(event: item),
+                itemBuilder: (context, item) => _EventCard(
+                  key: ValueKey(item.id),
+                  event: item,
+                  repository: widget.repository,
+                ),
               ),
               const SliverToBoxAdapter(
                 child: Padding(
@@ -139,11 +143,17 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _EventCard extends StatelessWidget {
-  const _EventCard({required this.event});
+class _EventCard extends StatefulWidget {
+  const _EventCard({super.key, required this.event, required this.repository});
 
   final EventItem event;
+  final ComunidadFeedRepository repository;
 
+  @override
+  State<_EventCard> createState() => _EventCardState();
+}
+
+class _EventCardState extends State<_EventCard> {
   static const _months = [
     'ENE',
     'FEB',
@@ -159,8 +169,83 @@ class _EventCard extends StatelessWidget {
     'DIC',
   ];
 
+  late Stream<EventAttendance> _attendance = widget.repository
+      .watchEventAttendance(widget.event.id);
+  bool _savingResponse = false;
+
+  @override
+  void didUpdateWidget(covariant _EventCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.repository, widget.repository) ||
+        oldWidget.event.id != widget.event.id) {
+      _attendance = widget.repository.watchEventAttendance(widget.event.id);
+    }
+  }
+
+  String _responseLabel(EventAttendanceResponse response) => switch (response) {
+    EventAttendanceResponse.going => 'Voy',
+    EventAttendanceResponse.notGoing => 'No voy',
+  };
+
+  Future<void> _chooseResponse(EventAttendanceResponse? current) async {
+    final event = widget.event;
+    final repository = widget.repository;
+    final choice = await showDialog<EventAttendanceResponse>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('¿Vas a participar?'),
+        children: [
+          for (final response in EventAttendanceResponse.values)
+            ListTile(
+              title: Text(_responseLabel(response)),
+              selected: response == current,
+              trailing: response == current ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(context, response),
+            ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null || choice == current || _savingResponse) {
+      return;
+    }
+    setState(() => _savingResponse = true);
+    try {
+      await repository.respondToEvent(event.id, choice);
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo guardar tu asistencia.')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingResponse = false);
+    }
+  }
+
+  void _showDetails(String day, String time) {
+    final event = widget.event;
+    showFeedDetail(
+      context,
+      (context) => [
+        Text(event.title, style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        _EventMetadata(icon: Icons.calendar_today_outlined, text: day),
+        const SizedBox(height: 8),
+        _EventMetadata(icon: Icons.schedule, text: time),
+        const SizedBox(height: 8),
+        _EventMetadata(icon: Icons.place_outlined, text: event.place),
+        const SizedBox(height: 20),
+        Text('Detalles', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          event.description ?? 'La persona organizadora no agregó detalles.',
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final event = widget.event;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final labels = MaterialLocalizations.of(context);
@@ -169,7 +254,7 @@ class _EventCard extends StatelessWidget {
       TimeOfDay.fromDateTime(date),
       alwaysUse24HourFormat: true,
     );
-    final description = event.description;
+    final day = labels.formatFullDate(date);
     final attendees = event.attendees;
     return Card(
       child: Padding(
@@ -183,7 +268,7 @@ class _EventCard extends StatelessWidget {
               spacing: 12,
               children: [
                 Semantics(
-                  label: labels.formatFullDate(date),
+                  label: day,
                   excludeSemantics: true,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -244,7 +329,6 @@ class _EventCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (description != null) Text(description),
             Wrap(
               spacing: 12,
               runSpacing: 8,
@@ -253,15 +337,62 @@ class _EventCard extends StatelessWidget {
                 _EventMetadata(icon: Icons.place_outlined, text: event.place),
               ],
             ),
-            if (attendees != null) ...[
-              const Divider(height: 1),
+            const Divider(height: 1),
+            if (attendees != null)
               _EventMetadata(
                 icon: Icons.people_outline,
                 text: attendees == 1
                     ? '1 asistente previsto'
                     : '$attendees asistentes previstos',
               ),
-            ],
+            StreamBuilder<EventAttendance>(
+              stream: _attendance,
+              builder: (context, snapshot) {
+                final attendance = snapshot.data;
+                final current = attendance?.myResponse;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    if (attendance != null)
+                      _EventMetadata(
+                        icon: Icons.how_to_reg_outlined,
+                        text: attendance.confirmedCount == 1
+                            ? '1 asistencia confirmada'
+                            : '${attendance.confirmedCount} asistencias confirmadas',
+                      ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => _showDetails(day, time),
+                          icon: const Icon(Icons.info_outline),
+                          label: const Text('Detalles'),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: _savingResponse
+                              ? null
+                              : () => _chooseResponse(current),
+                          icon: Icon(switch (current) {
+                            EventAttendanceResponse.going => Icons.check,
+                            EventAttendanceResponse.notGoing => Icons.close,
+                            null => Icons.event_available_outlined,
+                          }),
+                          label: Text(
+                            _savingResponse
+                                ? 'Guardando…'
+                                : current == null
+                                ? 'Asistencia'
+                                : _responseLabel(current),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),

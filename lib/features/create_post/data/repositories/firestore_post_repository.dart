@@ -40,7 +40,8 @@ final class FirestorePostRepository implements PostRepository {
     var uploaded = const <UploadedPhoto>[];
     try {
       String? authorName;
-      if (data.category == PostCategory.services ||
+      if (data.category == PostCategory.help ||
+          data.category == PostCategory.services ||
           data.category == PostCategory.news) {
         final name = await _authorNameResolver?.resolve(authorId);
         authorName = name == null || name.trim().isEmpty

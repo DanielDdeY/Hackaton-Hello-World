@@ -98,7 +98,7 @@ class _ComunidadVistaState extends State<_ComunidadVista>
             child: TabBarView(
               controller: _tabController,
               children: [
-                const FavoresTab(),
+                FavoresTab(repository: widget.feed),
                 ServiciosTab(repository: widget.feed),
                 EventosTab(repository: widget.feed),
                 const VecinosTab(),

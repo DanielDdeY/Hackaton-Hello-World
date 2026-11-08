@@ -13,7 +13,7 @@ El [mapeador de Firestore](../lib/features/create_post/data/mappers/firestore_po
 | `status` | `active` al publicar. |
 | `schemaVersion` | `2`. |
 | `authorId` | UID de la sesión autenticada. |
-| `authorName` | En Servicios y Noticias, nombre del perfil obtenido con `UserProfileStore`. Si falta el perfil o el nombre, se guarda `Vecino`. |
+| `authorName` | En Ayuda, Servicios y Noticias, nombre del perfil obtenido con `UserProfileStore`. Si falta el perfil o el nombre, se guarda `Vecino`. |
 | `createdAt`, `updatedAt` | Marcas de tiempo del servidor. |
 | `photos` | Lista de objetos con `storagePath` y `downloadUrl`. |
 | `mediaStatus` | `none`, `uploading`, `ready` o `failed`. En un envío de Servicios o Noticias se guarda `none` sin foto y `ready` si la subida se completó. |
@@ -49,18 +49,27 @@ Se guarda el campo de la modalidad elegida. En Brindar servicio con la disponibi
 
 El formulario de **Publicar → Eventos** usa el mismo flujo de envío. Guarda `title`, `place` y `startsAt` en `details`. El día y la hora forman una sola marca de tiempo en Firestore. La fecha debe ser futura. Si se completan los campos opcionales, también guarda `attendees` como cantidad entera de asistentes previstos y `description` como detalle.
 
+En **Comunidad → Eventos**, el botón **Detalles** abre el texto completo de `details.description` junto con la fecha, hora y lugar. Al elegir **Voy** o **No voy**, la app guarda la respuesta en `posts/{eventId}/attendance/{uid}`, con `response` igual a `going` o `notGoing` y `updatedAt` como marca de tiempo del servidor. Cambiar la respuesta actualiza el mismo documento. La tarjeta cuenta las respuestas **Voy** en tiempo real y muestra por separado la cantidad prevista que escribió el organizador.
+
+### Ayuda
+
+**Comunidad → Favores** muestra las publicaciones activas de categoría `help`. La tarjeta usa `details.title` si existe y el inicio de `details.description` como título alternativo. Muestra el texto completo y usa `Vecino` en las publicaciones antiguas que no guardaron el nombre.
+
+**Personas** lee `details.peopleNeeded`. **Ubicación** muestra `details.specificLocation` cuando se indicó en el formulario. Los datos de ubicación obtenidos automáticamente del GPS quedan fuera de la tarjeta. Los campos opcionales ausentes se muestran como `N/A`. La insignia de puntos es visual.
+
 ## Cómo consulta Comunidad
 
 [ComunidadFeedRepository](../lib/features/comunidad/domain/repositories/comunidad_feed_repository.dart) entrega listas tipadas por medio de flujos. Su [implementación de Firestore](../lib/features/comunidad/data/repositories/firestore_comunidad_feed_repository.dart) establece la sesión antes de abrir las consultas.
 
 | Método | Consulta y destino |
 |---|---|
+| `watchFavors()` | Publicaciones con `category == 'help'` y `status == 'active'`. Se muestran en **Favores**. |
 | `watchServices()` | Servicios con `category == 'service'` y `status == 'active'`. Corresponde al filtro **Todos**. |
 | `watchServices(category: ...)` | La misma consulta con una condición adicional de igualdad sobre `details.serviceCategory`. |
 | `watchNews()` | Publicaciones con `category == 'news'` y `status == 'active'`. Se muestran en **Eventos → Noticias del barrio**. |
 | `watchEvents()` | Publicaciones activas de categoría `event` con `details.startsAt` posterior al momento de la consulta. Se muestran en **Eventos → Próximos eventos**. |
 
-Cada consulta pide hasta 30 documentos. Servicios y Noticias ordenan por `createdAt` descendente. Eventos ordena por `details.startsAt` ascendente. Las pestañas conservan las suscripciones al alternar entre ellas. Al cambiar el filtro de Servicios se abre la consulta de la categoría seleccionada.
+Cada consulta principal pide hasta 30 documentos. Favores, Servicios y Noticias ordenan por `createdAt` descendente. Eventos ordena por `details.startsAt` ascendente. Las pestañas conservan las suscripciones al alternar entre ellas. Al cambiar el filtro de Servicios se abre la consulta de la categoría seleccionada.
 
 En **Todos**, un servicio antiguo con categoría ausente o desconocida se presenta como **Otros**. Al elegir el filtro **Otros**, Firestore devuelve los documentos que guardan explícitamente `details.serviceCategory == 'other'`.
 
@@ -94,7 +103,7 @@ Al publicar un evento, las reglas también validan el título, el lugar, la fech
 
 | Consulta | Campos del índice |
 |---|---|
-| Noticias y Servicios sin filtro de categoría de servicio | `category ASC`, `status ASC`, `createdAt DESC`. |
+| Favores, Noticias y Servicios sin filtro de categoría de servicio | `category ASC`, `status ASC`, `createdAt DESC`. |
 | Servicios con filtro de categoría | `category ASC`, `status ASC`, `details.serviceCategory ASC`, `createdAt DESC`. |
 | Próximos eventos | `category ASC`, `status ASC`, `details.startsAt ASC`. |
 

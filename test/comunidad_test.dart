@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunidad_feed_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunidad_repository.dart';
+import 'package:hackaton_hello_world/features/comunidad/domain/entities/comunidad_feed_items.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/evento_comunitario.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/favor.dart';
-import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_repository.dart';
+import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/comunidad_page.dart';
 import 'package:provider/provider.dart';
 
@@ -95,7 +97,7 @@ void main() {
   });
 
   group('Módulo de Comunidad - Pruebas de Interfaz UI', () {
-    testWidgets('El participante del repositorio ve el detalle de su favor', (
+    testWidgets('Favores muestra las ayudas del feed y sus datos opcionales', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(500, 1000);
@@ -104,28 +106,40 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
         MaterialApp(
-          home: Provider<ComunidadRepository>(
-            create: (_) => MockComunidadRepository(usuarioActualId: 'mi-uid'),
+          home: Provider<ComunidadFeedRepository>(
+            create: (_) => MockComunidadFeedRepository(
+              favors: const [
+                HelpItem(
+                  id: 'escalera',
+                  title: 'Préstamo de escalera',
+                  description: 'Necesito una escalera para pintar la fachada.',
+                  authorName: 'Carmen',
+                  location: 'Parque central',
+                  peopleNeeded: 2,
+                ),
+                HelpItem(
+                  id: 'mercado',
+                  description: 'Ayuda con víveres',
+                  authorName: 'Vecino',
+                ),
+              ],
+            ),
             child: const ComunidadPage(),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      final title = find.text('Revisión y cambio de empaque de caño que gotea');
-      await tester.scrollUntilVisible(
-        title,
-        220,
-        scrollable: find
-            .descendant(
-              of: find.byType(ListView),
-              matching: find.byType(Scrollable),
-            )
-            .first,
+      expect(find.text('Préstamo de escalera'), findsOneWidget);
+      expect(
+        find.text('Necesito una escalera para pintar la fachada.'),
+        findsOneWidget,
       );
-      await tester.tap(title);
-      await tester.pumpAndSettle();
-      expect(find.text('Dirección exacta:'), findsOneWidget);
-      expect(find.text('Marcar como terminado'), findsOneWidget);
+      expect(find.text('Carmen'), findsOneWidget);
+      expect(find.text('Parque central'), findsOneWidget);
+      expect(find.text('Personas: 2'), findsOneWidget);
+      expect(find.text('Personas: N/A'), findsOneWidget);
+      expect(find.text('N/A'), findsOneWidget);
+      expect(find.text('Solo con cupo'), findsNothing);
     });
 
     testWidgets('ComunidadPage renderiza las 4 pestañas superiores', (

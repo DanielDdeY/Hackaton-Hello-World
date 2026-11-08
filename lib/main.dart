@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -13,6 +15,7 @@ import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
 import 'features/comunidad/data/mocks/mock_comunidad_repository.dart';
 import 'features/comunidad/data/mocks/mock_comunidad_feed_repository.dart';
 import 'features/comunidad/data/repositories/firestore_comunidad_feed_repository.dart';
+import 'features/comunidad/data/repositories/firestore_comunidad_repository.dart';
 import 'features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'features/comunidad/presentation/pages/comunidad_page.dart';
@@ -49,25 +52,31 @@ void main() async {
     DefaultFirebaseOptions.currentPlatform,
   );
   final auth = FirebaseAuthGateway(FirebaseAuth.instanceFor(app: firebaseApp));
+  final firestore = FirebaseFirestore.instanceFor(app: firebaseApp);
+  final profileStore = FirestoreUserProfileStore(firestore);
+  final comunidadRepository = FirestoreComunidadRepository(
+    firestore: firestore,
+    auth: FirebaseAuth.instanceFor(app: firebaseApp),
+    distritoPorDefecto: 'Ate',
+  );
+  unawaited(
+    comunidadRepository.sembrarDatosSimulados().catchError((error) {
+      debugPrint('Sembrado de datos simulados diferido: $error');
+    }),
+  );
+
   runApp(
     MyApp(
       authGateway: auth,
+      comunidadRepository: comunidadRepository,
       comunidadFeedRepository: FirestoreComunidadFeedRepository(
-        firestore: FirebaseFirestore.instanceFor(app: firebaseApp),
+        firestore: firestore,
         auth: auth,
       ),
-      profileStore: FirestoreUserProfileStore(
-        FirebaseFirestore.instanceFor(app: firebaseApp),
-      ),
+      profileStore: profileStore,
       postRepository: FirestorePostRepository(
-        authorNameResolver: ProfilePostAuthorNameResolver(
-          FirestoreUserProfileStore(
-            FirebaseFirestore.instanceFor(app: firebaseApp),
-          ),
-        ),
-        documents: FirebasePostDocumentStore(
-          FirebaseFirestore.instanceFor(app: firebaseApp),
-        ),
+        authorNameResolver: ProfilePostAuthorNameResolver(profileStore),
+        documents: FirebasePostDocumentStore(firestore),
         uploader: FirebaseStorageImageUploader(
           FirebasePhotoStorage(FirebaseStorage.instanceFor(app: firebaseApp)),
         ),

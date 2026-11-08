@@ -17,8 +17,7 @@ class MockComunidadRepository implements ComunidadRepository {
 
   late List<Favor> _favores;
   late List<EventoComunitario> _eventos;
-  late List<VecinoRanking> _rankingCuadra;
-  late List<VecinoRanking> _rankingBarrio;
+  late List<VecinoRanking> _rankingAte;
   late BuenVecinoSemana _buenVecino;
 
   void _inicializarDatos() {
@@ -178,74 +177,241 @@ class MockComunidadRepository implements ComunidadRepository {
       ),
     ];
 
-    _rankingCuadra = [
+    _rankingAte = [
+      const VecinoRanking(
+        uid: 'usr_roberto',
+        nombre: 'Roberto Huamán',
+        iniciales: 'RH',
+        distrito: 'Ate',
+        xpPeriodo: 380,
+        posicion: 1,
+        nivel: 12,
+        bio: 'Coordino la brigada de defensa civil y apoyo en simulacros del barrio.',
+        insignias: ['Guardián del barrio', 'Líder comunitario'],
+        favoresCompletados: 34,
+        estrellas: 48,
+        eventosAsistidos: 21,
+        reconocimientos: 26,
+        rachaSemanal: 8,
+        tendencia: TendenciaRanking.sube,
+        xpTotal: 1280,
+      ),
+      const VecinoRanking(
+        uid: 'usr_hilda',
+        nombre: 'Hilda Quispe',
+        iniciales: 'HQ',
+        distrito: 'Ate',
+        xpPeriodo: 300,
+        posicion: 2,
+        nivel: 10,
+        bio: 'Organizo la olla común y la campaña de reciclaje de la zona.',
+        insignias: ['Corazón de barrio', 'Manos amigas'],
+        favoresCompletados: 28,
+        estrellas: 39,
+        eventosAsistidos: 17,
+        reconocimientos: 22,
+        rachaSemanal: 7,
+        tendencia: TendenciaRanking.igual,
+        xpTotal: 1040,
+      ),
       const VecinoRanking(
         uid: 'usr_carmen',
         nombre: 'Carmen Rosa Díaz',
         iniciales: 'CR',
-        cuadraNombre: 'Cdra. 3',
+        distrito: 'Ate',
         xpPeriodo: 240,
-        posicion: 1,
+        posicion: 3,
         nivel: 8,
+        bio: 'Me gusta cuidar a las mascotas del barrio y apoyar a los vecinos nuevos.',
+        insignias: ['Buen vecino', 'Corazón de barrio'],
+        favoresCompletados: 19,
+        estrellas: 31,
+        eventosAsistidos: 12,
+        reconocimientos: 18,
+        rachaSemanal: 6,
+        tendencia: TendenciaRanking.sube,
+        xpTotal: 820,
+      ),
+      const VecinoRanking(
+        uid: 'usr_ana',
+        nombre: 'Ana Belén',
+        iniciales: 'AB',
+        distrito: 'Ate',
+        xpPeriodo: 210,
+        posicion: 4,
+        nivel: 7,
+        bio: 'Voluntaria en las faenas de limpieza y talleres de primeros auxilios.',
+        insignias: ['Manos amigas'],
+        favoresCompletados: 16,
+        estrellas: 27,
+        eventosAsistidos: 14,
+        reconocimientos: 11,
+        rachaSemanal: 5,
+        tendencia: TendenciaRanking.sube,
+        xpTotal: 760,
+      ),
+      const VecinoRanking(
+        uid: 'usr_sofia',
+        nombre: 'Sofía Torres',
+        iniciales: 'ST',
+        distrito: 'Ate',
+        xpPeriodo: 200,
+        posicion: 5,
+        nivel: 7,
+        bio: 'Profesora y coordinadora del grupo de jóvenes del distrito.',
+        insignias: ['Guía juvenil'],
+        favoresCompletados: 15,
+        estrellas: 24,
+        eventosAsistidos: 13,
+        reconocimientos: 9,
+        rachaSemanal: 4,
+        tendencia: TendenciaRanking.igual,
+        xpTotal: 710,
       ),
       VecinoRanking(
         uid: usuarioActualId,
         nombre: usuarioActualNombre,
         iniciales: 'TÚ',
-        cuadraNombre: 'Cdra. 3',
+        distrito: 'Ate',
         xpPeriodo: 180,
-        posicion: 2,
+        posicion: 6,
         nivel: 6,
         esUsuarioActual: true,
+        bio: 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
+        insignias: ['Vecino activo'],
+        favoresCompletados: 12,
+        estrellas: 21,
+        eventosAsistidos: 9,
+        reconocimientos: 7,
+        rachaSemanal: 4,
+        tendencia: TendenciaRanking.sube,
+        xpTotal: 640,
+      ),
+      const VecinoRanking(
+        uid: 'usr_mariela',
+        nombre: 'Mariela Paredes',
+        iniciales: 'MP',
+        distrito: 'Ate',
+        xpPeriodo: 170,
+        posicion: 7,
+        nivel: 6,
+        bio: 'Apoyo en la biblioteca comunal y en la colecta de útiles escolares.',
+        insignias: ['Manos amigas'],
+        favoresCompletados: 11,
+        estrellas: 18,
+        eventosAsistidos: 8,
+        reconocimientos: 6,
+        rachaSemanal: 3,
+        tendencia: TendenciaRanking.baja,
+        xpTotal: 590,
       ),
       const VecinoRanking(
         uid: 'usr_jorge',
         nombre: 'Jorge Mendoza',
         iniciales: 'JM',
-        cuadraNombre: 'Cdra. 3',
+        distrito: 'Ate',
         xpPeriodo: 150,
-        posicion: 3,
+        posicion: 8,
         nivel: 5,
+        bio: 'Electricista del barrio. Siempre disponible para una revisión rápida.',
+        insignias: ['Oficio solidario'],
+        favoresCompletados: 10,
+        estrellas: 16,
+        eventosAsistidos: 6,
+        reconocimientos: 5,
+        rachaSemanal: 3,
+        tendencia: TendenciaRanking.igual,
+        xpTotal: 540,
+      ),
+      const VecinoRanking(
+        uid: 'usr_marcos',
+        nombre: 'Marcos Ríos',
+        iniciales: 'MR',
+        distrito: 'Ate',
+        xpPeriodo: 130,
+        posicion: 9,
+        nivel: 5,
+        bio: 'Participa en las faenas y apoya con el traslado de materiales.',
+        insignias: ['Faena frecuente'],
+        favoresCompletados: 8,
+        estrellas: 13,
+        eventosAsistidos: 5,
+        reconocimientos: 4,
+        rachaSemanal: 2,
+        tendencia: TendenciaRanking.sube,
+        xpTotal: 470,
+      ),
+      const VecinoRanking(
+        uid: 'usr_pedro',
+        nombre: 'Pedro Gómez',
+        iniciales: 'PG',
+        distrito: 'Ate',
+        xpPeriodo: 110,
+        posicion: 10,
+        nivel: 4,
+        bio: 'Vecino nuevo. Le gusta aprender y sumarse a las actividades del barrio.',
+        insignias: ['Recién llegado'],
+        favoresCompletados: 6,
+        estrellas: 10,
+        eventosAsistidos: 4,
+        reconocimientos: 3,
+        rachaSemanal: 2,
+        tendencia: TendenciaRanking.sube,
+        xpTotal: 390,
       ),
       const VecinoRanking(
         uid: 'usr_lucia',
         nombre: 'Lucía Fernández',
         iniciales: 'LF',
-        cuadraNombre: 'Cdra. 3',
+        distrito: 'Ate',
         xpPeriodo: 90,
-        posicion: 4,
+        posicion: 11,
         nivel: 4,
-      ),
-    ];
-
-    _rankingBarrio = [
-      const VecinoRanking(
-        uid: 'usr_roberto',
-        nombre: 'Roberto Huamán',
-        iniciales: 'RH',
-        cuadraNombre: 'Sector 1',
-        xpPeriodo: 380,
-        posicion: 1,
-        nivel: 12,
+        bio: 'Ayuda en la difusión de eventos y en el cuidado de las áreas verdes.',
+        insignias: ['Vecino activo'],
+        favoresCompletados: 5,
+        estrellas: 8,
+        eventosAsistidos: 3,
+        reconocimientos: 2,
+        rachaSemanal: 1,
+        tendencia: TendenciaRanking.igual,
+        xpTotal: 330,
       ),
       const VecinoRanking(
-        uid: 'usr_carmen',
-        nombre: 'Carmen Rosa Díaz',
-        iniciales: 'CR',
-        cuadraNombre: 'Sector 2',
-        xpPeriodo: 240,
-        posicion: 2,
-        nivel: 8,
+        uid: 'usr_don_luis',
+        nombre: 'Don Luis Morales',
+        iniciales: 'LM',
+        distrito: 'Ate',
+        xpPeriodo: 60,
+        posicion: 12,
+        nivel: 3,
+        bio: 'Vecino jubilado. Comparte historias del barrio y consejos de jardinería.',
+        insignias: ['Memoria del barrio'],
+        favoresCompletados: 3,
+        estrellas: 6,
+        eventosAsistidos: 2,
+        reconocimientos: 4,
+        rachaSemanal: 1,
+        tendencia: TendenciaRanking.baja,
+        xpTotal: 240,
       ),
-      VecinoRanking(
-        uid: usuarioActualId,
-        nombre: usuarioActualNombre,
-        iniciales: 'TÚ',
-        cuadraNombre: 'Sector 2',
-        xpPeriodo: 180,
-        posicion: 3,
-        nivel: 6,
-        esUsuarioActual: true,
+      const VecinoRanking(
+        uid: 'usr_raul',
+        nombre: 'Raúl Castillo',
+        iniciales: 'RC',
+        distrito: 'Ate',
+        xpPeriodo: 40,
+        posicion: 13,
+        nivel: 2,
+        bio: 'Estudiante. Colabora con la limpieza del parque los fines de semana.',
+        insignias: ['Recién llegado'],
+        favoresCompletados: 2,
+        estrellas: 4,
+        eventosAsistidos: 1,
+        reconocimientos: 1,
+        rachaSemanal: 1,
+        tendencia: TendenciaRanking.igual,
+        xpTotal: 160,
       ),
     ];
 
@@ -253,8 +419,9 @@ class MockComunidadRepository implements ComunidadRepository {
       uid: 'usr_carmen',
       nombre: 'Doña Carmen Rosa',
       iniciales: 'CR',
-      cuadraNombre: 'Calle Los Pinos Cdra. 3',
-      motivo: 'Por coordinar la olla común de emergencia y cuidar a las mascotas de los vecinos durante el corte de luz.',
+      distrito: 'Ate',
+      motivo:
+          'Por coordinar la olla común de emergencia y cuidar a las mascotas de los vecinos durante el corte de luz.',
       votosReconocimiento: 18,
     );
   }
@@ -415,8 +582,20 @@ class MockComunidadRepository implements ComunidadRepository {
   }
 
   @override
-  Future<List<VecinoRanking>> obtenerRanking({String ambito = 'cuadra'}) async {
-    return ambito == 'cuadra' ? _rankingCuadra : _rankingBarrio;
+  Future<String> obtenerDistritoActual() async => 'Ate';
+
+  @override
+  Future<List<VecinoRanking>> obtenerRanking({
+    String ambito = 'distrito',
+  }) async {
+    return List.unmodifiable(_rankingAte);
+  }
+
+  @override
+  Future<VecinoPerfil?> obtenerVecino(String uid) async {
+    final index = _rankingAte.indexWhere((item) => item.uid == uid);
+    if (index == -1) return null;
+    return VecinoPerfil.desdeRanking(_rankingAte[index]);
   }
 
   @override
@@ -426,7 +605,13 @@ class MockComunidadRepository implements ComunidadRepository {
 
   @override
   Future<void> nominarBuenVecino(String destinoUid, String motivo) async {
-    // Registra nominación local
+    final index = _rankingAte.indexWhere((item) => item.uid == destinoUid);
+    if (index != -1) {
+      final actual = _rankingAte[index];
+      _rankingAte[index] = actual.copyWith(
+        reconocimientos: actual.reconocimientos + 1,
+      );
+    }
   }
 
   @override

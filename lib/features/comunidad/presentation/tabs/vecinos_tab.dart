@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../domain/entities/vecino_ranking.dart';
 import '../controllers/comunidad_controller.dart';
+import '../pages/vecino_detalle_page.dart';
+import '../widgets/reconocimiento_dialog.dart';
 
 class VecinosTab extends StatelessWidget {
   const VecinosTab({super.key});
@@ -15,7 +17,7 @@ class VecinosTab extends StatelessWidget {
     final theme = Theme.of(context);
 
     return RefreshIndicator(
-      onRefresh: () => controller.cargarRanking(controller.ambitoRanking),
+      onRefresh: () => controller.cargarRanking(),
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
@@ -23,34 +25,44 @@ class VecinosTab extends StatelessWidget {
           if (buenVecino != null) ...[
             _TarjetaBuenVecino(
               buenVecino: buenVecino,
-              onNominar: () => _mostrarDialogoNominar(context, controller),
+              onNominar: () => mostrarDialogoReconocimiento(
+                context,
+                controller,
+                destinoUid: buenVecino.uid,
+                destinoNombre: buenVecino.nombre,
+              ),
             ),
             const SizedBox(height: 16),
           ],
 
-          // Cabecera de Ranking y Selector de ámbito
+          // Cabecera del ranking por distrito
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Tabla de Vecinos',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'cuadra', label: Text('Cuadra')),
-                  ButtonSegment(value: 'barrio', label: Text('Barrio')),
-                ],
-                selected: {controller.ambitoRanking},
-                onSelectionChanged: (set) {
-                  controller.cargarRanking(set.first);
-                },
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tabla de Vecinos',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Chip(
+                      avatar: const Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Color(0xFF006D77),
+                      ),
+                      label: Text(controller.distritoRanking),
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: const Color(0xFFE0F2F1),
+                      side: BorderSide.none,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      labelPadding: const EdgeInsets.only(right: 4),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -64,6 +76,11 @@ class VecinosTab extends StatelessWidget {
                 padding: EdgeInsets.all(24),
                 child: CircularProgressIndicator(),
               ),
+            )
+          else if (ranking.isEmpty)
+            _EstadoVacioRanking(
+              distrito: controller.distritoRanking,
+              onReintentar: controller.cargarRanking,
             )
           else
             ...ranking.map((v) => _FilaVecinoRanking(vecino: v)),
@@ -84,7 +101,7 @@ class VecinosTab extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'El ranking se actualiza semanalmente según los puntos XP ganados por participar y ayudar.',
+                      'El ranking se actualiza semanalmente según los puntos XP ganados por participar y ayudar en ${controller.distritoRanking}.',
                       style: TextStyle(fontSize: 12, color: Colors.grey[800]),
                     ),
                   ),
@@ -93,6 +110,48 @@ class VecinosTab extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EstadoVacioRanking extends StatelessWidget {
+  const _EstadoVacioRanking({required this.distrito, required this.onReintentar});
+
+  final String distrito;
+  final VoidCallback onReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.withValues(alpha: 0.25)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.emoji_people_outlined,
+              size: 36,
+              color: Color(0xFF006D77),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Aún no hay vecinos en el ranking de $distrito.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onReintentar,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -125,52 +184,82 @@ class _TarjetaBuenVecino extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFB703),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Buen Vecino de la Semana',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFB27B00),
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                final controller = context.read<ComunidadController>();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ChangeNotifierProvider.value(
+                      value: controller,
+                      child: VecinoDetallePage(
+                        vecino: VecinoRanking(
+                          uid: buenVecino.uid,
+                          nombre: buenVecino.nombre,
+                          iniciales: buenVecino.iniciales,
+                          distrito: buenVecino.distrito,
+                          xpPeriodo: 240,
+                          posicion: 1,
+                          nivel: 8,
+                          reconocimientos: buenVecino.votosReconocimiento,
                         ),
                       ),
-                      Text(
-                        buenVecino.nombre,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      Text(
-                        buenVecino.cuadraNombre,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                );
+              },
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFB703),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.workspace_premium,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Buen Vecino de la Semana',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFB27B00),
+                          ),
+                        ),
+                        Text(
+                          buenVecino.nombre,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        Text(
+                          buenVecino.distrito,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Color(0xFFB27B00),
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -233,153 +322,164 @@ class _FilaVecinoRanking extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
+      child: Material(
         color: esUsuario ? const Color(0xFFE0F2F1) : Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: esUsuario
-              ? theme.colorScheme.primary
-              : Colors.grey.withValues(alpha: 0.2),
-          width: esUsuario ? 1.5 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 28,
-            child: Text(
-              '#${vecino.posicion}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: vecino.posicion <= 3
-                    ? const Color(0xFFD48B00)
-                    : Colors.grey[700],
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            final controller = context.read<ComunidadController>();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ChangeNotifierProvider.value(
+                  value: controller,
+                  child: VecinoDetallePage(vecino: vecino),
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: esUsuario
+                    ? theme.colorScheme.primary
+                    : Colors.grey.withValues(alpha: 0.2),
+                width: esUsuario ? 1.5 : 1,
               ),
             ),
-          ),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: esUsuario
-                ? theme.colorScheme.primary
-                : Colors.grey[300],
-            child: Text(
-              vecino.iniciales,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: esUsuario ? Colors.white : Colors.black87,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  vecino.nombre,
-                  style: TextStyle(
-                    fontWeight: esUsuario ? FontWeight.bold : FontWeight.w600,
-                    fontSize: 14,
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    '#${vecino.posicion}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: vecino.posicion <= 3
+                          ? const Color(0xFFD48B00)
+                          : Colors.grey[700],
+                    ),
                   ),
                 ),
-                Text(
-                  '${vecino.cuadraNombre} · Nivel ${vecino.nivel}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: esUsuario
+                      ? theme.colorScheme.primary
+                      : Colors.grey[300],
+                  child: Text(
+                    vecino.iniciales,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: esUsuario ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        vecino.nombre,
+                        style: TextStyle(
+                          fontWeight: esUsuario ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Nivel ${vecino.nivel}',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (vecino.insignias.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                vecino.insignias.first,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF8D6200),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _IndicadorTendencia(tendencia: vecino.tendencia),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${vecino.xpPeriodo} XP',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const Text(
+                      'esta semana',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Colors.grey.withValues(alpha: 0.6),
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${vecino.xpPeriodo} XP',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              const Text(
-                'esta semana',
-                style: TextStyle(fontSize: 10, color: Colors.grey),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-void _mostrarDialogoNominar(
-  BuildContext context,
-  ComunidadController controller,
-) {
-  final motivoCtrl = TextEditingController();
-  final formKey = GlobalKey<FormState>();
+class _IndicadorTendencia extends StatelessWidget {
+  const _IndicadorTendencia({required this.tendencia});
 
-  showDialog<void>(
-    context: context,
-    builder: (dialogCtx) {
-      return AlertDialog(
-        title: const Text('Reconocer a un buen vecino'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tienes 1 reconocimiento disponible esta semana. Destaca una buena acción vecinal:',
-                style: TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: motivoCtrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Ej. Ayudó a limpiar el pasaje tras la lluvia...',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().length < 6) {
-                    return 'Ingresa al menos una frase describiendo el motivo.';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-              await controller.nominarBuenVecino(
-                'usr_otro',
-                motivoCtrl.text.trim(),
-              );
-              if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('¡Reconocimiento enviado con éxito!'),
-                    backgroundColor: Color(0xFF2A9D8F),
-                  ),
-                );
-              }
-            },
-            child: const Text('Enviar reconocimiento'),
-          ),
-        ],
-      );
-    },
-  );
+  final TendenciaRanking tendencia;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (tendencia) {
+      TendenciaRanking.sube => const Icon(
+        Icons.trending_up,
+        size: 18,
+        color: Color(0xFF2A9D8F),
+      ),
+      TendenciaRanking.baja => const Icon(
+        Icons.trending_down,
+        size: 18,
+        color: Color(0xFFC0392B),
+      ),
+      TendenciaRanking.igual => Icon(
+        Icons.remove,
+        size: 18,
+        color: Colors.grey[400],
+      ),
+    };
+  }
 }
