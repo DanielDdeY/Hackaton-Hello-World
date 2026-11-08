@@ -37,20 +37,61 @@ class _EmergencyFormView extends StatefulWidget {
 }
 
 class _EmergencyFormViewState extends State<_EmergencyFormView> {
-  static const _typeLabels = {
-    EmergencyType.robbery: 'ROBO',
-    EmergencyType.accident: 'ACCIDENTE',
-    EmergencyType.tragedy: 'TRAGEDIA',
-    EmergencyType.health: 'SALUD',
-  };
+  static const _red = Color(0xFFB72F29);
+  static const _selectedRed = Color(0xFF8C211D);
+  static const _typeRows = [
+    [(EmergencyType.robbery, 'ROBO'), (EmergencyType.accident, 'ACCIDENTE')],
+    [(EmergencyType.tragedy, 'TRAGEDIA'), (EmergencyType.health, 'SALUD')],
+  ];
 
   final _formKey = GlobalKey<FormState>();
+
+  Widget _typeButton(
+    EmergencyFormController controller,
+    EmergencyType type,
+    String label,
+  ) {
+    final selected = controller.type == type;
+    return Semantics(
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      child: FilledButton(
+        onPressed: () => controller.selectType(type),
+        style: FilledButton.styleFrom(
+          backgroundColor: selected ? _selectedRed : _red,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(0, 72),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check, size: 18),
+              const SizedBox(width: 6),
+            ],
+            Flexible(child: Text(label, textAlign: TextAlign.center)),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<EmergencyFormController>();
     final theme = Theme.of(context);
     final locationNotice = controller.locationNotice;
+    final publishStyle =
+        (FilledButtonTheme.of(context).style ?? const ButtonStyle()).merge(
+          FilledButton.styleFrom(
+            backgroundColor: _red,
+            foregroundColor: Colors.white,
+          ),
+        );
 
     return PostSubmissionScope(
       formKey: _formKey,
@@ -85,18 +126,25 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
+                      Column(
+                        spacing: 12,
                         children: [
-                          for (final entry in _typeLabels.entries)
-                            ChoiceChip(
-                              label: Text(entry.value),
-                              selected: controller.type == entry.key,
-                              onSelected: (_) =>
-                                  controller.selectType(entry.key),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.padded,
+                          for (final row in _typeRows)
+                            IntrinsicHeight(
+                              child: Row(
+                                spacing: 12,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  for (final (type, label) in row)
+                                    Expanded(
+                                      child: _typeButton(
+                                        controller,
+                                        type,
+                                        label,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                         ],
                       ),
@@ -171,7 +219,10 @@ class _EmergencyFormViewState extends State<_EmergencyFormView> {
                         pickFromCamera: controller.takePhoto,
                       ),
                       const SizedBox(height: 24),
-                      footer,
+                      FilledButtonTheme(
+                        data: FilledButtonThemeData(style: publishStyle),
+                        child: footer,
+                      ),
                     ],
                   ),
                 ),

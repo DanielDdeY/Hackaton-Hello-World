@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/create_post/domain/services/auth_gateway.dart';
+import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import 'peru_locations.dart';
 import 'user_profile.dart';
 
@@ -269,30 +270,10 @@ class _InicioState extends State<Inicio> {
     );
   }
 
-  Future<void> confirmarSos() async {
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Simular alerta SOS'),
-        content: const Text(
-          'Esta es una demostración del flujo de emergencia.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Simular'),
-          ),
-        ],
-      ),
+  void _abrirFormularioEmergencia() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const EmergencyForm()),
     );
-    if (confirmado == true && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Alerta SOS simulada')));
-    }
   }
 
   @override
@@ -416,7 +397,7 @@ class _InicioState extends State<Inicio> {
         tarjeta(
           color: const Color(0xffb72f29),
           radius: 15,
-          onTap: confirmarSos,
+          onTap: _abrirFormularioEmergencia,
           child: SizedBox(
             key: _sosTutorial,
             width: 82,
