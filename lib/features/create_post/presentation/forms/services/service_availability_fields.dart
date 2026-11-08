@@ -26,6 +26,7 @@ class ServiceAvailabilityFields extends StatelessWidget {
     required TimeOfDay initialTime,
     required ValueChanged<TimeOfDay> onSelected,
   }) async {
+    FocusScope.of(field.context).unfocus();
     final time = await showTimePicker(
       context: field.context,
       initialTime: initialTime,
@@ -113,7 +114,7 @@ class ServiceAvailabilityFields extends StatelessWidget {
                   controller.clearAvailability();
                   field.didChange(null);
                 },
-                child: const Text('Quitar disponibilidad'),
+                child: const Text('Limpiar horario'),
               ),
             ),
           if (field.errorText case final error?)

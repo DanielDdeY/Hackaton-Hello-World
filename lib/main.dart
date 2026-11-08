@@ -9,6 +9,9 @@ import 'package:provider/provider.dart';
 import 'core/firebase/configure_firebase_emulators.dart';
 import 'core/theme/app_theme.dart';
 import 'features/comunidad/data/mocks/mock_comunidad_repository.dart';
+import 'features/comunidad/data/mocks/mock_comunidad_feed_repository.dart';
+import 'features/comunidad/data/repositories/firestore_comunidad_feed_repository.dart';
+import 'features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'features/comunidad/presentation/pages/comunidad_page.dart';
 import 'features/ayuda_prevencion/ayuda_prevencion_page.dart';
@@ -22,10 +25,13 @@ import 'features/create_post/data/services/firebase_photo_storage.dart';
 import 'features/create_post/data/services/firebase_storage_image_uploader.dart';
 import 'features/create_post/data/services/geocoding_address_resolver.dart';
 import 'features/create_post/data/services/image_picker_photo_picker.dart';
+import 'features/create_post/data/services/keyword_service_category_classifier.dart';
+import 'features/create_post/data/services/profile_post_author_name_resolver.dart';
 import 'features/create_post/domain/services/auth_gateway.dart';
 import 'features/create_post/domain/services/location_provider.dart';
 import 'features/create_post/domain/services/photo_picker.dart';
 import 'features/create_post/domain/services/post_repository.dart';
+import 'features/create_post/domain/services/service_category_classifier.dart';
 import 'features/create_post/presentation/pages/category_selector_page.dart';
 import 'home/home.dart';
 import 'home/user_profile.dart';
@@ -40,15 +46,23 @@ void main() async {
   final firebaseApp = await initializeVeciAppFirebase(
     DefaultFirebaseOptions.currentPlatform,
   );
+  final auth = FirebaseAuthGateway(FirebaseAuth.instanceFor(app: firebaseApp));
   runApp(
     MyApp(
-      authGateway: FirebaseAuthGateway(
-        FirebaseAuth.instanceFor(app: firebaseApp),
+      authGateway: auth,
+      comunidadFeedRepository: FirestoreComunidadFeedRepository(
+        firestore: FirebaseFirestore.instanceFor(app: firebaseApp),
+        auth: auth,
       ),
       profileStore: FirestoreUserProfileStore(
         FirebaseFirestore.instanceFor(app: firebaseApp),
       ),
       postRepository: FirestorePostRepository(
+        authorNameResolver: ProfilePostAuthorNameResolver(
+          FirestoreUserProfileStore(
+            FirebaseFirestore.instanceFor(app: firebaseApp),
+          ),
+        ),
         documents: FirebasePostDocumentStore(
           FirebaseFirestore.instanceFor(app: firebaseApp),
         ),
@@ -81,7 +95,13 @@ class MyApp extends StatelessWidget {
     this.profileStore,
     this.postRepository,
     ComunidadRepository? comunidadRepository,
-  }) : comunidadRepository = comunidadRepository ?? MockComunidadRepository();
+    ComunidadFeedRepository? comunidadFeedRepository,
+    ServiceCategoryClassifier? serviceCategoryClassifier,
+  }) : comunidadRepository = comunidadRepository ?? MockComunidadRepository(),
+       comunidadFeedRepository =
+           comunidadFeedRepository ?? MockComunidadFeedRepository(),
+       serviceCategoryClassifier =
+           serviceCategoryClassifier ?? KeywordServiceCategoryClassifier();
 
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
@@ -89,6 +109,8 @@ class MyApp extends StatelessWidget {
   final UserProfileStore? profileStore;
   final PostRepository? postRepository;
   final ComunidadRepository comunidadRepository;
+  final ComunidadFeedRepository comunidadFeedRepository;
+  final ServiceCategoryClassifier serviceCategoryClassifier;
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +122,10 @@ class MyApp extends StatelessWidget {
         Provider<LocationProvider>.value(value: locationProvider),
         Provider<PhotoPicker>.value(value: photoPicker),
         Provider<ComunidadRepository>.value(value: comunidadRepository),
+        Provider<ComunidadFeedRepository>.value(value: comunidadFeedRepository),
+        Provider<ServiceCategoryClassifier>.value(
+          value: serviceCategoryClassifier,
+        ),
       ],
       child: MaterialApp(
         title: 'VeciApp',
@@ -187,7 +213,8 @@ class _NeighborhoodShellState extends State<_NeighborhoodShell> {
     final colors = theme.colorScheme;
 
     // Mapa y Comunidad gestionan sus propios AppBars superiores
-    final ocultarAppBar = _selected == _Destination.map || _selected == _Destination.community;
+    final ocultarAppBar =
+        _selected == _Destination.map || _selected == _Destination.community;
 
     return Scaffold(
       appBar: ocultarAppBar

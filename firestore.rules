@@ -26,6 +26,27 @@ service cloud.firestore {
       return category in ['emergency', 'help', 'service', 'news'];
     }
 
+    function validServiceDetails(details) {
+      return details.serviceCategory in [
+          'food', 'home_trades', 'education', 'pets', 'health_care',
+          'technology', 'transport_moving', 'beauty_sewing', 'other'
+        ]
+        && (details.price is int || details.price is float)
+        && details.price >= 0
+        && details.contactPhone is string
+        && details.contactPhone.matches('^9[0-9]{8}$');
+    }
+
+    function nonBlank(value) {
+      return value is string && !value.matches('\\s*');
+    }
+
+    function validPostDetails(category, details) {
+      return details is map
+        && (category != 'service' || validServiceDetails(details))
+        && (category != 'news' || (nonBlank(details.title) && nonBlank(details.content)));
+    }
+
     function validPhoto(photo, postId) {
       return photo is map
         && photo.keys().hasOnly(['storagePath', 'downloadUrl'])
@@ -65,7 +86,7 @@ service cloud.firestore {
         && validCategory(request.resource.data.category)
         && request.resource.data.status == 'active'
         && request.resource.data.schemaVersion == 2
-        && request.resource.data.details is map
+        && validPostDetails(request.resource.data.category, request.resource.data.details)
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && validMedia(request.resource.data, postId);
