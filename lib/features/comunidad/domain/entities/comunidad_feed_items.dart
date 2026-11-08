@@ -58,6 +58,7 @@ final class ServiceItem {
     required this.title,
     required this.information,
     required this.category,
+    this.authorId,
     this.price,
     this.mode,
     this.contactPhone,
@@ -73,6 +74,7 @@ final class ServiceItem {
   final String title;
   final String information;
   final ServiceCategory category;
+  final String? authorId;
   final num? price;
   final ServiceMode? mode;
   final String? contactPhone;

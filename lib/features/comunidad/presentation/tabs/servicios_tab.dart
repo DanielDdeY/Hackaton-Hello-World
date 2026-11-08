@@ -12,6 +12,7 @@ import '../../../economy/domain/models/economy_result.dart';
 import '../../../economy/domain/services/economy_engine.dart';
 import '../../../economy/domain/services/period_provider.dart';
 import '../../../economy/presentation/economy_failure_messages.dart';
+import '../../../notifications/domain/publication_activity.dart';
 import '../../domain/entities/comunidad_feed_items.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
 import 'feed_widgets.dart';
@@ -564,10 +565,20 @@ class _ServiceVistoBuenoSectionState extends State<_ServiceVistoBuenoSection> {
   }
 }
 
-class _ServiceAction extends StatelessWidget {
+enum _ServiceContactAction { request, call }
+
+class _ServiceAction extends StatefulWidget {
   const _ServiceAction({required this.item});
 
   final ServiceItem item;
+
+  @override
+  State<_ServiceAction> createState() => _ServiceActionState();
+}
+
+class _ServiceActionState extends State<_ServiceAction> {
+  bool _requesting = false;
+  ServiceItem get item => widget.item;
 
   String get label => switch (item.mode) {
     ServiceMode.sell => 'Pedir',
@@ -576,10 +587,14 @@ class _ServiceAction extends StatelessWidget {
   };
 
   Future<void> _contact(BuildContext context) async {
+    final activity = context.read<PublicationActivityRepository?>();
+    final uid = context.read<AuthGateway?>()?.currentUid;
+    final canRequest = activity != null &&
+        (item.authorId == null || item.authorId != uid);
     final phone = item.contactPhone?.trim() ?? '';
     final dialNumber = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     final canCall = RegExp(r'^\+?[0-9]+$').hasMatch(dialNumber);
-    final call = await showDialog<bool>(
+    final action = await showDialog<_ServiceContactAction>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('$label · ${item.title}'),
@@ -600,20 +615,30 @@ class _ServiceAction extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cerrar'),
           ),
           if (canCall)
             FilledButton.icon(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(context, _ServiceContactAction.call),
               icon: const Icon(Icons.phone_outlined),
               iconAlignment: IconAlignment.start,
               label: const Text('Llamar'),
             ),
+          if (canRequest)
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(context, _ServiceContactAction.request),
+              child: const Text('Enviar solicitud'),
+            ),
         ],
       ),
     );
-    if (call != true || !context.mounted) return;
+    if (action == null || !context.mounted) return;
+    if (action == _ServiceContactAction.request) {
+      if (activity != null) await _sendRequest(activity);
+      return;
+    }
     var opened = false;
     try {
       opened = await launchUrl(
@@ -632,16 +657,43 @@ class _ServiceAction extends StatelessWidget {
     }
   }
 
+  Future<void> _sendRequest(PublicationActivityRepository activity) async {
+    if (_requesting) return;
+    setState(() => _requesting = true);
+    String message;
+    try {
+      final created = await activity.requestService(item.id);
+      message = created
+          ? 'Solicitud enviada al anunciante.'
+          : 'Ya enviaste una solicitud para esta publicación.';
+    } on PublicationActivityFailure catch (error) {
+      message = switch (error) {
+        PublicationActivityFailure.noSession => 'Inicia sesión para enviar una solicitud.',
+        PublicationActivityFailure.serviceUnavailable => 'La publicación ya no está disponible.',
+        PublicationActivityFailure.ownService => 'Esta publicación es tuya.',
+      };
+    } on Exception {
+      message = 'No se pudo enviar la solicitud. Inténtalo de nuevo.';
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FilledButton.icon(
-      onPressed: () => _contact(context),
+      onPressed: _requesting ? null : () => _contact(context),
       icon: Icon(
         item.mode == ServiceMode.sell
             ? Icons.shopping_bag_outlined
             : Icons.handshake_outlined,
       ),
-      label: Text(label),
+      label: Text(_requesting ? 'Enviando…' : label),
     );
   }
 }
