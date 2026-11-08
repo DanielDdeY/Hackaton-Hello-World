@@ -56,3 +56,4 @@ class NivelXp {
     return calcularNivel(xpTotal) >= nivelDesbloqueoMascota;
   }
 }
+

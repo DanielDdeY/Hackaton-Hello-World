@@ -30,7 +30,8 @@ final class HelpItem {
   final List<String> ayudantes;
   final String estado;
 
-  bool get tieneCupo => (cuposTomados < (peopleNeeded ?? 1)) && estado == 'abierto';
+  bool get tieneCupo =>
+      (cuposTomados < (peopleNeeded ?? 1)) && estado == 'abierto';
 }
 
 final class ServiceItem {

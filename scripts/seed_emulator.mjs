@@ -34,3 +34,4 @@ sembrarConfiguracion().catch((error) => {
   console.error('Error al sembrar configuracion:', error);
   process.exit(1);
 });
+

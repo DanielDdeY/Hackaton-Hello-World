@@ -29,3 +29,4 @@ abstract interface class EconomiaRepository {
     String? referenciaId,
   });
 }
+
