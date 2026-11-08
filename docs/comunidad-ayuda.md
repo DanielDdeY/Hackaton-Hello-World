@@ -72,7 +72,9 @@ Tres capas por funcionalidad: **presentation** (pantallas y proveedores Riverpod
 | `reconocimientos/{id}`             | autorId, destinoId, semana, motivo                                                                                    |
 | `ranking/{liga}/{uid}`             | xpPeriodo, posición (precalculado)                                                                                    |
 | `stats/{barrioId}`                 | favoresCompletados, vecinosDistintos, % preparación (precalculado)                                                    |
-| `usuarios/{uid}`                   | nivel, xp, moneda, estrellas (solo lectura para el cliente)                                                           |
+| `usuarios/{uid}`                   | nivel, xpNivel, xpLiga, estrellas, fiabilidad (solo lectura para el cliente)                                          |
+| `usuarios/{uid}/billetera`         | disponible, pendiente (solo lectura para el cliente)                                                                  |
+| `usuarios/{uid}/movimientos/{id}`  | tipo, monto, origen, fecha, idempotencyKey (registro inmutable)                                                       |
 | `economia/pendientes/{id}`         | recompensas retenidas 24 a 48 h                                                                                       |
 
 Principio: ranking y estadísticas son **documentos ya calculados**, nunca consultas pesadas desde el cliente.
@@ -117,55 +119,69 @@ Temas por cuadra y barrio (`cuadra_{id}_favores`, `barrio_{id}_eventos`). El vec
 
 ## 4. Reglas de negocio (RN)
 
-| ID    | Regla                                                                                                                                               |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| RN-01 | La recompensa de un favor la fija el sistema según tamaño y duración; quien publica no puede modificarla.                                           |
-| RN-02 | Un favor con cupos llenos se bloquea para nuevos participantes.                                                                                     |
-| RN-03 | El cierre exige doble confirmación: el ayudante marca "terminé" y el vecino ayudado confirma y califica.                                            |
-| RN-04 | La recompensa queda pendiente 24 a 48 h y se libera si no hay reporte.                                                                              |
-| RN-05 | No existe transferencia de moneda entre vecinos.                                                                                                    |
-| RN-06 | Un vecino no puede aceptar sus propios favores.                                                                                                     |
-| RN-07 | La ubicación exacta de un favor se revela solo al aceptarlo.                                                                                        |
-| RN-08 | Entre los mismos dos vecinos, la recompensa decrece en 30 días: 100%, 50%, 25%, 0%.                                                                 |
-| RN-09 | Ayudar a un vecino nuevo o de otra cuadra da +25% de moneda.                                                                                        |
-| RN-10 | Un favor pasado a otro vecino distinto ("cadena") da +20% por eslabón, hasta 3 eslabones; no aplica entre el mismo par.                             |
-| RN-11 | Los eventos no tienen cupo competitivo: "Voy" o "Me interesa".                                                                                      |
-| RN-12 | En reuniones vecinales solo cuenta la asistencia verificada (QR o ubicación).                                                                       |
-| RN-13 | El organizador cobra según asistencia real, con tope, y solo si asisten al menos 5 vecinos distintos.                                               |
-| RN-14 | El ranking se basa solo en XP, nunca en moneda.                                                                                                     |
-| RN-15 | El ranking se muestra por cuadra, barrio y distrito, con ligas que se reinician.                                                                    |
-| RN-16 | Cada vecino tiene un cupo semanal de nominaciones de "buen vecino".                                                                                 |
-| RN-17 | Quien pide ayuda tiene un cupo semanal de pedidos que generan recompensa (inicial: 3).                                                              |
-| RN-18 | Un reporte retiene la recompensa y envía el favor a revisión.                                                                                       |
-| RN-19 | En modo emergencia se suspenden cupos de ayuda, topes y rendimientos decrecientes; las recompensas siguen siendo fijas y solo por ayuda confirmada. |
-| RN-20 | El modo emergencia solo lo activa un delegado o una alerta oficial, nunca el vecino.                                                                |
-| RN-21 | Las cuentas nuevas tienen un periodo de prueba con ganancias reducidas (confianza oculta).                                                          |
+| ID    | Regla                                                                                                                                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RN-01 | La recompensa de un favor la fija el sistema según tamaño y duración; quien publica no puede modificarla.                                                                   |
+| RN-02 | Un favor con cupos llenos se bloquea para nuevos participantes.                                                                                                             |
+| RN-03 | El cierre exige doble confirmación: el ayudante marca "terminé" y el vecino ayudado confirma y califica.                                                                    |
+| RN-04 | La recompensa queda pendiente 24 a 48 h y se libera si no hay reporte.                                                                                                      |
+| RN-05 | No existe transferencia de moneda entre vecinos.                                                                                                                            |
+| RN-06 | Un vecino no puede aceptar sus propios favores.                                                                                                                             |
+| RN-07 | La ubicación exacta de un favor se revela solo al aceptarlo.                                                                                                                |
+| RN-08 | Entre los mismos dos vecinos, la recompensa decrece en 30 días: 100%, 50%, 25%, 0%.                                                                                         |
+| RN-09 | Ayudar a un vecino nuevo o de otra cuadra da +25% de moneda.                                                                                                                |
+| RN-10 | Un favor pasado a otro vecino distinto ("cadena") da +20% por eslabón, hasta 3 eslabones; no aplica entre el mismo par.                                                     |
+| RN-11 | Los eventos no tienen cupo competitivo: "Voy" o "Me interesa".                                                                                                              |
+| RN-12 | En reuniones vecinales solo cuenta la asistencia verificada (QR o ubicación).                                                                                               |
+| RN-13 | El organizador cobra según asistencia real, con tope, y solo si asisten al menos 5 vecinos distintos.                                                                       |
+| RN-14 | El ranking se basa solo en XP de liga, nunca en moneda ni en XP de nivel.                                                                                                   |
+| RN-15 | El ranking se muestra por cuadra, barrio y distrito, con ligas que se reinician.                                                                                            |
+| RN-16 | Cada vecino tiene un cupo semanal de nominaciones de "buen vecino".                                                                                                         |
+| RN-17 | Quien pide ayuda tiene un cupo semanal de pedidos que generan recompensa (inicial: 3).                                                                                      |
+| RN-18 | Un reporte retiene la recompensa y envía el favor a revisión.                                                                                                               |
+| RN-19 | En modo emergencia se suspenden cupos de ayuda, topes y rendimientos decrecientes; las recompensas siguen siendo fijas y solo por ayuda confirmada.                         |
+| RN-20 | El modo emergencia solo lo activa un delegado o una alerta oficial, nunca el vecino.                                                                                        |
+| RN-21 | Las cuentas nuevas tienen un periodo de prueba con ganancias reducidas (confianza oculta).                                                                                  |
+| RN-22 | El XP de nivel nunca baja; las penalizaciones solo afectan al XP de liga, que no baja de cero.                                                                              |
+| RN-23 | Se penaliza no presentarse a un favor aceptado o a una reunión con asistencia verificada; no se penaliza "Me interesa", eventos sin verificación ni cancelaciones a tiempo. |
+| RN-24 | Cancelar con al menos 2 a 4 h de anticipación (a definir) no tiene costo.                                                                                                   |
+| RN-25 | La penalización equivale a ~50% del XP del favor (25% en reuniones), con un "no pude" gratuito por mes y un tope semanal de pérdida.                                        |
+| RN-26 | La reincidencia escala (aviso, penalización leve, completa) y reduce los cupos simultáneos mediante la fiabilidad oculta.                                                   |
+| RN-27 | "No llegó" lo marca el vecino ayudado; el ayudante puede responder y, ante desacuerdo, la penalización se suspende hasta la revisión.                                       |
+| RN-28 | Los saldos de moneda se llevan en una billetera con saldo disponible y pendiente; solo el servidor escribe movimientos.                                                     |
+| RN-29 | Gastar moneda requiere conexión y una transacción que valida saldo y entrega el objeto en un solo paso.                                                                     |
+| RN-30 | No hay penalizaciones en modo emergencia.                                                                                                                                   |
 
 ## 5. Requisitos funcionales (RF)
 
-| ID    | Requisito                                                                                    | Prioridad |
-| ----- | -------------------------------------------------------------------------------------------- | --------- |
-| RF-01 | Mostrar la pantalla **Hoy** con alerta activa, pendientes, cercanos y progreso.              | Alta      |
-| RF-02 | Listar favores con filtros: cercanía, tamaño, categoría y "con cupo".                        | Alta      |
-| RF-03 | Mostrar el detalle del favor: descripción, ubicación aproximada, reglas, recompensa y cupos. | Alta      |
-| RF-04 | Permitir **aceptar** un favor respetando el cupo mediante transacción.                       | Alta      |
-| RF-05 | Mostrar el seguimiento por estados y permitir marcar "terminé" o cancelar con aviso.         | Alta      |
-| RF-06 | Permitir al vecino ayudado confirmar y calificar con estrellas.                              | Alta      |
-| RF-07 | Habilitar contacto por WhatsApp solo tras aceptar.                                           | Media     |
-| RF-08 | Permitir "pasar el favor" (cadena) a otro vecino.                                            | Media     |
-| RF-09 | Listar eventos por fecha con "Voy" y "Me interesa".                                          | Alta      |
-| RF-10 | Registrar asistencia a reuniones mediante QR o ubicación.                                    | Media     |
-| RF-11 | Compartir un evento o favor al grupo de WhatsApp mediante enlace profundo.                   | Media     |
-| RF-12 | Mostrar ranking por cuadra, barrio y distrito, con la posición del usuario.                  | Media     |
-| RF-13 | Mostrar el "buen vecino de la semana".                                                       | Media     |
-| RF-14 | Permitir reconocer (nominar) a un vecino dentro del cupo semanal.                            | Media     |
-| RF-15 | Mostrar estadísticas colectivas básicas de la cuadra.                                        | Baja      |
-| RF-16 | Mostrar el historial de favores, eventos y recompensas.                                      | Media     |
-| RF-17 | Permitir reportar cualquier favor, evento o reconocimiento.                                  | Alta      |
-| RF-18 | Mostrar estados vacíos útiles cuando no hay contenido.                                       | Media     |
-| RF-19 | Indicar estado sin conexión y mostrar solicitudes pendientes de sincronizar.                 | Alta      |
-| RF-20 | Cambiar a la vista de emergencia al detectar el indicador de modo emergencia.                | Alta      |
-| RF-21 | Recibir notificaciones configurables por tema (favores, eventos).                            | Media     |
+| ID    | Requisito                                                                                                     | Prioridad |
+| ----- | ------------------------------------------------------------------------------------------------------------- | --------- |
+| RF-01 | Mostrar la pantalla **Hoy** con alerta activa, pendientes, cercanos y progreso.                               | Alta      |
+| RF-02 | Listar favores con filtros: cercanía, tamaño, categoría y "con cupo".                                         | Alta      |
+| RF-03 | Mostrar el detalle del favor: descripción, ubicación aproximada, reglas, recompensa y cupos.                  | Alta      |
+| RF-04 | Permitir **aceptar** un favor respetando el cupo mediante transacción.                                        | Alta      |
+| RF-05 | Mostrar el seguimiento por estados y permitir marcar "terminé" o cancelar con aviso.                          | Alta      |
+| RF-06 | Permitir al vecino ayudado confirmar y calificar con estrellas.                                               | Alta      |
+| RF-07 | Habilitar contacto por WhatsApp solo tras aceptar.                                                            | Media     |
+| RF-08 | Permitir "pasar el favor" (cadena) a otro vecino.                                                             | Media     |
+| RF-09 | Listar eventos por fecha con "Voy" y "Me interesa".                                                           | Alta      |
+| RF-10 | Registrar asistencia a reuniones mediante QR o ubicación.                                                     | Media     |
+| RF-11 | Compartir un evento o favor al grupo de WhatsApp mediante enlace profundo.                                    | Media     |
+| RF-12 | Mostrar ranking por cuadra, barrio y distrito, con la posición del usuario.                                   | Media     |
+| RF-13 | Mostrar el "buen vecino de la semana".                                                                        | Media     |
+| RF-14 | Permitir reconocer (nominar) a un vecino dentro del cupo semanal.                                             | Media     |
+| RF-15 | Mostrar estadísticas colectivas básicas de la cuadra.                                                         | Baja      |
+| RF-16 | Mostrar el historial de favores, eventos y recompensas.                                                       | Media     |
+| RF-17 | Permitir reportar cualquier favor, evento o reconocimiento.                                                   | Alta      |
+| RF-18 | Mostrar estados vacíos útiles cuando no hay contenido.                                                        | Media     |
+| RF-19 | Indicar estado sin conexión y mostrar solicitudes pendientes de sincronizar.                                  | Alta      |
+| RF-20 | Cambiar a la vista de emergencia al detectar el indicador de modo emergencia.                                 | Alta      |
+| RF-21 | Recibir notificaciones configurables por tema (favores, eventos).                                             | Media     |
+| RF-22 | Mostrar saldo disponible y pendiente de la billetera y su historial de movimientos.                           | Alta      |
+| RF-23 | Permitir cancelar un favor aceptado, indicando si es a tiempo y mostrando la consecuencia antes de confirmar. | Alta      |
+| RF-24 | Permitir al vecino ayudado marcar "no llegó" y al ayudante responder con "en camino" o su ubicación.          | Media     |
+| RF-25 | Mostrar al vecino la penalización aplicada y permitir apelarla.                                               | Media     |
+| RF-26 | Limitar la cantidad de favores simultáneos según la fiabilidad, explicando el motivo sin mostrar el puntaje.  | Media     |
 
 ## 6. Requisitos no funcionales (RNF)
 
@@ -184,20 +200,26 @@ Temas por cuadra y barrio (`cuadra_{id}_favores`, `barrio_{id}_eventos`). El vec
 | RNF-11 | Escalabilidad  | Estructura por funcionalidades y parámetros económicos en Remote Config para añadir funciones sin reescribir.               |
 | RNF-12 | Mantenibilidad | Interfaces de repositorio para sustituir datos reales por falsos en pruebas.                                                |
 | RNF-13 | Compatibilidad | Soporte de Android 8.0 o superior (a confirmar con el equipo).                                                              |
-| RNF-14 | Auditoría      | Registro de cada otorgamiento y retención de recompensa.                                                                    |
+| RNF-14 | Auditoría      | Registro de cada otorgamiento, retención, penalización y ajuste.                                                            |
+| RNF-15 | Integridad     | Los movimientos de la billetera son inmutables e idempotentes: reintentar no duplica.                                       |
+| RNF-16 | Equidad        | Las penalizaciones deben poder revertirse mediante apelación y quedar registradas.                                          |
 
 ## 7. Conexión con la economía
 
-Comunidad **genera eventos económicos** pero nunca calcula recompensas. Cada acción relevante crea un registro que Cloud Functions procesa aplicando las reglas del documento de economía.
+Comunidad **genera eventos económicos** pero nunca calcula recompensas ni penalizaciones. La explicación general de la economía está en `economia_interna.md`. Cada acción relevante crea un registro que Cloud Functions procesa aplicando las reglas del documento de economía.
 
-| Acción en Comunidad                       | Evento económico      | Resultado                            |
-| ----------------------------------------- | --------------------- | ------------------------------------ |
-| Favor confirmado por ambas partes         | `favor_completado`    | Moneda y XP pendientes 24 a 48 h     |
-| Favor encadenado                          | `favor_encadenado`    | Bono por eslabón sobre el favor      |
-| Asistencia verificada a evento            | `evento_asistido`     | Moneda y XP simbólicos               |
-| Evento organizado con asistencia mínima   | `evento_organizado`   | Pago por asistentes reales, con tope |
-| Nominación recibida y elegida buen vecino | `buen_vecino`         | Insignia y XP                        |
-| Reporte aceptado                          | `recompensa_retenida` | Recompensa en revisión o cancelada   |
+| Acción en Comunidad                          | Evento económico      | Resultado                                         |
+| -------------------------------------------- | --------------------- | ------------------------------------------------- |
+| Favor confirmado por ambas partes            | `favor_completado`    | Moneda y XP pendientes 24 a 48 h                  |
+| Favor encadenado                             | `favor_encadenado`    | Bono por eslabón sobre el favor                   |
+| Asistencia verificada a evento               | `evento_asistido`     | Moneda y XP simbólicos                            |
+| Evento organizado con asistencia mínima      | `evento_organizado`   | Pago por asistentes reales, con tope              |
+| Nominación recibida y elegida buen vecino    | `buen_vecino`         | Insignia y XP                                     |
+| Reporte aceptado                             | `recompensa_retenida` | Recompensa en revisión o cancelada                |
+| Favor aceptado y no cumplido ("no llegó")    | `favor_incumplido`    | Penalización de XP de liga y ajuste de fiabilidad |
+| Reunión con asistencia verificada y ausencia | `evento_incumplido`   | Penalización menor de XP de liga                  |
+| Cancelación a tiempo                         | `favor_cancelado`     | Sin costo; libera el cupo                         |
+| Gasto de moneda (caja, tienda)               | `gasto`               | Movimiento en la billetera                        |
 
 Flujo:
 
@@ -219,7 +241,8 @@ Parámetros (valores de recompensa, topes, ventanas de retención) viven en **Re
 
 ## 9. Pendientes por decidir
 
-- Esquema exacto de `favores` y `eventos` con el encargado de publicación [creo]
+- Nombre final del módulo, de la moneda y de los favores (probar con vecinos).
+- Esquema exacto de `favores` y `eventos` con el equipo de publicación.
 - Mecanismo del indicador de modo emergencia con el equipo de alertas.
 - Verificación de pertenencia a la cuadra (código del delegado, invitación o dirección validada).
-- idear/definir roles
+- Panel de administración (idealmente web) para delegados y moderación.
