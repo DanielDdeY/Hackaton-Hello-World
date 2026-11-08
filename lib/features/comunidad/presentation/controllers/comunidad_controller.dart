@@ -26,8 +26,10 @@ class ComunidadController extends ChangeNotifier {
   BuenVecinoSemana? _buenVecino;
   BuenVecinoSemana? get buenVecino => _buenVecino;
 
-  String _ambitoRanking = 'cuadra';
-  String get ambitoRanking => _ambitoRanking;
+  String _distritoRanking = 'Ate';
+  String get distritoRanking => _distritoRanking;
+
+  static const ambitoRanking = 'distrito';
 
   CategoriaFavor? _filtroCategoria;
   CategoriaFavor? get filtroCategoria => _filtroCategoria;
@@ -46,7 +48,7 @@ class ComunidadController extends ChangeNotifier {
     try {
       await Future.wait([
         cargarFavores(),
-        cargarRanking(_ambitoRanking),
+        cargarRanking(),
         cargarBuenVecino(),
       ]);
     } catch (e) {
@@ -110,21 +112,42 @@ class ComunidadController extends ChangeNotifier {
     }
   }
 
-  Future<void> cargarRanking(String ambito) async {
-    _ambitoRanking = ambito;
-    _ranking = await repository.obtenerRanking(ambito: ambito);
-    notifyListeners();
+  Future<void> cargarRanking() async {
+    try {
+      _distritoRanking = await repository.obtenerDistritoActual();
+      _ranking = await repository.obtenerRanking(ambito: ambitoRanking);
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _error = 'No se pudo cargar el ranking: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<VecinoPerfil?> cargarPerfilVecino(String uid) async {
+    try {
+      return await repository.obtenerVecino(uid);
+    } catch (e) {
+      _error = 'No se pudo cargar el perfil del vecino: $e';
+      notifyListeners();
+      return null;
+    }
   }
 
   Future<void> cargarBuenVecino() async {
-    _buenVecino = await repository.obtenerBuenVecinoSemana();
-    notifyListeners();
+    try {
+      _buenVecino = await repository.obtenerBuenVecinoSemana();
+      notifyListeners();
+    } catch (e) {
+      _error = 'No se pudo cargar el buen vecino: $e';
+      notifyListeners();
+    }
   }
 
   Future<void> nominarBuenVecino(String destinoUid, String motivo) async {
     try {
       await repository.nominarBuenVecino(destinoUid, motivo);
-      await cargarRanking(_ambitoRanking);
+      await Future.wait([cargarRanking(), cargarBuenVecino()]);
     } catch (e) {
       _error = e.toString().replaceAll('Exception: ', '');
       notifyListeners();

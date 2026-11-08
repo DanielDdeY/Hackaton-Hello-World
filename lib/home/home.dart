@@ -44,6 +44,7 @@ class _EditarInformacionPage extends StatefulWidget {
 
 class _EditarInformacionPageState extends State<_EditarInformacionPage> {
   late final TextEditingController _nombre;
+  late final TextEditingController _rol;
   late final TextEditingController _bio;
   bool _guardando = false;
 
@@ -51,12 +52,14 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
   void initState() {
     super.initState();
     _nombre = TextEditingController(text: widget.datos.nombre);
+    _rol = TextEditingController(text: widget.datos.rol);
     _bio = TextEditingController(text: widget.datos.bio);
   }
 
   @override
   void dispose() {
     _nombre.dispose();
+    _rol.dispose();
     _bio.dispose();
     super.dispose();
   }
@@ -73,6 +76,7 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
         nombre,
         _bio.text.trim(),
         widget.datos.foto,
+        nuevoRol: _rol.text.trim(),
       );
       final uid = auth?.currentUid;
       if (store != null && uid != null) {
@@ -114,7 +118,7 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
           'Actualiza la información que verán tus vecinos.',
           style: Theme.of(context).textTheme.bodyLarge,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         TextField(
           controller: _nombre,
           textCapitalization: TextCapitalization.words,
@@ -123,14 +127,90 @@ class _EditarInformacionPageState extends State<_EditarInformacionPage> {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _rol,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Rol en la comunidad (ej. Vecino, Brigadista, etc.)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 14),
         TextField(
           controller: _bio,
-          maxLines: 5,
+          maxLines: 4,
           decoration: const InputDecoration(
-            labelText: 'Biografía',
+            labelText: 'Biografía / Sobre ti',
             alignLabelWithHint: true,
             border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Card(
+          elevation: 0,
+          color: const Color(0xFFF1F8F8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: Color(0xFF006D77)),
+                    SizedBox(width: 8),
+                    Text(
+                      'Información comunitaria',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF006D77),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Distrito: ${widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Zona: ${widget.datos.zona.isEmpty ? "Ate, Lima, Lima" : widget.datos.zona}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (widget.datos.phoneNumber.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Teléfono: ${widget.datos.phoneNumber}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Text(
+                  'Progreso: Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP (${widget.datos.weeklyXp} XP esta semana)',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (widget.datos.insignias.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: widget.datos.insignias.map((insignia) {
+                      return Chip(
+                        label: Text(insignia, style: const TextStyle(fontSize: 10)),
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: const Color(0xFFFFF3D6),
+                        side: const BorderSide(color: Color(0xFFFFD54F)),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -213,10 +293,16 @@ class _InicioProfileLoader extends StatelessWidget {
       province: preferences.getString('vecino_provincia') ?? '',
       district: preferences.getString('vecino_distrito') ?? '',
       xp: preferences.getInt('vecino_xp') ?? 0,
+      weeklyXp: preferences.getInt('vecino_xp_semana') ?? 0,
       stars: preferences.getInt('vecino_stars') ?? 0,
       favors: preferences.getInt('vecino_favores') ?? 0,
       tools: preferences.getInt('vecino_herramientas') ?? 0,
       petHunger: preferences.getDouble('vecino_hambre') ?? 0,
+      favoresCompletados: preferences.getInt('vecino_favores_completados') ?? 0,
+      eventosAsistidos: preferences.getInt('vecino_eventos') ?? 0,
+      reconocimientos: preferences.getInt('vecino_reconocimientos') ?? 0,
+      rachaSemanal: preferences.getInt('vecino_racha') ?? 0,
+      badges: preferences.getStringList('vecino_insignias') ?? const [],
     );
     if (store == null || auth?.currentUid == null) {
       return Inicio(
@@ -466,7 +552,9 @@ class _InicioState extends State<Inicio> {
         children: [
           UserAccountsDrawerHeader(
             accountName: Text(widget.datos.nombre),
-            accountEmail: Text(widget.datos.rol),
+            accountEmail: Text(
+              '${widget.datos.rol} · ${widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito}',
+            ),
             currentAccountPicture: _avatarVecino(
               widget.datos.iniciales,
               widget.datos.foto,
@@ -474,6 +562,29 @@ class _InicioState extends State<Inicio> {
             ),
             decoration: const BoxDecoration(color: orange),
           ),
+          ListTile(
+            leading: const Icon(Icons.location_on_outlined),
+            title: const Text('Distrito'),
+            subtitle: Text(
+              widget.datos.distrito.isEmpty
+                  ? 'Ate (Lima)'
+                  : '${widget.datos.distrito} (${widget.datos.provincia})',
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.leaderboard_outlined),
+            title: const Text('Estadísticas y Nivel'),
+            subtitle: Text(
+              'Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP · ${widget.datos.stars} ★',
+            ),
+          ),
+          if (widget.datos.insignias.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.workspace_premium_outlined),
+              title: const Text('Insignias comunitarias'),
+              subtitle: Text(widget.datos.insignias.join(', ')),
+            ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.edit_outlined),
             title: const Text('Editar información'),
@@ -744,7 +855,11 @@ class _InicioState extends State<Inicio> {
             children: [
               label(widget.datos.nombre, 19, bold: true),
               const SizedBox(height: 5),
-              label(widget.datos.rol, 12, color: muted),
+              label(
+                '${widget.datos.rol} · ${widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito}',
+                12,
+                color: muted,
+              ),
               const SizedBox(height: 5),
               label(
                 '★ Nivel ${widget.datos.nivel}   ·   XP: ${widget.datos.xp}   ·   Star: ${widget.datos.stars}',

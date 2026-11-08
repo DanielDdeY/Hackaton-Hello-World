@@ -15,6 +15,13 @@ final class UserProfile {
     required this.favors,
     required this.tools,
     required this.petHunger,
+    this.weeklyXp = 0,
+    this.badges = const <String>[],
+    this.favoresCompletados = 0,
+    this.eventosAsistidos = 0,
+    this.reconocimientos = 0,
+    this.rachaSemanal = 0,
+    this.joinedAt,
   });
 
   factory UserProfile.fromDocument(
@@ -26,6 +33,9 @@ final class UserProfile {
     required String fallbackDistrict,
   }) {
     final data = document.data() ?? const <String, dynamic>{};
+    final stats = data['stats'] is Map
+        ? Map<String, dynamic>.from(data['stats'] as Map)
+        : const <String, dynamic>{};
     return UserProfile(
       name: _string(data['name'], fallbackName),
       phoneNumber: _string(data['phoneNumber'], ''),
@@ -35,10 +45,25 @@ final class UserProfile {
       province: _string(data['province'], fallbackProvince),
       district: _string(data['district'], fallbackDistrict),
       xp: _integer(data['xp']),
+      weeklyXp: _integer(data['weeklyXp'] ?? stats['xpPeriodo']),
       stars: _integer(data['stars']),
       favors: _integer(data['favors']),
       tools: _integer(data['tools']),
       petHunger: _double(data['petHunger'], 0),
+      badges: _stringList(data['badges'] ?? data['insignias']),
+      favoresCompletados: _integer(
+        stats['favoresCompletados'] ??
+            data['favoresCompletados'] ??
+            data['favors'],
+      ),
+      eventosAsistidos: _integer(
+        stats['eventosAsistidos'] ?? data['eventosAsistidos'],
+      ),
+      reconocimientos: _integer(
+        stats['reconocimientos'] ?? data['reconocimientos'],
+      ),
+      rachaSemanal: _integer(stats['rachaSemanal'] ?? data['rachaSemanal']),
+      joinedAt: _date(data['joinedAt']),
     );
   }
 
@@ -50,15 +75,31 @@ final class UserProfile {
   final String province;
   final String district;
   final int xp;
+  final int weeklyXp;
   final int stars;
   final int favors;
   final int tools;
   final double petHunger;
+  final List<String> badges;
+  final int favoresCompletados;
+  final int eventosAsistidos;
+  final int reconocimientos;
+  final int rachaSemanal;
+  final DateTime? joinedAt;
 
   int get level => xp ~/ 100;
+  int get xpEnNivelActual => xp % 100;
   bool get petUnlocked => level >= 25;
 
-  UserProfile copyWith({double? petHunger}) => UserProfile(
+  UserProfile copyWith({
+    double? petHunger,
+    int? weeklyXp,
+    List<String>? badges,
+    int? favoresCompletados,
+    int? eventosAsistidos,
+    int? reconocimientos,
+    int? rachaSemanal,
+  }) => UserProfile(
     name: name,
     phoneNumber: phoneNumber,
     role: role,
@@ -67,10 +108,17 @@ final class UserProfile {
     province: province,
     district: district,
     xp: xp,
+    weeklyXp: weeklyXp ?? this.weeklyXp,
     stars: stars,
     favors: favors,
     tools: tools,
     petHunger: petHunger ?? this.petHunger,
+    badges: badges ?? this.badges,
+    favoresCompletados: favoresCompletados ?? this.favoresCompletados,
+    eventosAsistidos: eventosAsistidos ?? this.eventosAsistidos,
+    reconocimientos: reconocimientos ?? this.reconocimientos,
+    rachaSemanal: rachaSemanal ?? this.rachaSemanal,
+    joinedAt: joinedAt,
   );
 
   Map<String, Object> toMap() => {
@@ -84,10 +132,20 @@ final class UserProfile {
     'province': province,
     'district': district,
     'xp': xp,
+    'weeklyXp': weeklyXp,
+    'level': level,
     'stars': stars,
     'favors': favors,
     'tools': tools,
     'petHunger': petHunger,
+    'badges': badges,
+    'stats': {
+      'favoresCompletados': favoresCompletados,
+      'eventosAsistidos': eventosAsistidos,
+      'reconocimientos': reconocimientos,
+      'rachaSemanal': rachaSemanal,
+    },
+    if (joinedAt != null) 'joinedAt': Timestamp.fromDate(joinedAt!),
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
@@ -99,6 +157,25 @@ final class UserProfile {
 
   static double _double(Object? value, double fallback) {
     return value is num ? value.toDouble().clamp(0, 1).toDouble() : fallback;
+  }
+
+  static List<String> _stringList(Object? value) {
+    if (value is Iterable) {
+      return value
+          .whereType<String>()
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  static DateTime? _date(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String && value.isNotEmpty) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 }
 
