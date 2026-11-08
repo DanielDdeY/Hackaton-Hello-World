@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../features/emergency/domain/emergency_type_labels.dart';
+import '../../features/emergency/presentation/emergency_type_icons.dart';
 import 'data/map_location_provider.dart';
 import 'data/map_places_repository.dart';
 import 'data/map_focus_controller.dart';
@@ -13,6 +14,7 @@ import 'data/emergency_map_repository.dart';
 import 'models/map_place.dart';
 import 'utils/map_geo.dart';
 import 'widgets/location_permission_view.dart';
+import 'widgets/map_legend.dart';
 import 'widgets/place_details_sheet.dart';
 import 'widgets/places_list_sheet.dart';
 
@@ -306,22 +308,28 @@ class _MapScreenState extends State<MapScreen> {
           point: alert.location,
           width: 44,
           height: 44,
-          child: GestureDetector(
-            onTap: () => _showEmergencyDetails(alert),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xffb71c1c),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black38, blurRadius: 5),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.white,
-                size: 28,
+          child: Semantics(
+            button: true,
+            label:
+                '${emergencyTypeLabel(alert.type)}: ${alert.title}. '
+                'Ver detalle',
+            child: GestureDetector(
+              onTap: () => _showEmergencyDetails(alert),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xffb71c1c),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black38, blurRadius: 5),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  emergencyTypeIcon(alert.type),
+                  color: Colors.white,
+                  size: 26,
+                ),
               ),
             ),
           ),
@@ -334,9 +342,9 @@ class _MapScreenState extends State<MapScreen> {
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(
-          Icons.warning_amber_rounded,
-          color: Color(0xffb71c1c),
+        icon: Icon(
+          emergencyTypeIcon(alert.type),
+          color: const Color(0xffb71c1c),
           size: 32,
         ),
         title: Text(alert.title),
@@ -513,6 +521,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildMap(ThemeData theme, List<MapPlace> visiblePlaces) {
     final userLocation = _userLocation!;
+    final alertTypes = [for (final alert in _emergencyAlerts) alert.type];
     return Stack(
       children: [
         FlutterMap(
@@ -580,6 +589,11 @@ class _MapScreenState extends State<MapScreen> {
                 _buildSearchField(theme),
                 const SizedBox(height: 10),
                 _buildFilters(theme),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: MapLegend(alertTypes: alertTypes),
+                ),
                 if (_emergencyError != null) ...[
                   const SizedBox(height: 8),
                   Material(

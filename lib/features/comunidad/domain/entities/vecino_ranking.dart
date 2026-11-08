@@ -53,4 +53,3 @@ class Reconocimiento {
   final String motivo;
   final DateTime fecha;
 }
-

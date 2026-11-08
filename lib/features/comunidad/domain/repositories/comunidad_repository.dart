@@ -40,4 +40,3 @@ abstract class ComunidadRepository {
 
   Future<void> reportarContenido(String tipo, String id, String motivo);
 }
-

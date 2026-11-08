@@ -97,7 +97,52 @@ void main() {
       ),
       isTrue,
     );
-    expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.car_crash_rounded), findsOneWidget);
+  });
+
+  testWidgets('la leyenda muestra los tipos activos y los radios', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          emergencyRepository: _FakeEmergencyRepository([
+            const EmergencyMapAlert(
+              id: 'sos-1',
+              location: alertLocation,
+              radiusMeters: 200,
+              title: 'Robo en la esquina',
+              type: 'robbery',
+              status: 'active',
+            ),
+            const EmergencyMapAlert(
+              id: 'sos-2',
+              location: alertLocation,
+              radiusMeters: 200,
+              title: 'Desastre natural',
+              type: 'disaster',
+              status: 'active',
+            ),
+          ]),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Leyenda'), findsOneWidget);
+    expect(find.text('ROBO'), findsNothing);
+
+    await tester.tap(find.text('Leyenda'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ROBO'), findsOneWidget);
+    expect(find.text('DESASTRE'), findsOneWidget);
+    expect(find.text('Tu zona (1.8 km)'), findsOneWidget);
+    expect(find.text('Alerta SOS (200 m)'), findsOneWidget);
   });
 
   testWidgets('bloquea el mapa sin permiso y lo desbloquea al concederlo', (

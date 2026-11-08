@@ -18,7 +18,9 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
   @override
   void initState() {
     super.initState();
-    _items = {for (final item in BackpackChecklistStore.defaultItems) item: false};
+    _items = {
+      for (final item in BackpackChecklistStore.defaultItems) item: false,
+    };
     _load();
   }
 
@@ -51,9 +53,9 @@ class _MochilaEmergenciaCardState extends State<MochilaEmergenciaCard> {
                     Text(
                       'Mochila de Emergencia',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.text,
-                          ),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     _PillBadge(
@@ -150,7 +152,9 @@ class _PillBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondaryText.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.secondaryText.withValues(alpha: 0.3),
+        ),
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
@@ -162,7 +166,10 @@ class _PillBadge extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.secondaryText,
+              ),
             ),
           ],
         ),

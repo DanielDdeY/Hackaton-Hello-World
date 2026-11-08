@@ -21,21 +21,24 @@ class FavoresTab extends StatelessWidget {
             child: controller.cargando && favores.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : favores.isEmpty
-                    ? _EstadoVacioFavores(
-                        onReset: () => controller.setFiltrosFavores(
-                          categoria: null,
-                          tamano: null,
-                          soloConCupo: false,
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        itemCount: favores.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          return _TarjetaFavor(favor: favores[index]);
-                        },
-                      ),
+                ? _EstadoVacioFavores(
+                    onReset: () => controller.setFiltrosFavores(
+                      categoria: null,
+                      tamano: null,
+                      soloConCupo: false,
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    itemCount: favores.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      return _TarjetaFavor(favor: favores[index]);
+                    },
+                  ),
           ),
         ],
       ),
@@ -64,7 +67,8 @@ class _BarraFiltros extends StatelessWidget {
           PopupMenuButton<TamanoFavor?>(
             tooltip: 'Filtrar por tamaño',
             initialValue: controller.filtroTamano,
-            onSelected: (tamano) => controller.setFiltrosFavores(tamano: tamano),
+            onSelected: (tamano) =>
+                controller.setFiltrosFavores(tamano: tamano),
             itemBuilder: (_) => [
               const PopupMenuItem(value: null, child: Text('Cualquier tamaño')),
               ...TamanoFavor.values.map(
@@ -79,7 +83,9 @@ class _BarraFiltros extends StatelessWidget {
               label: Text(
                 controller.filtroTamano?.etiqueta ?? 'Tamaño',
                 style: TextStyle(
-                  fontWeight: controller.filtroTamano != null ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: controller.filtroTamano != null
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                 ),
               ),
             ),
@@ -90,7 +96,10 @@ class _BarraFiltros extends StatelessWidget {
             initialValue: controller.filtroCategoria,
             onSelected: (cat) => controller.setFiltrosFavores(categoria: cat),
             itemBuilder: (_) => [
-              const PopupMenuItem(value: null, child: Text('Todas las categorías')),
+              const PopupMenuItem(
+                value: null,
+                child: Text('Todas las categorías'),
+              ),
               ...CategoriaFavor.values.map(
                 (c) => PopupMenuItem(value: c, child: Text(c.etiqueta)),
               ),
@@ -100,7 +109,9 @@ class _BarraFiltros extends StatelessWidget {
               label: Text(
                 controller.filtroCategoria?.etiqueta ?? 'Categoría',
                 style: TextStyle(
-                  fontWeight: controller.filtroCategoria != null ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: controller.filtroCategoria != null
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                 ),
               ),
             ),
@@ -186,9 +197,16 @@ class _TarjetaFavor extends StatelessWidget {
                         value: 'reportar',
                         child: Row(
                           children: [
-                            Icon(Icons.flag_outlined, size: 16, color: Colors.red),
+                            Icon(
+                              Icons.flag_outlined,
+                              size: 16,
+                              color: Colors.red,
+                            ),
                             SizedBox(width: 8),
-                            Text('Reportar', style: TextStyle(color: Colors.red)),
+                            Text(
+                              'Reportar',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ],
                         ),
                       ),
@@ -206,7 +224,11 @@ class _TarjetaFavor extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(Icons.location_on_outlined, size: 16, color: theme.colorScheme.primary),
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -294,7 +316,11 @@ class _BadgeCupo extends StatelessWidget {
       ),
       child: Text(
         tieneCupo ? 'Cupos: ${totales - tomados}/$totales' : 'Cupos llenos',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
       ),
     );
   }
@@ -312,7 +338,11 @@ class _EstadoVacioFavores extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.volunteer_activism_outlined, size: 54, color: Colors.grey),
+            const Icon(
+              Icons.volunteer_activism_outlined,
+              size: 54,
+              color: Colors.grey,
+            ),
             const SizedBox(height: 12),
             const Text(
               'No hay favores con estos filtros',
@@ -367,9 +397,9 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
     final theme = Theme.of(context);
     final favor = widget.favor;
     final controller = context.watch<ComunidadController>();
-    final participanteActual = favor.participantes.where(
-      (p) => p.uid == controller.repository.usuarioActualId,
-    ).firstOrNull;
+    final participanteActual = favor.participantes
+        .where((p) => p.uid == controller.repository.usuarioActualId)
+        .firstOrNull;
 
     final estaParticipando = participanteActual != null;
     final haTerminado = participanteActual?.estado == 'terminado';
@@ -402,7 +432,9 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                 Expanded(
                   child: Text(
                     favor.titulo,
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 _BadgeRecompensa(
@@ -414,7 +446,9 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
             const SizedBox(height: 8),
             Text(
               'Solicitado por: ${favor.solicitanteNombre}',
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
             ),
             const Divider(height: 24),
             Text(
@@ -430,7 +464,9 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
             const SizedBox(height: 8),
             _FilaInfo(
               icono: Icons.place_outlined,
-              titulo: estaParticipando ? 'Dirección exacta:' : 'Ubicación aprox.:',
+              titulo: estaParticipando
+                  ? 'Dirección exacta:'
+                  : 'Ubicación aprox.:',
               valor: estaParticipando && favor.ubicacionExacta != null
                   ? favor.ubicacionExacta!
                   : favor.ubicacionAproximada,
@@ -457,13 +493,18 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                           if (mounted) navigator.pop();
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('¡Favor aceptado! Ya puedes coordinar con el vecino.'),
+                              content: Text(
+                                '¡Favor aceptado! Ya puedes coordinar con el vecino.',
+                              ),
                               backgroundColor: Color(0xFF2A9D8F),
                             ),
                           );
                         } catch (e) {
                           messenger.showSnackBar(
-                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                            ),
                           );
                         } finally {
                           if (mounted) setState(() => _procesando = false);
@@ -485,7 +526,9 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                           if (mounted) navigator.pop();
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('Marcado como terminado. Esperando confirmación del vecino.'),
+                              content: Text(
+                                'Marcado como terminado. Esperando confirmación del vecino.',
+                              ),
                               backgroundColor: Color(0xFF006D77),
                             ),
                           );
@@ -510,7 +553,10 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                     Expanded(
                       child: Text(
                         'Completado por tu parte. En espera de confirmación vecinal para liberar tus puntos.',
-                        style: TextStyle(color: Color(0xFF1B5E20), fontSize: 13),
+                        style: TextStyle(
+                          color: Color(0xFF1B5E20),
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -518,7 +564,9 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
               ),
             ] else if (favor.estado == EstadoFavor.esperandoConfirmacion) ...[
               FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2A9D8F)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2A9D8F),
+                ),
                 onPressed: () {
                   Navigator.pop(context);
                   _mostrarDialogoCalificar(context, controller, favor);
@@ -540,7 +588,11 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                     Expanded(
                       child: Text(
                         'Favor completado y confirmado por ambas partes.',
-                        style: TextStyle(color: Color(0xFF1B5E20), fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Color(0xFF1B5E20),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -555,12 +607,16 @@ class _DetalleFavorSheetState extends State<_DetalleFavorSheet> {
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Abriendo WhatsApp con ${favor.solicitanteTelefono}...'),
+                      content: Text(
+                        'Abriendo WhatsApp con ${favor.solicitanteTelefono}...',
+                      ),
                     ),
                   );
                 },
                 icon: const Icon(Icons.chat_outlined, color: Colors.green),
-                label: Text('Contactar por WhatsApp (${favor.solicitanteTelefono})'),
+                label: Text(
+                  'Contactar por WhatsApp (${favor.solicitanteTelefono})',
+                ),
               ),
             ],
           ],
@@ -588,7 +644,10 @@ class _FilaInfo extends StatelessWidget {
       children: [
         Icon(icono, size: 18, color: Colors.grey[700]),
         const SizedBox(width: 8),
-        Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+        Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -633,7 +692,12 @@ void _mostrarDialogoReporte(BuildContext context, String tipo, String id) {
                     border: OutlineInputBorder(),
                   ),
                   items: motivos
-                      .map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 13))))
+                      .map(
+                        (m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m, style: const TextStyle(fontSize: 13)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (val) {
                     if (val != null) setState(() => motivoSeleccionado = val);
@@ -647,10 +711,16 @@ void _mostrarDialogoReporte(BuildContext context, String tipo, String id) {
                 child: const Text('Cancelar'),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD62828)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFD62828),
+                ),
                 onPressed: () async {
                   final controller = dialogCtx.read<ComunidadController>();
-                  await controller.repository.reportarContenido(tipo, id, motivoSeleccionado);
+                  await controller.repository.reportarContenido(
+                    tipo,
+                    id,
+                    motivoSeleccionado,
+                  );
                   if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -699,7 +769,9 @@ void _mostrarDialogoCalificar(
                     final valor = index + 1;
                     return IconButton(
                       icon: Icon(
-                        valor <= estrellas ? Icons.star_rounded : Icons.star_outline_rounded,
+                        valor <= estrellas
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
                         color: const Color(0xFFFFB703),
                         size: 36,
                       ),
@@ -709,7 +781,10 @@ void _mostrarDialogoCalificar(
                 ),
                 Text(
                   '$estrellas de 5 estrellas',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -719,14 +794,21 @@ void _mostrarDialogoCalificar(
                 child: const Text('Cancelar'),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF2A9D8F)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2A9D8F),
+                ),
                 onPressed: () async {
-                  await controller.confirmarYCalificar(favor.id, estrellas.toDouble());
+                  await controller.confirmarYCalificar(
+                    favor.id,
+                    estrellas.toDouble(),
+                  );
                   if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('¡Favor confirmado y calificado! Recompensa liberada al ayudante.'),
+                        content: Text(
+                          '¡Favor confirmado y calificado! Recompensa liberada al ayudante.',
+                        ),
                         backgroundColor: Color(0xFF2A9D8F),
                       ),
                     );
@@ -741,4 +823,3 @@ void _mostrarDialogoCalificar(
     },
   );
 }
-

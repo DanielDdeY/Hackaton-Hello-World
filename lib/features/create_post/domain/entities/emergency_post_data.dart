@@ -7,7 +7,7 @@ import 'post_location.dart';
 enum EmergencyType {
   robbery,
   accident,
-  tragedy,
+  disaster,
   health,
   fire,
   flood,

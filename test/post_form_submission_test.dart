@@ -270,6 +270,38 @@ void main() {
     expect((repository.drafts.single as EmergencyPostData).title, 'Accidente');
   });
 
+  testWidgets('el formulario SOS ofrece DESASTRE y lo guarda como tipo', (
+    tester,
+  ) async {
+    final auth = _Auth();
+    final location = _Location();
+    final repository = _Repository();
+    await _open(
+      tester,
+      const EmergencyForm(sosAlertId: 'alert-id'),
+      auth,
+      location,
+      repository,
+    );
+    location.capture.completeError(const LocationUnavailableException());
+    await tester.pumpAndSettle();
+
+    expect(find.text('DESASTRE'), findsOneWidget);
+    expect(find.text('TRAGEDIA'), findsNothing);
+
+    await tester.enterText(_input('CALLE (Obligatorio)'), 'Jr. Lima 123');
+    await tester.enterText(_input('Título (Obligatorio)'), 'Desastre');
+    await _tap(tester, find.text('DESASTRE'));
+    await _tap(tester, find.text('Publicar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.drafts, hasLength(1));
+    expect(
+      (repository.drafts.single as EmergencyPostData).type,
+      EmergencyType.disaster,
+    );
+  });
+
   testWidgets(
     'help captures GPS without opening Details and keeps a draft on retry',
     (tester) async {

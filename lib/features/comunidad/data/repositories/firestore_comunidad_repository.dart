@@ -23,9 +23,12 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   final String barrioId;
 
   // Colecciones según la especificación de docs/comunidad-ayuda.md
-  CollectionReference<Map<String, dynamic>> get _favoresCol => _firestore.collection('favores');
-  CollectionReference<Map<String, dynamic>> get _eventosCol => _firestore.collection('eventos');
-  CollectionReference<Map<String, dynamic>> get _reportesCol => _firestore.collection('reportes');
+  CollectionReference<Map<String, dynamic>> get _favoresCol =>
+      _firestore.collection('favores');
+  CollectionReference<Map<String, dynamic>> get _eventosCol =>
+      _firestore.collection('eventos');
+  CollectionReference<Map<String, dynamic>> get _reportesCol =>
+      _firestore.collection('reportes');
 
   @override
   Future<List<Favor>> obtenerFavores({
@@ -33,7 +36,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
     TamanoFavor? tamano,
     bool soloConCupo = false,
   }) async {
-    Query<Map<String, dynamic>> query = _favoresCol.orderBy('creadoEn', descending: true);
+    Query<Map<String, dynamic>> query = _favoresCol.orderBy(
+      'creadoEn',
+      descending: true,
+    );
 
     if (categoria != null) {
       query = query.where('categoria', isEqualTo: categoria.name);
@@ -103,7 +109,9 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       }
 
       final nuevoTomados = cuposTomados + 1;
-      final nuevoEstado = nuevoTomados >= cuposTotales ? 'cuposLlenos' : 'enCurso';
+      final nuevoEstado = nuevoTomados >= cuposTotales
+          ? 'cuposLlenos'
+          : 'enCurso';
 
       transaction.update(docRef, {
         'cuposTomados': nuevoTomados,
@@ -152,7 +160,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   }
 
   @override
-  Future<void> responderEvento(String eventoId, RespuestaEvento respuesta) async {
+  Future<void> responderEvento(
+    String eventoId,
+    RespuestaEvento respuesta,
+  ) async {
     final docRef = _eventosCol.doc(eventoId);
     final asistenciaRef = docRef.collection('asistencias').doc(usuarioActualId);
 
@@ -164,7 +175,10 @@ class FirestoreComunidadRepository implements ComunidadRepository {
 
   @override
   Future<void> verificarAsistencia(String eventoId, String codigo) async {
-    final asistenciaRef = _eventosCol.doc(eventoId).collection('asistencias').doc(usuarioActualId);
+    final asistenciaRef = _eventosCol
+        .doc(eventoId)
+        .collection('asistencias')
+        .doc(usuarioActualId);
     await asistenciaRef.set({
       'respuesta': 'voy',
       'verificada': true,
@@ -176,7 +190,12 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   @override
   Future<List<VecinoRanking>> obtenerRanking({String ambito = 'cuadra'}) async {
     // Consulta precalculada desde la colección de rankings (RN-14 / RN-15)
-    final snapshot = await _firestore.collection('ranking').doc(ambito).collection('posiciones').limit(20).get();
+    final snapshot = await _firestore
+        .collection('ranking')
+        .doc(ambito)
+        .collection('posiciones')
+        .limit(20)
+        .get();
 
     if (snapshot.docs.isEmpty) {
       return [
@@ -210,7 +229,12 @@ class FirestoreComunidadRepository implements ComunidadRepository {
 
   @override
   Future<BuenVecinoSemana?> obtenerBuenVecinoSemana() async {
-    final doc = await _firestore.collection('stats').doc(barrioId).collection('buenVecino').doc('actual').get();
+    final doc = await _firestore
+        .collection('stats')
+        .doc(barrioId)
+        .collection('buenVecino')
+        .doc('actual')
+        .get();
     if (!doc.exists) return null;
     final data = doc.data()!;
     return BuenVecinoSemana(
@@ -274,7 +298,8 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       ubicacionExacta: data['ubicacionExacta'],
       creadoEn: (data['creadoEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
       venceEn: (data['venceEn'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      monedasRecompensa: data['monedasRecompensa'] ?? TamanoFavor.medio.monedasBase,
+      monedasRecompensa:
+          data['monedasRecompensa'] ?? TamanoFavor.medio.monedasBase,
       xpRecompensa: data['xpRecompensa'] ?? TamanoFavor.medio.xpBase,
     );
   }

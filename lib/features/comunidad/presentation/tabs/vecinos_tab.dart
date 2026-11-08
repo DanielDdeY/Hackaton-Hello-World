@@ -34,7 +34,9 @@ class VecinosTab extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Tabla de Vecinos',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               SegmentedButton<String>(
@@ -57,7 +59,12 @@ class VecinosTab extends StatelessWidget {
 
           // Lista de posiciones
           if (controller.cargando && ranking.isEmpty)
-            const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
+            )
           else
             ...ranking.map((v) => _FilaVecinoRanking(vecino: v)),
 
@@ -69,7 +76,11 @@ class VecinosTab extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, size: 20, color: Color(0xFF006D77)),
+                  const Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: Color(0xFF006D77),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -122,7 +133,11 @@ class _TarjetaBuenVecino extends StatelessWidget {
                     color: Color(0xFFFFB703),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.workspace_premium, color: Colors.white, size: 24),
+                  child: const Icon(
+                    Icons.workspace_premium,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -147,7 +162,10 @@ class _TarjetaBuenVecino extends StatelessWidget {
                       ),
                       Text(
                         buenVecino.cuadraNombre,
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
                       ),
                     ],
                   ),
@@ -164,7 +182,10 @@ class _TarjetaBuenVecino extends StatelessWidget {
               ),
               child: Text(
                 '“${buenVecino.motivo}”',
-                style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -176,7 +197,11 @@ class _TarjetaBuenVecino extends StatelessWidget {
               children: [
                 Text(
                   '${buenVecino.votosReconocimiento} reconocimientos',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF8D6200)),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8D6200),
+                  ),
                 ),
                 OutlinedButton.icon(
                   onPressed: onNominar,
@@ -213,7 +238,9 @@ class _FilaVecinoRanking extends StatelessWidget {
         color: esUsuario ? const Color(0xFFE0F2F1) : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: esUsuario ? theme.colorScheme.primary : Colors.grey.withValues(alpha: 0.2),
+          color: esUsuario
+              ? theme.colorScheme.primary
+              : Colors.grey.withValues(alpha: 0.2),
           width: esUsuario ? 1.5 : 1,
         ),
       ),
@@ -226,13 +253,17 @@ class _FilaVecinoRanking extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
-                color: vecino.posicion <= 3 ? const Color(0xFFD48B00) : Colors.grey[700],
+                color: vecino.posicion <= 3
+                    ? const Color(0xFFD48B00)
+                    : Colors.grey[700],
               ),
             ),
           ),
           CircleAvatar(
             radius: 18,
-            backgroundColor: esUsuario ? theme.colorScheme.primary : Colors.grey[300],
+            backgroundColor: esUsuario
+                ? theme.colorScheme.primary
+                : Colors.grey[300],
             child: Text(
               vecino.iniciales,
               style: TextStyle(
@@ -266,9 +297,15 @@ class _FilaVecinoRanking extends StatelessWidget {
             children: [
               Text(
                 '${vecino.xpPeriodo} XP',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
-              const Text('esta semana', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              const Text(
+                'esta semana',
+                style: TextStyle(fontSize: 10, color: Colors.grey),
+              ),
             ],
           ),
         ],
@@ -277,7 +314,10 @@ class _FilaVecinoRanking extends StatelessWidget {
   }
 }
 
-void _mostrarDialogoNominar(BuildContext context, ComunidadController controller) {
+void _mostrarDialogoNominar(
+  BuildContext context,
+  ComunidadController controller,
+) {
   final motivoCtrl = TextEditingController();
   final formKey = GlobalKey<FormState>();
 
@@ -322,7 +362,10 @@ void _mostrarDialogoNominar(BuildContext context, ComunidadController controller
           FilledButton(
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
-              await controller.nominarBuenVecino('usr_otro', motivoCtrl.text.trim());
+              await controller.nominarBuenVecino(
+                'usr_otro',
+                motivoCtrl.text.trim(),
+              );
               if (dialogCtx.mounted) Navigator.pop(dialogCtx);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -340,4 +383,3 @@ void _mostrarDialogoNominar(BuildContext context, ComunidadController controller
     },
   );
 }
-

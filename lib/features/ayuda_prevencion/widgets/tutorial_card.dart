@@ -14,7 +14,8 @@ class TutorialCard extends StatefulWidget {
 
 class _TutorialCardState extends State<TutorialCard> {
   /// Placeholder: reemplazar por el URL real del tutorial.
-  static const _tutorialUrl = 'https://www.youtube.com/results?search_query=tutorial+app+vecinal';
+  static const _tutorialUrl =
+      'https://www.youtube.com/results?search_query=tutorial+app+vecinal';
 
   double _progress = 0.3;
 
@@ -56,9 +57,9 @@ class _TutorialCardState extends State<TutorialCard> {
                 child: Text(
                   'Tutorial Paso a Paso',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
                 ),
               ),
             ],
@@ -76,7 +77,10 @@ class _TutorialCardState extends State<TutorialCard> {
           const SizedBox(height: 8),
           Text(
             '${(_progress * 100).round()}% completado',
-            style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.secondaryText,
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(

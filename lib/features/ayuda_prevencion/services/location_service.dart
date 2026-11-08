@@ -3,11 +3,11 @@ import 'package:geolocator/geolocator.dart';
 /// Resultado de la obtención de ubicación.
 class LocationResult {
   const LocationResult.success(this.position)
-      : error = null,
-        permissionDenied = false;
+    : error = null,
+      permissionDenied = false;
 
   const LocationResult.failure(this.error, {this.permissionDenied = false})
-      : position = null;
+    : position = null;
 
   final Position? position;
   final String? error;
