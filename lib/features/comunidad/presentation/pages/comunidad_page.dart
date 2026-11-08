@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/mocks/mock_comunidad_feed_repository.dart';
@@ -14,7 +15,9 @@ import '../tabs/vecinos_tab.dart';
 
 /// Pantalla principal del Módulo de Comunidad con 4 pestañas superiores.
 class ComunidadPage extends StatelessWidget {
-  const ComunidadPage({super.key});
+  const ComunidadPage({super.key, this.onOpenMap});
+
+  final void Function(LatLng? location)? onOpenMap;
 
   static final _mockFeed = MockComunidadFeedRepository();
 
@@ -27,15 +30,16 @@ class ComunidadPage extends StatelessWidget {
 
     return ChangeNotifierProvider(
       create: (_) => ComunidadController(repository: repository),
-      child: _ComunidadVista(feed: feed),
+      child: _ComunidadVista(feed: feed, onOpenMap: onOpenMap),
     );
   }
 }
 
 class _ComunidadVista extends StatefulWidget {
-  const _ComunidadVista({required this.feed});
+  const _ComunidadVista({required this.feed, this.onOpenMap});
 
   final ComunidadFeedRepository feed;
+  final void Function(LatLng? location)? onOpenMap;
 
   @override
   State<_ComunidadVista> createState() => _ComunidadVistaState();
@@ -86,9 +90,9 @@ class _ComunidadVistaState extends State<_ComunidadVista>
       ),
       body: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: CommunitySosSection(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: CommunitySosSection(onOpenMap: widget.onOpenMap),
           ),
           Expanded(
             child: TabBarView(

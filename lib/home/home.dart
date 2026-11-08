@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,7 +20,10 @@ import '../features/create_post/domain/services/photo_picker.dart';
 import '../features/create_post/presentation/forms/emergency/emergency_form.dart';
 import '../features/emergency/data/firebase_emergency_alert_repository.dart';
 import '../features/emergency/data/firebase_emergency_post_repository.dart';
+import '../features/emergency/data/sos_consent_store.dart';
 import '../features/emergency/domain/emergency_alert.dart';
+import '../features/emergency/presentation/sos_alert_banner.dart';
+import '../features/emergency/presentation/sos_confirmation_sheet.dart';
 import 'peru_locations.dart';
 import 'user_profile.dart';
 import '../features/economia/domain/entities/nivel_xp.dart';
@@ -239,23 +243,28 @@ class MiBarrioHome extends StatelessWidget {
     this.homeOnly = false,
     this.onAuthenticated,
     this.onSignedOut,
+    this.onOpenMap,
   });
 
   final bool homeOnly;
   final VoidCallback? onAuthenticated;
   final VoidCallback? onSignedOut;
+  final void Function(LatLng? location)? onOpenMap;
 
   @override
   Widget build(BuildContext context) {
-    if (homeOnly) return _InicioLoader(onSignedOut: onSignedOut);
+    if (homeOnly) {
+      return _InicioLoader(onSignedOut: onSignedOut, onOpenMap: onOpenMap);
+    }
     return _Entrada(onAuthenticated: onAuthenticated);
   }
 }
 
 class _InicioLoader extends StatefulWidget {
-  const _InicioLoader({this.onSignedOut});
+  const _InicioLoader({this.onSignedOut, this.onOpenMap});
 
   final VoidCallback? onSignedOut;
+  final void Function(LatLng? location)? onOpenMap;
 
   @override
   State<_InicioLoader> createState() => _InicioLoaderState();
@@ -273,16 +282,25 @@ class _InicioLoaderState extends State<_InicioLoader> {
       if (preferences == null) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
-      return _InicioProfileLoader(preferences, onSignedOut: widget.onSignedOut);
+      return _InicioProfileLoader(
+        preferences,
+        onSignedOut: widget.onSignedOut,
+        onOpenMap: widget.onOpenMap,
+      );
     },
   );
 }
 
 class _InicioProfileLoader extends StatelessWidget {
-  const _InicioProfileLoader(this.preferences, {this.onSignedOut});
+  const _InicioProfileLoader(
+    this.preferences, {
+    this.onSignedOut,
+    this.onOpenMap,
+  });
 
   final SharedPreferences preferences;
   final VoidCallback? onSignedOut;
+  final void Function(LatLng? location)? onOpenMap;
 
   @override
   Widget build(BuildContext context) {
@@ -312,6 +330,7 @@ class _InicioProfileLoader extends StatelessWidget {
       return Inicio(
         datos: _DatosBarrio(preferences, fallback),
         onSignedOut: onSignedOut,
+        onOpenMap: onOpenMap,
       );
     }
     return FutureBuilder<UserProfile?>(
@@ -338,6 +357,7 @@ class _InicioProfileLoader extends StatelessWidget {
         return Inicio(
           datos: _DatosBarrio(preferences, profile),
           onSignedOut: onSignedOut,
+          onOpenMap: onOpenMap,
         );
       },
     );
@@ -345,9 +365,15 @@ class _InicioProfileLoader extends StatelessWidget {
 }
 
 class Inicio extends StatefulWidget {
-  const Inicio({super.key, required this.datos, this.onSignedOut});
+  const Inicio({
+    super.key,
+    required this.datos,
+    this.onSignedOut,
+    this.onOpenMap,
+  });
   final _DatosBarrio datos;
   final VoidCallback? onSignedOut;
+  final void Function(LatLng? location)? onOpenMap;
 
   @override
   State<Inicio> createState() => _InicioState();
@@ -364,6 +390,7 @@ class _InicioState extends State<Inicio> {
   final _wrappedTutorial = GlobalKey();
   final _mascotaTutorial = GlobalKey();
   final _filasTutorial = List.generate(3, (_) => GlobalKey());
+  static const _sosConsent = SosConsentStore();
   int? _pasoTutorial;
   List<Rect> _zonasTutorial = [];
   int _solicitudTutorial = 0;
@@ -617,6 +644,16 @@ class _InicioState extends State<Inicio> {
             title: const Text('Editar información'),
             onTap: _editarInformacion,
           ),
+          ListTile(
+            leading: const Icon(Icons.health_and_safety_outlined),
+            title: const Text('Aviso de responsabilidad SOS'),
+            subtitle: Text(
+              _sosConsent.hasConsent(widget.datos.preferencias)
+                  ? 'Aceptado · toca para reiniciar'
+                  : 'Pendiente',
+            ),
+            onTap: _reiniciarAvisoSos,
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
@@ -627,6 +664,28 @@ class _InicioState extends State<Inicio> {
       ),
     ),
   );
+
+  Future<void> _abrirAvisoSos() async {
+    if (_sosSending) return;
+    final preferences = widget.datos.preferencias;
+    if (!_sosConsent.hasConsent(preferences)) {
+      final accepted = await confirmSosActivation(context);
+      if (!accepted || !mounted) return;
+      await _sosConsent.grant(preferences);
+    }
+    if (mounted) await confirmarSos();
+  }
+
+  Future<void> _reiniciarAvisoSos() async {
+    Navigator.pop(context);
+    await _sosConsent.reset(widget.datos.preferencias);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('El aviso de responsabilidad SOS se mostrará de nuevo.'),
+      ),
+    );
+  }
 
   Future<void> confirmarSos() async {
     if (_sosSending) return;
@@ -818,6 +877,8 @@ class _InicioState extends State<Inicio> {
                 const SizedBox(height: 12),
                 _perfil(),
                 const SizedBox(height: 12),
+                SosAlertBanner(onOpenMap: widget.onOpenMap),
+                const SizedBox(height: 12),
                 _wrapped(),
                 const SizedBox(height: 12),
                 _mascota(),
@@ -918,7 +979,7 @@ class _InicioState extends State<Inicio> {
         tarjeta(
           color: const Color(0xffb72f29),
           radius: 15,
-          onTap: confirmarSos,
+          onTap: _abrirAvisoSos,
           child: SizedBox(
             key: _sosTutorial,
             width: 82,
