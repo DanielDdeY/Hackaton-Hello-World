@@ -50,8 +50,11 @@ class _PostSubmissionScopeState extends State<PostSubmissionScope> {
       if (confirmation != null && confirmation.isActive) {
         navigator.removeRoute(confirmation);
       }
-      _showMessage('Publicación creada.');
+      final messenger = ScaffoldMessenger.of(context);
       navigator.pop();
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Publicación creada.')));
       return;
     }
     final failure = _submission.failure;

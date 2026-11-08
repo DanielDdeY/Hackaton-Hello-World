@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../domain/entities/evento_comunitario.dart';
 import '../../domain/entities/favor.dart';
-import '../../domain/entities/resumen_hoy.dart';
 import '../../domain/entities/vecino_ranking.dart';
 import '../../domain/repositories/comunidad_repository.dart';
 
@@ -17,6 +16,7 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
+  @override
   final String usuarioActualId;
   final String usuarioActualNombre;
   final String cuadraId;
@@ -26,32 +26,6 @@ class FirestoreComunidadRepository implements ComunidadRepository {
   CollectionReference<Map<String, dynamic>> get _favoresCol => _firestore.collection('favores');
   CollectionReference<Map<String, dynamic>> get _eventosCol => _firestore.collection('eventos');
   CollectionReference<Map<String, dynamic>> get _reportesCol => _firestore.collection('reportes');
-
-  @override
-  Future<ResumenHoy> obtenerResumenHoy() async {
-    // Consulta favores activos donde el usuario participa
-    final favoresSnapshot = await _favoresCol.where('estado', whereIn: ['abierto', 'enCurso', 'esperandoConfirmacion']).limit(10).get();
-    final todosFavores = favoresSnapshot.docs.map(_mapearFavor).toList();
-
-    final enCurso = todosFavores.where((f) => f.participantes.any((p) => p.uid == usuarioActualId)).toList();
-    final cercanos = todosFavores.where((f) => f.tieneCupo).take(3).toList();
-
-    // Consulta eventos próximos
-    final eventosSnapshot = await _eventosCol.orderBy('fecha').limit(3).get();
-    final proximosEventos = eventosSnapshot.docs.map(_mapearEvento).toList();
-
-    return ResumenHoy(
-      favoresEnCurso: enCurso,
-      favoresCercanos: cercanos,
-      eventosProximos: proximosEventos,
-      estadisticasCuadra: const EstadisticasCuadra(
-        cuadraNombre: 'Calle Los Pinos Cdra. 3',
-        porcentajeMochilaPreparada: 68,
-        favoresCompletadosSemana: 12,
-        vecinosActivos: 24,
-      ),
-    );
-  }
 
   @override
   Future<List<Favor>> obtenerFavores({

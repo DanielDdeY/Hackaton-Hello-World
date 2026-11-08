@@ -16,6 +16,7 @@ abstract final class FirestorePostMapper {
     required String postId,
     required String authorId,
     required PostMediaStatus mediaStatus,
+    String? authorName,
     List<UploadedPhoto> photos = const [],
   }) => {
     'id': postId,
@@ -24,6 +25,7 @@ abstract final class FirestorePostMapper {
         : data.category.name,
     'status': 'active',
     'authorId': authorId,
+    'authorName': ?authorName,
     'createdAt': FieldValue.serverTimestamp(),
     'schemaVersion': schemaVersion,
     if (data.locationData case final location?) 'location': _location(location),

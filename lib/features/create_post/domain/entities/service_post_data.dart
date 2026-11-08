@@ -5,6 +5,7 @@ import 'post_category.dart';
 import 'post_form_data.dart';
 import 'post_location.dart';
 import 'service_availability.dart';
+import 'service_category.dart';
 
 enum ServiceMode { provideService, sell }
 
@@ -31,6 +32,7 @@ final class ServicePostData implements PostFormData {
     int? stock,
     this.attachmentPath,
     this.locationData,
+    this.serviceCategory = ServiceCategory.other,
   }) : paymentMethods = Set.unmodifiable(paymentMethods),
        availability = mode == ServiceMode.provideService ? availability : null,
        stock = mode == ServiceMode.sell ? stock : null;
@@ -44,6 +46,7 @@ final class ServicePostData implements PostFormData {
   final ServiceAvailability? availability;
   final int? stock;
   final String? attachmentPath;
+  final ServiceCategory serviceCategory;
   @override
   final PostLocation? locationData;
 
@@ -74,6 +77,8 @@ final class ServicePostData implements PostFormData {
     return {
       'title': title,
       'information': description,
+      'serviceCategory': serviceCategory.key,
+      'categorySource': 'keyword',
       'mode': mode == ServiceMode.sell ? 'sell' : 'provide_service',
       'price': ServiceAmountValidator.parse(amount),
       'currency': 'PEN',

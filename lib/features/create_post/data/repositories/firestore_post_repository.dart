@@ -9,6 +9,7 @@ import '../../domain/entities/post_form_data.dart';
 import '../../domain/services/image_uploader.dart';
 import '../../domain/services/post_cancellation.dart';
 import '../../domain/services/post_repository.dart';
+import '../../domain/services/post_author_name_resolver.dart';
 import '../mappers/firestore_post_mapper.dart';
 import 'post_document_store.dart';
 
@@ -16,10 +17,12 @@ final class FirestorePostRepository implements PostRepository {
   const FirestorePostRepository({
     required this._documents,
     required this._uploader,
+    this._authorNameResolver,
   });
 
   final PostDocumentStore _documents;
   final ImageUploader _uploader;
+  final PostAuthorNameResolver? _authorNameResolver;
 
   @override
   Future<String> publish(
@@ -36,6 +39,15 @@ final class FirestorePostRepository implements PostRepository {
     final paths = List<String>.of(data.localPhotoPaths);
     var uploaded = const <UploadedPhoto>[];
     try {
+      String? authorName;
+      if (data.category == PostCategory.services ||
+          data.category == PostCategory.news) {
+        final name = await _authorNameResolver?.resolve(authorId);
+        authorName = name == null || name.trim().isEmpty
+            ? 'Vecino'
+            : name.trim();
+        cancellation.check();
+      }
       final uploadInBackground =
           data.category == PostCategory.emergency && paths.isNotEmpty;
       if (paths.isNotEmpty && !uploadInBackground) {
@@ -56,6 +68,7 @@ final class FirestorePostRepository implements PostRepository {
           data,
           postId: id,
           authorId: authorId,
+          authorName: authorName,
           mediaStatus: uploadInBackground
               ? PostMediaStatus.uploading
               : uploaded.isEmpty
