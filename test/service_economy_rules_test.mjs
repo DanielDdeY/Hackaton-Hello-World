@@ -209,21 +209,29 @@ assert.equal(decode((await get(racer,root(racer.uid))).body.fields).xp,35);
 const author=await newUser('Autor');
 const helper=await newUser('Ayudante');
 const favorId='favor-'+randomUUID(), eventId='event-'+randomUUID();
+const realFavorId='favor-real-'+randomUUID();
 const offerPath='posts/'+favorId+'/helpOffers/'+helper.uid;
+const realOfferPath='posts/'+realFavorId+'/helpOffers/'+helper.uid;
 await commit(null,[
   write('posts/'+favorId,{category:'help',status:'active',authorId:author.uid}),
+  write('posts/'+realFavorId,{
+    category:'help',status:'active',authorId:author.uid,
+    details:{rewardDescription:'Un almuerzo'},
+  }),
   write('posts/'+eventId,{
     category:'event',status:'active',authorId:author.uid,
     details:{startsAt:new Date(Date.now()+3600000)},
   }),
 ]);
 await commit(helper,[write(offerPath,{helperName:'Ayudante'},{exists:false,timestamps:['offeredAt']})]);
-const confirmOffer = {
-  transform:{document:base+'/'+offerPath,fieldTransforms:[
+await commit(helper,[write(realOfferPath,{helperName:'Ayudante'},{exists:false,timestamps:['offeredAt']})]);
+const confirm = path => ({
+  transform:{document:base+'/'+path,fieldTransforms:[
     {fieldPath:'confirmedAt',setToServerValue:'REQUEST_TIME'},
   ]},
   currentDocument:{exists:true},
-};
+});
+const confirmOffer = confirm(offerPath);
 function activityWrites(type, postId, uid, other, xpBefore, coins) {
   const id=type+'_'+postId;
   return [
@@ -236,16 +244,36 @@ function activityWrites(type, postId, uid, other, xpBefore, coins) {
     },{exists:false,timestamps:['createdAt']}),
   ];
 }
-const favorWrites=activityWrites('favor_completed',favorId,helper.uid,author.uid,20,0);
+const favorWrites=activityWrites('favor_completed',favorId,helper.uid,author.uid,20,5);
+const favorCoins = {
+  transform:{document:base+'/'+account(helper.uid),fieldTransforms:[
+    {fieldPath:'availableCoins',increment:{integerValue:'5'}},
+  ]},
+  currentDocument:{exists:true},
+};
 await commit(author,[confirmOffer],[403]);
-await commit(helper,[confirmOffer,...favorWrites],[403]);
-await commit(author,favorWrites,[403]);
-await commit(author,[confirmOffer,...favorWrites]);
-await commit(author,[confirmOffer,...favorWrites],[400,403,409]);
+await commit(helper,[confirmOffer,...favorWrites,favorCoins],[403]);
+await commit(author,[...favorWrites,favorCoins],[403]);
+await commit(author,[confirmOffer,...favorWrites],[403]);
+await commit(author,[favorCoins],[403]);
+await get(author,account(helper.uid),[403]);
+await commit(author,[confirmOffer,...favorWrites,favorCoins]);
+await commit(author,[confirmOffer,...favorWrites,favorCoins],[400,403,409]);
 assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,30);
+assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,15);
+
+await commit(author,[write('posts/'+realFavorId,{
+  details:{hasReward:false,rewardDescription:'Un almuerzo'},
+},{update:true,timestamps:['updatedAt']})],[403]);
+const confirmReal = confirm(realOfferPath);
+const realFavorWrites=activityWrites('favor_completed',realFavorId,helper.uid,author.uid,30,5);
+await commit(author,[confirmReal,...realFavorWrites,favorCoins],[403]);
+await commit(author,[confirmReal]);
+assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,30);
+assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,15);
 
 const eventWrites=activityWrites('event_attended',eventId,helper.uid,helper.uid,30,3);
-const coinWrite=write(account(helper.uid),{availableCoins:13},{update:true});
+const coinWrite=write(account(helper.uid),{availableCoins:18},{update:true});
 await commit(helper,[...eventWrites,coinWrite],[403]);
 await commit(helper,[write('posts/'+eventId+'/attendance/'+helper.uid,{
   response:'going',
@@ -255,7 +283,7 @@ await commit(helper,[coinWrite],[403]);
 await commit(helper,[...eventWrites,coinWrite]);
 await commit(helper,[...eventWrites,coinWrite],[400,403,409]);
 assert.equal(decode((await get(helper,root(helper.uid))).body.fields).xp,40);
-assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,13);
+assert.equal(decode((await get(helper,account(helper.uid))).body.fields).availableCoins,18);
 
 // Bono unico de la mochila: monto fijo, sin publicacion de origen y una sola vez.
 const scout=await newUser('Vecino preparado');

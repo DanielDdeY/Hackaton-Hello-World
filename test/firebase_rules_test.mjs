@@ -212,6 +212,11 @@ await upload(helpPhoto, owner);
 await write(helpId, {
   ...emergency, id: helpId, category: 'help', details: { description: 'Ayuda de prueba' },
   photos: [metadata(helpPhoto)], mediaStatus: 'ready',
+}, owner, { status: 403 });
+await write(helpId, {
+  ...emergency, id: helpId, category: 'help',
+  details: { description: 'Ayuda de prueba', contactPhone: '987654321' },
+  photos: [metadata(helpPhoto)], mediaStatus: 'ready',
 }, owner);
 const helpOfferUrl = (uid) => docUrl(helpId) + '/helpOffers/' + uid;
 async function writeHelpOffer(postId, uid, session, status = 200) {

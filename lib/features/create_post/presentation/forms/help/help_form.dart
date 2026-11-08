@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../../core/constants/input_limits.dart';
 import '../../../../../core/constants/photo_limits.dart';
+import '../../../../../core/validators/peruvian_phone_validator.dart';
 import '../../../../../core/validators/required_field_validator.dart';
 import '../../../../../core/widgets/optional_photo_picker.dart';
 import '../../../domain/services/location_provider.dart';
@@ -85,6 +88,27 @@ class _HelpFormViewState extends State<_HelpFormView> {
                         decoration: const InputDecoration(
                           labelText: 'Descripción (Obligatorio)',
                           alignLabelWithHint: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: controller.phoneController,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(
+                            peruvianMobileLength,
+                          ),
+                        ],
+                        validator: PeruvianPhoneValidator.validate,
+                        autovalidateMode:
+                            AutovalidateMode.onUserInteractionIfError,
+                        decoration: const InputDecoration(
+                          labelText: 'Celular de WhatsApp (Obligatorio)',
+                          prefixText: '+51 ',
+                          hintText: 'Celular peruano de 9 dígitos',
                           border: OutlineInputBorder(),
                         ),
                       ),

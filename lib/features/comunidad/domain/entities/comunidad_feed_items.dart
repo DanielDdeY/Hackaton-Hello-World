@@ -11,9 +11,12 @@ final class HelpItem {
     this.title,
     this.location,
     this.peopleNeeded,
+    this.neededBy,
     this.authorId,
+    this.contactPhone,
     this.hasReward = false,
     this.rewardDescription,
+    this.photoUrls = const [],
   });
 
   final String id;
@@ -22,9 +25,12 @@ final class HelpItem {
   final String? title;
   final String? location;
   final int? peopleNeeded;
+  final DateTime? neededBy;
   final String? authorId;
+  final String? contactPhone;
   final bool hasReward;
   final String? rewardDescription;
+  final List<String> photoUrls;
 }
 
 final class HelpParticipation {

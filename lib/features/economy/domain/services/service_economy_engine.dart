@@ -1,3 +1,4 @@
+import '../../../create_post/domain/entities/help_post_data.dart';
 import '../../../create_post/domain/services/auth_gateway.dart';
 import '../models/economy_result.dart';
 import '../repositories/economy_store.dart';
@@ -163,6 +164,7 @@ final class ServiceEconomyEngine implements EconomyEngine {
     final userPath = 'users/$helperUid';
     final movementId = 'favor_completed_$postId';
     const xp = EconomyResult.favorXp;
+    const coins = EconomyResult.favorCoins;
     await store.runTransaction((tx) async {
       final post = await tx.get('posts/$postId');
       if (post?['category'] != 'help' ||
@@ -175,19 +177,27 @@ final class ServiceEconomyEngine implements EconomyEngine {
         throw const EconomyFailure(EconomyFailureReason.activityNotEligible);
       }
       if (offer['confirmedAt'] != null) return;
+      final timestamp = store.serverTimestamp;
+      if (HelpPostData.hasAuthorReward(post!['details'])) {
+        tx.update(offerPath, {'confirmedAt': timestamp});
+        return;
+      }
       final helper = await tx.get(userPath);
       _validateUser(helper, period);
-      final timestamp = store.serverTimestamp;
       tx.update(offerPath, {'confirmedAt': timestamp});
       tx.update(
         userPath,
         _reward(helper!, xp, period, movementId, timestamp, activity: true),
       );
+      tx.increment('$userPath/private/account', 'availableCoins', coins);
       tx.create(
         '$userPath/movimientos/$movementId',
-        _movement(
-          movementId, helperUid, author, postId, period, 'favor_completed', xp, timestamp,
-        ),
+        {
+          ..._movement(
+            movementId, helperUid, author, postId, period, 'favor_completed', xp, timestamp,
+          ),
+          'deltaCoins': coins,
+        },
       );
     });
   }

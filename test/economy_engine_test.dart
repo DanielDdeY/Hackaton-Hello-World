@@ -78,6 +78,11 @@ class _Tx implements EconomyTransaction {
     writes++;
     docs[path] = {...previous, ...data};
   }
+
+  @override
+  void increment(String path, String field, num amount) {
+    update(path, {field: (docs[path]![field] as num) + amount});
+  }
 }
 
 Matcher failure(EconomyFailureReason reason) =>
@@ -126,7 +131,7 @@ void main() {
   ]) =>
       engine.confirmService(postId: 'service', rating: rating, operationId: op);
 
-  test('Confirmar un favor registra la ayuda y otorga XP una sola vez', () async {
+  test('Confirmar un favor otorga XP y monedas una sola vez', () async {
     store.docs['posts/favor'] = {
       'category': 'help',
       'status': 'active',
@@ -137,9 +142,26 @@ void main() {
     await engine.confirmFavor(postId: 'favor', helperUid: 'provider');
     expect(store.docs[offer]!['confirmedAt'], 'server-time');
     expect(store.docs['users/provider']!['xp'], 210);
+    expect(store.docs['users/provider/private/account']!['availableCoins'], 93);
     expect(store.docs['users/provider/movimientos/favor_completed_favor'], isNotNull);
     await engine.confirmFavor(postId: 'favor', helperUid: 'provider');
     expect(store.commits, 1);
+  });
+
+  test('Confirmar un favor con recompensa del autor solo confirma la ayuda', () async {
+    store.docs['posts/favor'] = {
+      'category': 'help',
+      'status': 'active',
+      'authorId': 'client',
+      'details': {'hasReward': true},
+    };
+    const offer = 'posts/favor/helpOffers/provider';
+    store.docs[offer] = {'offeredAt': 'earlier'};
+    await engine.confirmFavor(postId: 'favor', helperUid: 'provider');
+    expect(store.docs[offer]!['confirmedAt'], 'server-time');
+    expect(store.docs['users/provider']!['xp'], 200);
+    expect(store.docs['users/provider/private/account']!['availableCoins'], 88);
+    expect(store.docs['users/provider/movimientos/favor_completed_favor'], isNull);
   });
 
   test('El bono del evento requiere Voy y se conserva entre meses', () async {

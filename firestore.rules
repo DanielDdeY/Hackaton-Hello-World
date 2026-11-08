@@ -50,6 +50,8 @@ service cloud.firestore {
     function validPostDetails(category, details) {
       return details is map
         && (category != 'service' || validServiceDetails(details))
+        && (category != 'help' || (details.contactPhone is string
+          && details.contactPhone.matches('^9[0-9]{8}$')))
         && (category != 'news' || (nonBlank(details.title) && nonBlank(details.content)))
         && (category != 'event' || validEventDetails(details));
     }
@@ -111,6 +113,12 @@ service cloud.firestore {
             resource.data.category == 'help'
             && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['details', 'updatedAt'])
+            && request.resource.data.details is map
+            && !request.resource.data.details.diff(resource.data.details)
+              .affectedKeys().hasAny([
+                'hasReward', 'rewardDescription', 'fichasRecompensa',
+                'xpRecompensa', 'contactPhone'
+              ])
             && request.resource.data.updatedAt == request.time
           )
         );
@@ -121,6 +129,12 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if signedIn() && request.auth.uid == responseId;
       }
+    }
+
+    function favorHasAuthorReward(post) {
+      let details = post.get('details', {});
+      let enabled = details.get('hasReward', null);
+      return enabled is bool ? enabled : nonBlank(details.get('rewardDescription', ''));
     }
 
     match /posts/{postId}/helpOffers/{uid} {
@@ -141,12 +155,15 @@ service cloud.firestore {
       }
 
       function validConfirmation() {
+        let post = favor();
         let movement = activityMovement(uid, 'favor_completed_' + postId);
-        return signedIn() && favor().authorId == request.auth.uid
+        return signedIn() && post.authorId == request.auth.uid && uid != post.authorId
+          && post.category == 'help' && post.status == 'active'
           && resource.data.get('confirmedAt', null) == null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedAt'])
           && request.resource.data.confirmedAt == request.time
-          && !exists(movement) && getAfter(movement).data.type == 'favor_completed';
+          && (favorHasAuthorReward(post)
+            || (!exists(movement) && getAfter(movement).data.type == 'favor_completed'));
       }
 
       allow create: if validOffer();
@@ -409,8 +426,11 @@ service cloud.firestore {
 
     function validFavorReward(uid, postId, post, data) {
       let offer = /databases/$(database)/documents/posts/$(postId)/helpOffers/$(uid);
+      let account = /databases/$(database)/documents/users/$(uid)/private/account;
       return signedIn() && request.auth.uid == post.authorId && uid != post.authorId
-        && data.counterpartyUid == post.authorId && data.deltaCoins == 0
+        && !favorHasAuthorReward(post)
+        && data.counterpartyUid == post.authorId && data.deltaCoins == 5
+        && getAfter(account).data.availableCoins == get(account).data.availableCoins + 5
         && get(offer).data.get('confirmedAt', null) == null
         && getAfter(offer).data.confirmedAt == request.time;
     }
@@ -462,17 +482,19 @@ service cloud.firestore {
           || (data.type != 'backpack_verified' && validPostActivity(uid, id, data)));
     }
 
-    // Monedas de actividad: +3 por evento o +50 por el bono de la mochila.
+    // Monedas de actividad: +3 por evento, +50 por el bono de la mochila o +5 por favor completado.
     function activityCoinsUpdate(uid) {
       let id = getAfter(/databases/$(database)/documents/users/$(uid)).data.get('lastActivityReward', '');
       let movement = activityMovement(uid, id);
+      let data = getAfter(movement).data;
       let after = request.resource.data;
-      return owns(uid) && id != '' && !exists(movement)
+      return signedIn() && id != '' && !exists(movement)
+        && ((owns(uid) && data.type == 'event_attended' && data.deltaCoins == 3)
+          || (owns(uid) && data.type == 'backpack_verified' && data.deltaCoins == 50)
+          || (data.type == 'favor_completed' && data.deltaCoins == 5
+            && data.counterpartyUid == request.auth.uid && request.auth.uid != uid))
         && after.diff(resource.data).affectedKeys().hasOnly(['availableCoins'])
-        && ((getAfter(movement).data.type == 'event_attended'
-            && after.availableCoins == resource.data.availableCoins + 3)
-          || (getAfter(movement).data.type == 'backpack_verified'
-            && after.availableCoins == resource.data.availableCoins + 50));
+        && after.availableCoins == resource.data.availableCoins + data.deltaCoins;
     }
 
 

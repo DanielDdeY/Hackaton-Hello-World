@@ -129,7 +129,7 @@ export const completarFavor = onCall(
       throw new HttpsError("unauthenticated", "Debe iniciar sesión para confirmar un favor.");
     }
     const postId = request.data?.postId;
-    if (!postId || typeof postId !== "string") {
+    if (!postId || typeof postId !== "string" || postId.includes("/")) {
       throw new HttpsError("invalid-argument", "postId es requerido.");
     }
 
@@ -142,6 +142,9 @@ export const completarFavor = onCall(
         throw new HttpsError("not-found", "El favor solicitado no existe.");
       }
       const postData = postSnap.data() ?? {};
+      if (postData.category !== "help" || postData.status !== "active") {
+        throw new HttpsError("failed-precondition", "El favor no está activo.");
+      }
       if (postData.authorId !== uid) {
         throw new HttpsError("permission-denied", "Solo el autor puede confirmar y agradecer el favor.");
       }
@@ -150,31 +153,61 @@ export const completarFavor = onCall(
         throw new HttpsError("already-exists", "Este favor ya fue completado.");
       }
 
-      const fichasRecompensa = Number(details.fichasRecompensa ?? 15);
-      const xpRecompensa = Number(details.xpRecompensa ?? 30);
-      const ayudantes: string[] = Array.isArray(details.ayudantes) ? details.ayudantes : [];
+      const hasAuthorReward = typeof details.hasReward === "boolean"
+        ? details.hasReward
+        : typeof details.rewardDescription === "string" && details.rewardDescription.trim() !== "";
+      const fichasRecompensa = hasAuthorReward ? 0 : 5;
+      const xpRecompensa = hasAuthorReward ? 0 : 10;
+      const offers = await tx.get(postRef.collection("helpOffers"));
+      const pending = offers.docs.filter((offer) => offer.id !== uid && offer.get("confirmedAt") == null);
+      // Each digital award writes the offer, profile, wallet and movement.
+      if (pending.length > (hasAuthorReward ? 400 : 100)) {
+        throw new HttpsError("failed-precondition", "Confirma las ayudas individualmente desde la publicación.");
+      }
 
-      for (const helperUid of ayudantes) {
-        const helperRef = db.collection("users").doc(helperUid);
-        tx.set(helperRef, {
-          fichas: FieldValue.increment(fichasRecompensa),
-          xp: FieldValue.increment(xpRecompensa),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-
-        const movRef = helperRef.collection("movimientos").doc();
-        tx.set(movRef, {
-          id: movRef.id,
-          uid: helperUid,
-          tipo: "ingreso",
-          concepto: "recompensaFavor",
-          fichas: fichasRecompensa,
-          xp: xpRecompensa,
-          descripcion: `Recompensa por favor: ${details.title ?? "Favor vecinal"}`,
-          fecha: FieldValue.serverTimestamp(),
-          referenciaId: postId,
+      const period = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 7);
+      const movementId = `favor_completed_${postId}`;
+      const timestamp = FieldValue.serverTimestamp();
+      const rewards = hasAuthorReward ? [] : await Promise.all(pending.map(async (offer) => {
+        const helper = db.collection("users").doc(offer.id);
+        const account = helper.collection("private").doc("account");
+        const [profile, wallet] = await tx.getAll(helper, account);
+        const data = profile.data();
+        if (
+          data?.profileVersion !== 1 || typeof data.xp !== "number" ||
+          typeof data.monthlyXp !== "number" || typeof data.rankingPeriod !== "string" ||
+          data.rankingPeriod > period || typeof wallet.get("availableCoins") !== "number"
+        ) {
+          throw new HttpsError("failed-precondition", "El ayudante debe sincronizar su perfil.");
+        }
+        return { helper, account, data };
+      }));
+      for (const { helper, account, data } of rewards) {
+        const monthBase = data.rankingPeriod === period ? data.monthlyXp : 0;
+        tx.update(helper, {
+          xp: data.xp + xpRecompensa,
+          monthlyXp: monthBase + xpRecompensa,
+          rankingPeriod: period,
+          lastActivityReward: movementId,
+          updatedAt: timestamp,
+        });
+        tx.update(account, { availableCoins: FieldValue.increment(fichasRecompensa) });
+        tx.create(helper.collection("movimientos").doc(movementId), {
+          id: movementId,
+          confirmationId: movementId,
+          uid: helper.id,
+          counterpartyUid: uid,
+          type: "favor_completed",
+          sourceId: postId,
+          deltaXpTotal: xpRecompensa,
+          deltaXpMonth: xpRecompensa,
+          deltaCoins: fichasRecompensa,
+          period,
+          status: "released",
+          createdAt: timestamp,
         });
       }
+      for (const offer of pending) tx.update(offer.ref, { confirmedAt: timestamp });
 
       details.estado = "completado";
       tx.update(postRef, {
@@ -185,7 +218,7 @@ export const completarFavor = onCall(
       return {
         success: true,
         postId,
-        ayudantesRecompensados: ayudantes.length,
+        ayudantesRecompensados: rewards.length,
         fichasPorAyudante: fichasRecompensa,
         xpPorAyudante: xpRecompensa,
       };

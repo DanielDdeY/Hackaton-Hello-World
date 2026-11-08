@@ -52,4 +52,11 @@ final class _FirestoreEconomyTransaction implements EconomyTransaction {
   void update(String path, Map<String, dynamic> data) {
     transaction.update(firestore.doc(path), data);
   }
+
+  @override
+  void increment(String path, String field, num amount) {
+    transaction.update(firestore.doc(path), {
+      field: FieldValue.increment(amount),
+    });
+  }
 }
