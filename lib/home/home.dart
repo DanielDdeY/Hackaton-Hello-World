@@ -24,6 +24,7 @@ import 'peru_locations.dart';
 import 'user_profile.dart';
 
 part 'login.dart';
+part 'mi_perfil.dart';
 part 'tutorial.dart';
 
 const cream = Color(0xfffafafa);
@@ -498,7 +499,7 @@ class _InicioState extends State<Inicio> {
   Future<void> _abrirMiPerfil() async {
     Navigator.pop(context);
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => MiPerfilPage(datos: widget.datos)),
+      MaterialPageRoute(builder: (_) => _MiPerfilPage(datos: widget.datos)),
     );
   }
 

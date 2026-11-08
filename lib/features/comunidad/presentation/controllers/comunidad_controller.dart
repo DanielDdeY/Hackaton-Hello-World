@@ -27,22 +27,13 @@ class ComunidadController extends ChangeNotifier {
 
   static const ambitoRanking = 'distrito';
 
-  CategoriaFavor? _filtroCategoria;
-  CategoriaFavor? get filtroCategoria => _filtroCategoria;
-
-  TamanoFavor? _filtroTamano;
-  TamanoFavor? get filtroTamano => _filtroTamano;
-
-  bool _filtroSoloConCupo = false;
-  bool get filtroSoloConCupo => _filtroSoloConCupo;
-
   Future<void> cargarTodo() async {
     _cargando = true;
     _error = null;
     notifyListeners();
 
     try {
-      await Future.wait([cargarFavores(), cargarRanking(), cargarBuenVecino()]);
+      await Future.wait([cargarRanking(), cargarBuenVecino()]);
     } catch (e) {
       _error = 'Ocurrió un inconveniente al cargar la información: $e';
     } finally {
