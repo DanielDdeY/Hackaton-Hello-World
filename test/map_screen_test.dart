@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:hackaton_hello_world/screens/map/data/map_focus_controller.dart';
 import 'package:hackaton_hello_world/screens/map/data/map_location_provider.dart';
 import 'package:hackaton_hello_world/screens/map/data/map_places_repository.dart';
 import 'package:hackaton_hello_world/screens/map/data/emergency_map_repository.dart';
@@ -204,6 +205,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(FlutterMap), findsOneWidget);
     expect(find.text('Mostrando tu última ubicación conocida'), findsOneWidget);
+  });
+
+  testWidgets('centra la cámara en la alerta solicitada', (tester) async {
+    final focus = MapFocusController();
+    addTearDown(focus.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+          focusController: focus,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    focus.focus(alertLocation);
+    await tester.pumpAndSettle();
+
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.mapController!.camera.center, alertLocation);
+  });
+
+  testWidgets('aplica el foco inicial cuando el mapa termina de cargar', (
+    tester,
+  ) async {
+    final focus = MapFocusController()..focus(alertLocation);
+    addTearDown(focus.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapScreen(
+          repository: _FakeRepository(const []),
+          locationProvider: _FakeLocationProvider([
+            const LocationResult.success(userLocation),
+          ]),
+          focusController: focus,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.mapController!.camera.center, alertLocation);
   });
 }
 

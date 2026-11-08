@@ -5,8 +5,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../features/emergency/domain/emergency_type_labels.dart';
 import 'data/map_location_provider.dart';
 import 'data/map_places_repository.dart';
+import 'data/map_focus_controller.dart';
 import 'data/emergency_map_repository.dart';
 import 'models/map_place.dart';
 import 'utils/map_geo.dart';
@@ -38,6 +40,7 @@ class MapScreen extends StatefulWidget {
     this.repository,
     this.locationProvider,
     this.emergencyRepository,
+    this.focusController,
   });
 
   /// Fuente de datos. Si es `null` se usan los datos de ejemplo.
@@ -47,6 +50,9 @@ class MapScreen extends StatefulWidget {
   /// [GeolocatorLocationProvider].
   final MapLocationProvider? locationProvider;
   final EmergencyMapRepository? emergencyRepository;
+
+  /// Permite centrar la cámara en una alerta SOS concreta.
+  final MapFocusController? focusController;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -92,15 +98,28 @@ class _MapScreenState extends State<MapScreen> {
     _subscribe();
     _subscribeEmergencyAlerts();
     _resolveLocation();
+    widget.focusController?.addListener(_applyFocusRequest);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applyFocusRequest());
   }
 
   @override
   void dispose() {
+    widget.focusController?.removeListener(_applyFocusRequest);
     _subscription?.cancel();
     _emergencySubscription?.cancel();
     _locationSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _applyFocusRequest() {
+    final target = widget.focusController?.target;
+    if (target == null) return;
+    try {
+      _mapController.move(target, _initialZoom + 1);
+    } catch (_) {
+      // El mapa todavía no está listo; se reintenta con la próxima solicitud.
+    }
   }
 
   void _subscribeEmergencyAlerts() {
@@ -172,6 +191,7 @@ class _MapScreenState extends State<MapScreen> {
         _locationFailure = null;
       });
       _watchLocation();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _applyFocusRequest());
     } else {
       setState(() {
         _locationLoading = false;
@@ -324,7 +344,7 @@ class _MapScreenState extends State<MapScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(alert.type.toUpperCase()),
+            Text(emergencyTypeLabel(alert.type)),
             if (alert.description.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(alert.description),
