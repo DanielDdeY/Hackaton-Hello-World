@@ -3,6 +3,24 @@ import '../../../create_post/domain/entities/service_availability.dart';
 import '../../../create_post/domain/entities/service_category.dart';
 import '../../../create_post/domain/entities/service_post_data.dart';
 
+final class HelpItem {
+  const HelpItem({
+    required this.id,
+    required this.description,
+    required this.authorName,
+    this.title,
+    this.location,
+    this.peopleNeeded,
+  });
+
+  final String id;
+  final String description;
+  final String authorName;
+  final String? title;
+  final String? location;
+  final int? peopleNeeded;
+}
+
 final class ServiceItem {
   const ServiceItem({
     required this.id,
@@ -73,4 +91,13 @@ final class EventItem {
   final String place;
   final int? attendees;
   final String? description;
+}
+
+enum EventAttendanceResponse { going, notGoing }
+
+final class EventAttendance {
+  const EventAttendance({this.myResponse, this.confirmedCount = 0});
+
+  final EventAttendanceResponse? myResponse;
+  final int confirmedCount;
 }

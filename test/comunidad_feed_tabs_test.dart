@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackaton_hello_world/features/comunidad/data/mocks/mock_comunidad_feed_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/entities/comunidad_feed_items.dart';
 import 'package:hackaton_hello_world/features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'package:hackaton_hello_world/features/comunidad/presentation/pages/comunidad_page.dart';
@@ -11,6 +12,7 @@ import 'package:hackaton_hello_world/features/create_post/domain/entities/servic
 import 'package:provider/provider.dart';
 
 class _Feed implements ComunidadFeedRepository {
+  final attendance = MockComunidadFeedRepository();
   final serviceRequests = <ServiceCategory?>[];
   final events = StreamController<List<EventItem>>.broadcast();
   final news = StreamController<List<NewsItem>>.broadcast();
@@ -28,6 +30,9 @@ class _Feed implements ComunidadFeedRepository {
     transferBanks: ['bcp'],
     contactPhone: '987654321',
   );
+
+  @override
+  Stream<List<HelpItem>> watchFavors() => Stream.value(const []);
 
   @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) {
@@ -50,6 +55,16 @@ class _Feed implements ComunidadFeedRepository {
     yield const [];
     yield* news.stream;
   }
+
+  @override
+  Stream<EventAttendance> watchEventAttendance(String eventId) =>
+      attendance.watchEventAttendance(eventId);
+
+  @override
+  Future<void> respondToEvent(
+    String eventId,
+    EventAttendanceResponse response,
+  ) => attendance.respondToEvent(eventId, response);
 }
 
 Future<void> _open(WidgetTester tester, _Feed repository) async {
@@ -145,9 +160,27 @@ void main() {
     expect(find.text('NOV'), findsOneWidget);
     expect(find.text('17:30'), findsOneWidget);
     expect(find.text('Local comunal'), findsOneWidget);
-    expect(find.text('Coordinaremos el simulacro.'), findsOneWidget);
     expect(find.text('14 asistentes previstos'), findsOneWidget);
     expect(find.text('Aún no hay eventos programados'), findsNothing);
+
+    await _tap(tester, 'Detalles');
+    final eventSheet = find.byType(DraggableScrollableSheet);
+    expect(
+      find.descendant(
+        of: eventSheet,
+        matching: find.text('Coordinaremos el simulacro.'),
+      ),
+      findsOneWidget,
+    );
+    Navigator.of(tester.element(eventSheet)).pop();
+    await tester.pumpAndSettle();
+
+    await _tap(tester, 'Asistencia');
+    await _tap(tester, 'Voy');
+    expect(find.text('1 asistencia confirmada'), findsOneWidget);
+    await _tap(tester, 'Voy');
+    await _tap(tester, 'No voy');
+    expect(find.text('0 asistencias confirmadas'), findsOneWidget);
 
     final item = NewsItem(
       id: 'aviso',

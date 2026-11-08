@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../create_post/domain/entities/service_availability.dart';
 import '../../../create_post/domain/entities/service_category.dart';
@@ -145,6 +146,8 @@ class _ServiceCard extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
               ),
+              const SizedBox(height: 12),
+              _ServiceAction(item: item),
             ],
           ),
         ),
@@ -210,7 +213,89 @@ class _ServiceDetail extends StatelessWidget {
           ),
         if (item.isUploading || item.photoUrls.isNotEmpty)
           FeedPhotos(urls: item.photoUrls, isUploading: item.isUploading),
+        _ServiceAction(item: item),
       ],
+    );
+  }
+}
+
+class _ServiceAction extends StatelessWidget {
+  const _ServiceAction({required this.item});
+
+  final ServiceItem item;
+
+  String get label => switch (item.mode) {
+    ServiceMode.sell => 'Pedir',
+    ServiceMode.provideService => 'Contratar',
+    null => 'Contactar',
+  };
+
+  Future<void> _contact(BuildContext context) async {
+    final phone = item.contactPhone?.trim() ?? '';
+    final dialNumber = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final canCall = RegExp(r'^\+?[0-9]+$').hasMatch(dialNumber);
+    final call = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$label · ${item.title}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              phone.isEmpty
+                  ? 'Esta publicación no tiene un teléfono de contacto.'
+                  : 'Coordina directamente con el anunciante usando este teléfono.',
+            ),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SelectableText(phone),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cerrar'),
+          ),
+          if (canCall)
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.phone_outlined),
+              label: const Text('Llamar'),
+            ),
+        ],
+      ),
+    );
+    if (call != true || !context.mounted) return;
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        Uri(scheme: 'tel', path: dialNumber),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      // El usuario puede seleccionar el teléfono si no hay app de llamadas.
+    }
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo abrir el teléfono. Contacta al $phone.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: () => _contact(context),
+      icon: Icon(
+        item.mode == ServiceMode.sell
+            ? Icons.shopping_bag_outlined
+            : Icons.handshake_outlined,
+      ),
+      label: Text(label),
     );
   }
 }
