@@ -1,3 +1,5 @@
+import '../../../create_post/domain/entities/help_post_data.dart';
+
 enum EconomySource {
   serviceUse,
   completedFavor,
@@ -45,7 +47,8 @@ final class EconomyResult {
   static const serviceProviderXp = 25;
   static const eventXp = 10;
   static const eventCoins = 3;
-  static const favorXp = 10;
+  static const favorXp = HelpPostData.systemXp;
+  static const favorCoins = HelpPostData.systemCoins;
 
   final String confirmationId;
   final String period;

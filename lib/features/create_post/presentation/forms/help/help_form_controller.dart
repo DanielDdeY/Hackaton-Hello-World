@@ -16,6 +16,7 @@ class HelpFormController extends ChangeNotifier with PostLocationCapture {
   final PhotoPicker _photoPicker;
   late final Future<void> locationReady;
   final descriptionController = TextEditingController();
+  final phoneController = TextEditingController();
   TextEditingController get locationController => addressController;
   final rewardController = TextEditingController();
 
@@ -64,6 +65,7 @@ class HelpFormController extends ChangeNotifier with PostLocationCapture {
 
   HelpPostData get data => HelpPostData(
     description: descriptionController.text.trim(),
+    contactPhone: phoneController.text.trim(),
     neededBy: _neededBy,
     peopleCount: _peopleCount,
     location: _optionalText(locationController.text),
@@ -82,6 +84,7 @@ class HelpFormController extends ChangeNotifier with PostLocationCapture {
   @override
   void dispose() {
     descriptionController.dispose();
+    phoneController.dispose();
     rewardController.dispose();
     super.dispose();
   }

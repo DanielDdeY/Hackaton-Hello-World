@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/validators/peruvian_phone_validator.dart';
+import '../../../create_post/domain/services/auth_gateway.dart';
 import '../../../economy/domain/models/economy_result.dart';
 import '../../../economy/domain/services/economy_engine.dart';
 import '../../../economy/presentation/economy_failure_messages.dart';
@@ -195,7 +198,7 @@ class _HelpCardState extends State<_HelpCard> {
             _saving
                 ? 'Guardando…'
                 : participation?.isConfirmed == true
-                ? 'Ayuda confirmada · +${EconomyResult.favorXp} XP'
+                ? 'Ayuda confirmada'
                 : offered
                 ? 'Ayuda ofrecida'
                 : 'Ayudar',
@@ -208,6 +211,7 @@ class _HelpCardState extends State<_HelpCard> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final title = item.title ?? _titleFromDescription(item.description);
     final theme = Theme.of(context);
     final location = item.location ?? 'N/A';
     final people = item.peopleNeeded;
@@ -215,99 +219,92 @@ class _HelpCardState extends State<_HelpCard> {
         ? theme.colorScheme.onSurfaceVariant
         : theme.colorScheme.primary;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 10,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 4,
-                    children: [
-                      Text(
-                        item.title ?? _titleFromDescription(item.description),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+    final summary = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 10,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
-                      Text(
-                        item.authorName,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                RewardBadge(
-                  label: item.hasReward ? 'Con recompensa' : 'Sin recompensa',
-                  highlighted: item.hasReward,
-                ),
-                const ExcludeSemantics(child: Icon(Icons.more_vert, size: 20)),
-              ],
-            ),
-            Text(item.description, style: theme.textTheme.bodyMedium),
-            const RewardBadge(
-              label: '+${EconomyResult.favorXp} XP',
-              detail: 'Al confirmar la ayuda',
-            ),
-            if (item.hasReward && item.rewardDescription != null)
-              Text(
-                'Recompensa: ${item.rewardDescription}',
-                style: theme.textTheme.bodySmall,
-              ),
-            Row(
-              spacing: 6,
-              children: [
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: theme.colorScheme.primary,
-                ),
-                Expanded(
-                  child: Semantics(
-                    label: 'Ubicación: $location',
-                    excludeSemantics: true,
-                    child: Text(
-                      location,
+                    ),
+                    Text(
+                      item.authorName,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: peopleColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: peopleColor.withValues(alpha: 0.4),
-                    ),
-                  ),
+              ),
+              RewardBadge(
+                label: 'Con recompensa',
+                neighborReward: item.hasReward,
+              ),
+            ],
+          ),
+          Text(item.description, style: theme.textTheme.bodyMedium),
+          Row(
+            spacing: 6,
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              Expanded(
+                child: Semantics(
+                  label: 'Ubicación: $location',
+                  excludeSemantics: true,
                   child: Text(
-                    'Personas: ${people ?? 'N/A'}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: peopleColor,
+                    location,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
-              ],
-            ),
-            _buildParticipation(),
-          ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: peopleColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: peopleColor.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  'Personas: ${people ?? 'N/A'}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: peopleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          _buildParticipation(),
+        ],
+      ),
+    );
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showFeedDetail(
+          context,
+          (_) => [_HelpDetail(item: item, title: title)],
         ),
+        child: summary,
       ),
     );
   }
@@ -317,5 +314,76 @@ class _HelpCardState extends State<_HelpCard> {
     return firstLine.length <= 54
         ? firstLine.toString()
         : '${firstLine.take(54)}…';
+  }
+}
+
+class _HelpDetail extends StatelessWidget {
+  const _HelpDetail({required this.item, required this.title});
+
+  final HelpItem item;
+  final String title;
+
+  Future<void> _openWhatsApp(BuildContext context, String phone) async {
+    final link = Uri.https('wa.me', '/51$phone', {
+      'text': 'Hola, vi tu solicitud de ayuda en AyniVeci.',
+    });
+    try {
+      if (await launchUrl(link, mode: LaunchMode.externalApplication)) return;
+    } on Exception {
+      // Show feedback below if the device could not open the link.
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir WhatsApp.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final phone = item.contactPhone;
+    final uid = context.read<AuthGateway?>()?.currentUid;
+    final neededBy = item.neededBy;
+    final hasPhone = phone != null && PeruvianPhoneValidator.isValid(phone);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 12,
+      children: [
+        Text(title, style: theme.textTheme.headlineSmall),
+        Text('Publicado por ${item.authorName}'),
+        if (item.description != title) Text(item.description),
+        Text('Ubicación: ${item.location ?? 'N/A'}'),
+        Text('Personas: ${item.peopleNeeded ?? 'N/A'}'),
+        if (neededBy != null)
+          Text(
+            'Fecha límite: ${MaterialLocalizations.of(context).formatFullDate(neededBy)}',
+          ),
+        const Divider(height: 1),
+        Text('Recompensa', style: theme.textTheme.titleMedium),
+        if (item.hasReward)
+          Text(item.rewardDescription ?? 'El autor ofrece una recompensa.')
+        else
+          const RewardBadge(
+            label:
+                '+${EconomyResult.favorXp} XP · +${EconomyResult.favorCoins} monedas',
+            detail: 'Al confirmar la ayuda',
+          ),
+        Text('Celular de contacto', style: theme.textTheme.titleMedium),
+        if (hasPhone)
+          SelectableText('+51 $phone')
+        else
+          const Text('No indicado'),
+        if (hasPhone && (item.authorId == null || item.authorId != uid))
+          OutlinedButton.icon(
+            onPressed: () => _openWhatsApp(context, phone),
+            icon: const Icon(Icons.chat_outlined),
+            label: const Text('WhatsApp'),
+          ),
+        if (item.photoUrls.isNotEmpty)
+          FeedPhotos(urls: item.photoUrls, isUploading: false),
+      ],
+    );
   }
 }

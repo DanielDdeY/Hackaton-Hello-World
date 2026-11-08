@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../create_post/domain/entities/help_post_data.dart';
 import '../../../create_post/domain/entities/news_post_data.dart';
 import '../../../create_post/domain/entities/service_availability.dart';
 import '../../../create_post/domain/entities/service_category.dart';
@@ -200,11 +201,9 @@ final class FirestoreComunidadFeedRepository
     if (description == null) return null;
 
     final people = details['peopleNeeded'];
+    final neededBy = details['requiredDate'];
     final rewardDescription = _text(details['rewardDescription']);
-    final hasReward = switch (details['hasReward']) {
-      final bool enabled => enabled,
-      _ => rewardDescription != null,
-    };
+    final hasReward = HelpPostData.hasAuthorReward(details);
     final location = data['location'];
     final autoLocation =
         location is Map &&
@@ -218,9 +217,12 @@ final class FirestoreComunidadFeedRepository
       title: _text(details['title']),
       location: autoLocation ? null : _text(details['specificLocation']),
       peopleNeeded: people is int && people > 0 ? people : null,
+      neededBy: neededBy is Timestamp ? neededBy.toDate().toUtc() : null,
       authorId: _text(data['authorId']),
+      contactPhone: _text(details['contactPhone']),
       hasReward: hasReward,
       rewardDescription: hasReward ? rewardDescription : null,
+      photoUrls: _photos(data['photos']),
     );
   }
 

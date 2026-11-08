@@ -6,39 +6,51 @@ class RewardBadge extends StatelessWidget {
     required this.label,
     this.detail,
     this.highlighted = true,
+    this.neighborReward = false,
   });
 
   final String label;
   final String? detail;
   final bool highlighted;
+  final bool neighborReward;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final foreground = highlighted
-        ? const Color(0xFF7A4A00)
-        : colors.onSurfaceVariant;
+    final (foreground, background, border, iconColor) = neighborReward
+        ? (
+            const Color(0xFF175C34),
+            const Color(0xFFE1F3E8),
+            const Color(0xFF6CA783),
+            const Color(0xFF2E7950),
+          )
+        : highlighted
+        ? (
+            const Color(0xFF7A4A00),
+            const Color(0xFFFFF3CD),
+            const Color(0xFFFFB703),
+            const Color(0xFFD48B00),
+          )
+        : (
+            colors.onSurfaceVariant,
+            colors.surfaceContainer,
+            colors.outlineVariant,
+            colors.onSurfaceVariant,
+          );
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 168),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: highlighted ? const Color(0xFFFFF3CD) : colors.surfaceContainer,
+        color: background,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: highlighted ? const Color(0xFFFFB703) : colors.outlineVariant,
-          width: 0.8,
-        ),
+        border: Border.all(color: border, width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 4,
         children: [
-          Icon(
-            Icons.stars_rounded,
-            size: 16,
-            color: highlighted ? const Color(0xFFD48B00) : foreground,
-          ),
+          Icon(Icons.stars_rounded, size: 16, color: iconColor),
           Flexible(
             child: Text.rich(
               TextSpan(

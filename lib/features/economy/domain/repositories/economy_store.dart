@@ -8,4 +8,5 @@ abstract interface class EconomyTransaction {
   Future<Map<String, dynamic>?> get(String path);
   void create(String path, Map<String, dynamic> data);
   void update(String path, Map<String, dynamic> data);
+  void increment(String path, String field, num amount);
 }
