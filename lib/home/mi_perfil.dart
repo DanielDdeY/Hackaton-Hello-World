@@ -1,19 +1,98 @@
 part of 'home.dart';
 
-class _MiPerfilPage extends StatelessWidget {
+class _MiPerfilPage extends StatefulWidget {
   const _MiPerfilPage({required this.datos});
 
   final _DatosBarrio datos;
 
   @override
+  State<_MiPerfilPage> createState() => _MiPerfilPageState();
+}
+
+class _MiPerfilPageState extends State<_MiPerfilPage> {
+  int _itemsMochilaListos = 0;
+  bool _bonoMochilaReclamado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarMochila();
+  }
+
+  Future<void> _cargarMochila() async {
+    final items = await BackpackChecklistStore.load();
+    final reclamado = await MochilaVerificacion.isBonoReclamado();
+    if (mounted) {
+      setState(() {
+        _itemsMochilaListos = items.values.where((v) => v).length;
+        _bonoMochilaReclamado = reclamado;
+      });
+    }
+  }
+
+  Future<void> _abrirMascota() async {
+    final uid = context.read<AuthGateway?>()?.currentUid ?? 'usr_local';
+    final repo = LocalMascotaRepository(preferences: widget.datos.preferencias);
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MascotaPage(
+          uid: uid,
+          mascotaRepository: repo,
+          fichasActuales: widget.datos.fichas,
+          onFichasActualizadas: (nuevasFichas) {
+            setState(() {
+              widget.datos.fichas = nuevasFichas;
+            });
+            widget.datos.preferencias.setInt('vecino_fichas', nuevasFichas);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _abrirMochila() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Ayuda y Prevención')),
+          body: const AyudaPrevencionPage(),
+        ),
+      ),
+    );
+    if (mounted) {
+      await _cargarMochila();
+    }
+  }
+
+  Future<void> _abrirContactosSos() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SosSmsContactsPage()),
+    );
+  }
+
+  Future<void> _abrirEditar() async {
+    final actualizado = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _EditarInformacionPage(datos: widget.datos),
+      ),
+    );
+    if (actualizado == true && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final auth = context.read<AuthGateway?>();
     final users = context.read<UserRepository?>();
     final uid = auth?.currentUid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi perfil')),
+      appBar: AppBar(
+        title: const Text('Mi perfil'),
+        elevation: 0,
+      ),
       body: StreamBuilder<AppUser>(
         stream: users != null && uid != null && uid.isNotEmpty
             ? users.watchUserStats(uid)
@@ -22,97 +101,75 @@ class _MiPerfilPage extends StatelessWidget {
           final stats = snapshot.data;
           if (stats != null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              datos.syncEconomy(stats);
+              widget.datos.syncEconomy(stats);
             });
           }
           return ListenableBuilder(
-            listenable: datos,
+            listenable: widget.datos,
             builder: (context, _) {
-              final xp = stats?.xpTotal ?? datos.xp;
-              final nivel = stats?.level ?? datos.nivel;
-              final star = stats != null && stats.reviewCount > 0
-                  ? stats.averageStars.round()
-                  : datos.stars;
-              final monedas = stats?.availableCoins ?? datos.fichas;
-              final xpMes = stats?.effectiveMonthlyXp ?? datos.weeklyXp;
+              final xp = stats?.xpTotal ?? widget.datos.xp;
+              final monedas = stats?.availableCoins ?? widget.datos.fichas;
+              final xpMes = stats?.effectiveMonthlyXp ?? widget.datos.weeklyXp;
+              final estrellas = stats != null && stats.reviewCount > 0
+                  ? stats.averageStars
+                  : widget.datos.stars.toDouble();
+              final totalResenas = stats?.reviewCount ?? 0;
 
-              return ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Center(
-                    child: CircleAvatar(
-                      radius: 36,
-                      child: Text(
-                        datos.iniciales,
-                        style: theme.textTheme.headlineSmall,
-                      ),
+              final listaInsignias = [
+                if (_bonoMochilaReclamado) 'vecino-preparado',
+                ...widget.datos.insignias,
+              ];
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await _cargarMochila();
+                },
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  children: [
+                    PerfilCabecera(
+                      nombre: widget.datos.nombre,
+                      iniciales: widget.datos.iniciales,
+                      distrito: widget.datos.distrito,
+                      provincia: widget.datos.provincia,
+                      xp: xp,
+                      foto: widget.datos.foto,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(datos.nombre, style: theme.textTheme.headlineSmall),
-                  const SizedBox(height: 16),
-                  if (datos.bio.isNotEmpty) ...[
-                    Text(datos.bio),
                     const SizedBox(height: 16),
-                  ],
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.location_on_outlined),
-                    title: const Text('Ubicación'),
-                    subtitle: Text(
-                      datos.zona.isEmpty ? 'No indicada' : datos.zona,
+                    PerfilResumen(
+                      xpMes: xpMes,
+                      fichas: monedas,
+                      estrellas: estrellas,
+                      totalResenas: totalResenas,
                     ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.phone_outlined),
-                    title: const Text('Teléfono'),
-                    subtitle: SelectableText(
-                      datos.phoneNumber.isEmpty
-                          ? 'No indicado'
-                          : datos.phoneNumber,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Tu participación', style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 4,
-                    children: [
-                      Text('Nivel $nivel · $xp XP · '),
-                      SvgPicture.asset('assets/ficha.svg', width: 14, height: 14),
-                      Text('$monedas fichas · $star ★'),
-                    ],
-                  ),
-                  Text('$xpMes XP este mes en el barrio'),
-                  Text('Favores completados: ${datos.favoresCompletados}'),
-                  Text('Eventos asistidos: ${datos.eventosAsistidos}'),
-                  Text('Reconocimientos: ${datos.reconocimientos}'),
-                  Text('Racha semanal: ${datos.rachaSemanal}'),
-                  if (datos.insignias.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    Text('Insignias', style: theme.textTheme.titleMedium),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        for (final insignia in datos.insignias)
-                          Chip(label: Text(insignia)),
-                      ],
+                    PerfilTarjetasDestacadas(
+                      xp: xp,
+                      bonoMochilaReclamado: _bonoMochilaReclamado,
+                      itemsMochilaListos: _itemsMochilaListos,
+                      onAbrirMascota: _abrirMascota,
+                      onAbrirMochila: _abrirMochila,
                     ),
+                    const SizedBox(height: 16),
+                    PerfilInsignias(insignias: listaInsignias),
+                    const SizedBox(height: 16),
+                    PerfilActividad(
+                      favoresCompletados: widget.datos.favoresCompletados,
+                      eventosAsistidos: widget.datos.eventosAsistidos,
+                      reconocimientos: widget.datos.reconocimientos,
+                      rachaSemanal: widget.datos.rachaSemanal,
+                    ),
+                    const SizedBox(height: 16),
+                    PerfilDatosPersonales(
+                      zona: widget.datos.zona,
+                      telefono: widget.datos.phoneNumber,
+                      bio: widget.datos.bio,
+                      onEditar: _abrirEditar,
+                      onContactosSos: _abrirContactosSos,
+                    ),
+                    const SizedBox(height: 24),
                   ],
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => Navigator.of(context).push<bool>(
-                      MaterialPageRoute(
-                        builder: (_) => _EditarInformacionPage(datos: datos),
-                      ),
-                    ),
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Editar información'),
-                  ),
-                ],
+                ),
               );
             },
           );
