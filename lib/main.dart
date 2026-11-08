@@ -19,6 +19,9 @@ import 'features/comunidad/data/repositories/firestore_comunidad_repository.dart
 import 'features/comunidad/domain/repositories/comunidad_feed_repository.dart';
 import 'features/comunidad/domain/repositories/comunidad_repository.dart';
 import 'features/comunidad/presentation/pages/comunidad_page.dart';
+import 'features/comunidad/recognitions/data/firestore_recognition_repository.dart';
+import 'features/comunidad/recognitions/data/recognition_document_store.dart';
+import 'features/comunidad/recognitions/domain/services/recognition_repository.dart';
 import 'features/create_post/data/mocks/mock_location_provider.dart';
 import 'features/create_post/data/mocks/mock_photo_picker.dart';
 import 'features/create_post/data/repositories/firestore_post_repository.dart';
@@ -70,6 +73,7 @@ void main() async {
     auth: auth,
     users: users,
   );
+  final authorNames = ProfilePostAuthorNameResolver(profileStore);
   final comunidadRepository = FirestoreComunidadRepository(
     firestore: firestore,
     auth: FirebaseAuth.instanceFor(app: firebaseApp),
@@ -79,6 +83,12 @@ void main() async {
   runApp(
     MyApp(
       authGateway: auth,
+      recognitionRepository: FirestoreRecognitionRepository(
+        auth: auth,
+        authorNames: authorNames,
+        documents: FirebaseRecognitionDocumentStore(firestore),
+        periods: SystemPeriodProvider(),
+      ),
       periodProvider: periods,
       userRepository: users,
       economyEngine: ServiceEconomyEngine(
@@ -94,7 +104,7 @@ void main() async {
       ),
       profileStore: profileStore,
       postRepository: FirestorePostRepository(
-        authorNameResolver: ProfilePostAuthorNameResolver(profileStore),
+        authorNameResolver: authorNames,
         documents: FirebasePostDocumentStore(firestore),
         uploader: FirebaseStorageImageUploader(
           FirebasePhotoStorage(FirebaseStorage.instanceFor(app: firebaseApp)),
@@ -122,6 +132,7 @@ class MyApp extends StatelessWidget {
     this.locationProvider = const MockLocationProvider(),
     this.photoPicker = const MockPhotoPicker(),
     this.authGateway,
+    this.recognitionRepository,
     this.userRepository,
     this.economyEngine,
     PeriodProvider? periodProvider,
@@ -140,6 +151,7 @@ class MyApp extends StatelessWidget {
   final LocationProvider locationProvider;
   final PhotoPicker photoPicker;
   final AuthGateway? authGateway;
+  final RecognitionRepository? recognitionRepository;
   final UserRepository? userRepository;
   final EconomyEngine? economyEngine;
   final PeriodProvider periodProvider;
@@ -155,6 +167,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<AuthGateway?>.value(value: authGateway),
+        Provider<RecognitionRepository?>.value(value: recognitionRepository),
         Provider<UserRepository?>.value(value: userRepository),
         Provider<EconomyEngine?>.value(value: economyEngine),
         if (periods case final Listenable changes)

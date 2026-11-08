@@ -339,7 +339,9 @@ class _EditarUbicacionPageState extends State<_EditarUbicacionPage> {
     if (_departamentoSeleccionado == null ||
         _provinciaSeleccionada == null ||
         _distritoSeleccionado == null ||
-        _guardando) return;
+        _guardando) {
+      return;
+    }
 
     setState(() => _guardando = true);
     final auth = context.read<AuthGateway?>();

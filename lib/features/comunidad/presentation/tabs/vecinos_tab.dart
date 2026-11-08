@@ -7,9 +7,10 @@ import '../../../economy/domain/models/app_user.dart';
 import '../../../economy/domain/repositories/user_repository.dart';
 import '../../../economy/domain/services/period_provider.dart';
 import '../../domain/entities/vecino_ranking.dart';
+import '../../recognitions/domain/services/recognition_repository.dart';
+import '../../recognitions/presentation/recognize_neighbor_sheet.dart';
 import '../controllers/comunidad_controller.dart';
 import '../pages/vecino_detalle_page.dart';
-import '../widgets/reconocimiento_dialog.dart';
 
 class VecinosTab extends StatefulWidget {
   const VecinosTab({super.key});
@@ -26,6 +27,26 @@ class _VecinosTabState extends State<VecinosTab> {
   void _reintentar(ComunidadController controller) {
     setState(() => _reloadToken++);
     controller.cargarRanking();
+  }
+
+  Future<void> _openRecognitionSheet(
+    BuildContext context,
+    List<VecinoRanking> neighbors,
+  ) async {
+    final uid = context.read<AuthGateway?>()?.currentUid;
+    final repository = context.read<RecognitionRepository?>();
+    if (uid == null || uid.isEmpty || repository == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicia sesión para reconocer a un vecino.')),
+      );
+      return;
+    }
+    await showRecognizeNeighborSheet(
+      context,
+      neighbors: neighbors,
+      currentUid: uid,
+      repository: repository,
+    );
   }
 
   Future<void> _abrirHerramientasDemo(
@@ -90,6 +111,11 @@ class _VecinosTabState extends State<VecinosTab> {
     required AsyncSnapshot<List<AppUser>>? monthlySnapshot,
   }) {
     final theme = Theme.of(context);
+    final monthlyRanking = _mapUsersToRanking(
+      monthlySnapshot?.data ?? const <AppUser>[],
+      currentUid: currentUid,
+      fallbackDistrito: distrito,
+    );
     return RefreshIndicator(
       onRefresh: () async => _reintentar(controller),
       child: ListView(
@@ -108,12 +134,7 @@ class _VecinosTabState extends State<VecinosTab> {
               controller: controller,
             )
                 : null,
-            onNominar: (vecino) => mostrarDialogoReconocimiento(
-              context,
-              controller,
-              destinoUid: vecino.uid,
-              destinoNombre: vecino.nombre,
-            ),
+            onNominar: (_) => _openRecognitionSheet(context, monthlyRanking),
           ),
           const SizedBox(height: 16),
 
@@ -165,11 +186,7 @@ class _VecinosTabState extends State<VecinosTab> {
             else if (snapshot.data?.isNotEmpty != true)
               _EstadoVacioRanking(onReintentar: () => _reintentar(controller))
             else
-              ..._mapUsersToRanking(
-                snapshot.data!,
-                currentUid: currentUid,
-                fallbackDistrito: distrito,
-              ).map((vecino) => _FilaVecinoRanking(vecino: vecino))
+              ...monthlyRanking.map((vecino) => _FilaVecinoRanking(vecino: vecino))
           else if (controller.cargando && controller.ranking.isEmpty)
             const Center(
               child: Padding(
