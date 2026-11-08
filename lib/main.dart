@@ -182,7 +182,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'VeciApp',
+        title: 'AyniVeci',
         debugShowCheckedModeBanner: false,
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         supportedLocales: const [Locale('es', 'PE')],

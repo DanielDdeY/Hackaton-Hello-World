@@ -555,7 +555,7 @@ class _EntradaState extends State<_Entrada> {
       final headers = kIsWeb
           ? const <String, String>{}
           : const <String, String>{
-        'User-Agent': 'hackaton-hello-world/1.0 (Mi Barrio)',
+        'User-Agent': 'hackaton-hello-world/1.0 (AyniVeci)',
       };
       final respuesta = await http
           .get(uri, headers: headers)
@@ -928,7 +928,7 @@ class _EntradaState extends State<_Entrada> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: cream,
-        title: const Text('Mi Barrio'),
+        title: const Text('AyniVeci'),
         leading: _paso == 0
             ? null
             : BackButton(onPressed: () => _ir(_paso - 1)),
@@ -957,7 +957,7 @@ class _EntradaState extends State<_Entrada> {
       const SizedBox(height: 20),
       Center(child: icono('Firulais', 116)),
       const SizedBox(height: 12),
-      Center(child: label('MI BARRIO', 15, bold: true, color: orange)),
+      Center(child: label('AYNI VECI', 15, bold: true, color: orange)),
       const SizedBox(height: 8),
       Center(child: label('Hola, vecino', 28, bold: true)),
       const SizedBox(height: 6),

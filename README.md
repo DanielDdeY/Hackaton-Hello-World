@@ -1,11 +1,11 @@
-# Hackaton-Hello-World
+# AyniVeci
 
-## Probar VeciApp con Firebase local
+## Probar AyniVeci con Firebase local
 
 Desde la raíz de este proyecto, inicia los emuladores en una terminal:
 
 ```powershell
-npx.cmd --yes firebase-tools emulators:start --only auth,firestore,storage --project demo-hackaton-hello-world
+npx.cmd --yes firebase-tools emulators:start --only auth,firestore,storage --project demo-ayniveci
 ```
 
 En otra terminal, con un emulador de Android iniciado o un dispositivo conectado:
@@ -43,7 +43,7 @@ Los adjuntos de estos flujos deben ser JPG y pesar menos de 5 MB. La foto de
 Emergencia puede seguir subiendo al salir del formulario mientras la aplicación
 permanezca en ejecución. Si se cierra el proceso, puede quedar en `uploading`.
 
-Para probar Auth contra `hackaton-hello-world`, habilita **Authentication →
+Para probar Auth contra `ayniveci`, habilita **Authentication →
 Método de acceso → Anónimo** en la consola de Firebase y ejecuta Flutter sin
 el modo de emuladores.
 
@@ -78,7 +78,7 @@ flutter build apk --debug
 Para verificar las reglas de acceso en el proyecto de demostración:
 
 ```powershell
-npx.cmd --yes firebase-tools emulators:exec --only auth,firestore,storage --project demo-hackaton-hello-world "node test/firebase_rules_test.mjs"
+npx.cmd --yes firebase-tools emulators:exec --only auth,firestore,storage --project demo-ayniveci "node test/firebase_rules_test.mjs"
 ```
 
 Antes de usar el proyecto remoto, confirma que estén habilitados Auth anónimo,
@@ -87,5 +87,5 @@ bloque anterior por acceso abierto total (modo hackatón).
 El despliegue de reglas e índices se hace desde la raíz del proyecto:
 
 ```powershell
-npx.cmd --yes firebase-tools deploy --project hackaton-hello-world --only firestore:rules,firestore:indexes,storage
+npx.cmd --yes firebase-tools deploy --project ayni-veci --only firestore:rules,firestore:indexes,storage
 ```

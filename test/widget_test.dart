@@ -65,7 +65,7 @@ void main() {
     expect(find.text('2026-12'), findsOneWidget);
   });
 
-  testWidgets('muestra la bienvenida de Mi Barrio', (
+  testWidgets('muestra la bienvenida de AyniVeci', (
     WidgetTester tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -86,7 +86,7 @@ void main() {
     });
     await tester.pumpWidget(MyApp());
     await tester.pumpAndSettle();
-    expect(find.text('MI BARRIO'), findsOneWidget);
+    expect(find.text('AYNI VECI'), findsOneWidget);
     expect(find.text('Carlos Mendoza'), findsOneWidget);
     expect(find.text('Servicios\nde oficios'), findsOneWidget);
 

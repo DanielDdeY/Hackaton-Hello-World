@@ -959,7 +959,7 @@ class _InicioState extends State<Inicio> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        label('MI BARRIO', 13, bold: true, color: orange),
+        label('AYNI VECI', 13, bold: true, color: orange),
         InkWell(
           key: _campanaTutorial,
           onTap: () => detalle(
