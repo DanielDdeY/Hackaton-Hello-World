@@ -48,13 +48,27 @@ final class HelpPostData implements PostFormData {
   List<String> get localPhotoPaths => [?photoPath];
 
   @override
-  Map<String, Object?> toMap() => {
-    'description': description,
-    if (neededBy case final date?)
-      'requiredDate': DateTime.utc(date.year, date.month, date.day),
-    if (peopleCount != null) 'peopleNeeded': peopleCount,
-    if (location != null) 'specificLocation': location,
-    'hasReward': hasReward,
-    if (hasReward && reward != null) 'rewardDescription': reward,
-  };
+  Map<String, Object?> toMap() {
+    final count = (peopleCount ?? 1).clamp(1, 300);
+    final fichas = count > 2 ? 30 : 15;
+    final xp = count > 2 ? 60 : 30;
+    final tamano = count > 2 ? 'comunitario' : 'medio';
+
+    return {
+      'description': description,
+      if (neededBy case final date?)
+        'requiredDate': DateTime.utc(date.year, date.month, date.day),
+      'peopleNeeded': count,
+      'cuposTotales': count,
+      'cuposTomados': 0,
+      'ayudantes': const <String>[],
+      'tamano': tamano,
+      'fichasRecompensa': fichas,
+      'xpRecompensa': xp,
+      'estado': 'abierto',
+      if (location != null) 'specificLocation': location,
+      'hasReward': hasReward,
+      if (hasReward && reward != null) 'rewardDescription': reward,
+    };
+  }
 }

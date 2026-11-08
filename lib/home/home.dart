@@ -22,6 +22,7 @@ import '../features/emergency/data/firebase_emergency_post_repository.dart';
 import '../features/emergency/domain/emergency_alert.dart';
 import 'peru_locations.dart';
 import 'user_profile.dart';
+import '../features/economia/domain/entities/nivel_xp.dart';
 
 part 'login.dart';
 part 'mi_perfil.dart';
@@ -588,8 +589,13 @@ class _InicioState extends State<Inicio> {
           ListTile(
             leading: const Icon(Icons.leaderboard_outlined),
             title: const Text('Estadísticas y Nivel'),
-            subtitle: Text(
-              'Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP · ${widget.datos.stars} ★',
+            subtitle: Row(
+              children: [
+                Text('Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP · '),
+                SvgPicture.asset('assets/ficha.svg', width: 14, height: 14),
+                const SizedBox(width: 4),
+                Text('${widget.datos.fichas} fichas'),
+              ],
             ),
           ),
           if (widget.datos.insignias.isNotEmpty)
@@ -880,11 +886,28 @@ class _InicioState extends State<Inicio> {
                 color: muted,
               ),
               const SizedBox(height: 5),
-              label(
-                '★ Nivel ${widget.datos.nivel}   ·   XP: ${widget.datos.xp}   ·   Star: ${widget.datos.stars}',
-                12,
-                bold: true,
-                color: orange,
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                children: [
+                  label(
+                    '★ Nivel ${widget.datos.nivel} · XP: ${widget.datos.xp} ·',
+                    12,
+                    bold: true,
+                    color: orange,
+                  ),
+                  SvgPicture.asset(
+                    'assets/ficha.svg',
+                    width: 14,
+                    height: 14,
+                  ),
+                  label(
+                    '${widget.datos.fichas}',
+                    12,
+                    bold: true,
+                    color: orange,
+                  ),
+                ],
               ),
             ],
           ),

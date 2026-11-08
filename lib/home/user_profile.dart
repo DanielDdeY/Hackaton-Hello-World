@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../features/economia/domain/entities/nivel_xp.dart';
+
 final class UserProfile {
   const UserProfile({
     required this.name,
@@ -14,7 +16,8 @@ final class UserProfile {
     required this.stars,
     required this.favors,
     required this.tools,
-    required this.petHunger,
+    this.petHunger = 0,
+    this.fichas = 0,
     this.weeklyXp = 0,
     this.badges = const <String>[],
     this.favoresCompletados = 0,
@@ -45,6 +48,7 @@ final class UserProfile {
       province: _string(data['province'], fallbackProvince),
       district: _string(data['district'], fallbackDistrict),
       xp: _integer(data['xp']),
+      fichas: _integer(data['fichas'] ?? data['monedas'] ?? data['stars']),
       weeklyXp: _integer(data['weeklyXp'] ?? stats['xpPeriodo']),
       stars: _integer(data['stars']),
       favors: _integer(data['favors']),
@@ -75,6 +79,7 @@ final class UserProfile {
   final String province;
   final String district;
   final int xp;
+  final int fichas;
   final int weeklyXp;
   final int stars;
   final int favors;
@@ -87,11 +92,14 @@ final class UserProfile {
   final int rachaSemanal;
   final DateTime? joinedAt;
 
-  int get level => xp ~/ 100;
-  int get xpEnNivelActual => xp % 100;
-  bool get petUnlocked => level >= 25;
+  int get level => NivelXp.calcularNivel(xp);
+  int get xpEnNivelActual => NivelXp.xpEnNivelActual(xp);
+  bool get petUnlocked => NivelXp.mascotaDesbloqueada(xp);
 
   UserProfile copyWith({
+    int? xp,
+    int? fichas,
+    int? stars,
     double? petHunger,
     int? weeklyXp,
     List<String>? badges,
@@ -107,9 +115,10 @@ final class UserProfile {
     department: department,
     province: province,
     district: district,
-    xp: xp,
+    xp: xp ?? this.xp,
+    fichas: fichas ?? this.fichas,
     weeklyXp: weeklyXp ?? this.weeklyXp,
-    stars: stars,
+    stars: stars ?? this.stars,
     favors: favors,
     tools: tools,
     petHunger: petHunger ?? this.petHunger,
@@ -132,6 +141,7 @@ final class UserProfile {
     'province': province,
     'district': district,
     'xp': xp,
+    'fichas': fichas,
     'weeklyXp': weeklyXp,
     'level': level,
     'stars': stars,

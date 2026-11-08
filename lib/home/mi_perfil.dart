@@ -49,8 +49,14 @@ class _MiPerfilPage extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Tu participación', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
-            Text(
-              'Nivel ${datos.nivel} · ${datos.xp} XP · ${datos.stars} estrellas',
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              children: [
+                Text('Nivel ${datos.nivel} · ${datos.xp} XP · '),
+                SvgPicture.asset('assets/ficha.svg', width: 14, height: 14),
+                Text('${datos.fichas} fichas · ${datos.stars} ★'),
+              ],
             ),
             Text('${datos.weeklyXp} XP esta semana'),
             Text('Favores completados: ${datos.favoresCompletados}'),

@@ -48,7 +48,7 @@ class HelpFormController extends ChangeNotifier with PostLocationCapture {
   }
 
   void setPeopleCount(int? count) {
-    if (count != null && count < 1) return;
+    if (count != null && (count < 1 || count > 300)) return;
     _peopleCount = count;
     notifyListeners();
   }

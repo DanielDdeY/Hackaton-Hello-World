@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../domain/entities/comunidad_feed_items.dart';
 import '../../domain/repositories/comunidad_feed_repository.dart';
@@ -113,7 +114,7 @@ class _HelpCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const _PointsBadge(),
+                _PointsBadge(fichas: item.fichas, xp: item.xp),
                 const ExcludeSemantics(child: Icon(Icons.more_vert, size: 20)),
               ],
             ),
@@ -175,33 +176,40 @@ class _HelpCard extends StatelessWidget {
 }
 
 class _PointsBadge extends StatelessWidget {
-  const _PointsBadge();
+  const _PointsBadge({required this.fichas, required this.xp});
+
+  final int fichas;
+  final int xp;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 122),
+      constraints: const BoxConstraints(maxWidth: 130),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF3CD),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFFFB703), width: 0.8),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 4,
         children: [
-          Icon(Icons.stars_rounded, size: 16, color: Color(0xFFD48B00)),
+          SvgPicture.asset(
+            'assets/ficha.svg',
+            width: 14,
+            height: 14,
+          ),
           Flexible(
             child: Text.rich(
               TextSpan(
-                style: TextStyle(color: Color(0xFF7A4A00)),
+                style: const TextStyle(color: Color(0xFF7A4A00)),
                 children: [
                   TextSpan(
-                    text: '+5 pts',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    text: '+$fichas',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
-                  TextSpan(text: ' (10 XP)', style: TextStyle(fontSize: 10)),
+                  TextSpan(text: ' ($xp XP)', style: const TextStyle(fontSize: 10)),
                 ],
               ),
             ),

@@ -19,6 +19,7 @@ class _DatosBarrio extends ChangeNotifier {
       rol = profile.role,
       bio = profile.bio,
       xp = profile.xp,
+      fichas = profile.fichas,
       weeklyXp = profile.weeklyXp,
       stars = profile.stars,
       favores = profile.favors,
@@ -39,6 +40,7 @@ class _DatosBarrio extends ChangeNotifier {
   String rol;
   String bio;
   int xp;
+  int fichas;
   int weeklyXp;
   int stars;
   int favores;
@@ -49,8 +51,8 @@ class _DatosBarrio extends ChangeNotifier {
   int eventosAsistidos;
   int reconocimientos;
   int rachaSemanal;
-  bool get mascotaDesbloqueada => nivel >= 25;
-  int get nivel => xp ~/ 100;
+  bool get mascotaDesbloqueada => NivelXp.mascotaDesbloqueada(xp);
+  int get nivel => NivelXp.calcularNivel(xp);
   UserProfile toProfile() => UserProfile(
     name: nombre,
     phoneNumber: phoneNumber,
@@ -60,6 +62,7 @@ class _DatosBarrio extends ChangeNotifier {
     province: provincia,
     district: distrito,
     xp: xp,
+    fichas: fichas,
     weeklyXp: weeklyXp,
     stars: stars,
     favors: favores,
@@ -212,6 +215,7 @@ class _EntradaState extends State<_Entrada> {
             role: _prefs.getString('vecino_rol') ?? 'Vecino',
             bio: _prefs.getString('vecino_bio') ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
             xp: _prefs.getInt('vecino_xp') ?? 0,
+            fichas: _prefs.getInt('vecino_fichas') ?? _prefs.getInt('vecino_stars') ?? 0,
             stars: _prefs.getInt('vecino_stars') ?? 0,
             favors: _prefs.getInt('vecino_favores') ?? 0,
             tools: _prefs.getInt('vecino_herramientas') ?? 0,
@@ -665,6 +669,7 @@ class _EntradaState extends State<_Entrada> {
           role: _perfilExistente?.role ?? 'Vecino',
           bio: _perfilExistente?.bio ?? 'Me gusta ayudar con reparaciones y prestar herramientas a mis vecinos.',
           xp: _perfilExistente?.xp ?? 0,
+          fichas: _perfilExistente?.fichas ?? 0,
           stars: _perfilExistente?.stars ?? 0,
           favors: _perfilExistente?.favors ?? 0,
           tools: _perfilExistente?.tools ?? 0,

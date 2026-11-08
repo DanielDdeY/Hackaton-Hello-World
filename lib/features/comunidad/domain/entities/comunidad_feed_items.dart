@@ -11,6 +11,11 @@ final class HelpItem {
     this.title,
     this.location,
     this.peopleNeeded,
+    this.fichas = 15,
+    this.xp = 30,
+    this.cuposTomados = 0,
+    this.ayudantes = const [],
+    this.estado = 'abierto',
   });
 
   final String id;
@@ -19,6 +24,13 @@ final class HelpItem {
   final String? title;
   final String? location;
   final int? peopleNeeded;
+  final int fichas;
+  final int xp;
+  final int cuposTomados;
+  final List<String> ayudantes;
+  final String estado;
+
+  bool get tieneCupo => (cuposTomados < (peopleNeeded ?? 1)) && estado == 'abierto';
 }
 
 final class ServiceItem {

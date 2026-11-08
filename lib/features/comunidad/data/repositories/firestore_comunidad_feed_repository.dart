@@ -132,6 +132,13 @@ final class FirestoreComunidadFeedRepository
     if (description == null) return null;
 
     final people = details['peopleNeeded'];
+    final count = people is int && people > 0 ? people.clamp(1, 300) : 1;
+    final fichas = (details['fichasRecompensa'] as num?)?.toInt() ?? (count > 2 ? 30 : 15);
+    final xp = (details['xpRecompensa'] as num?)?.toInt() ?? (count > 2 ? 60 : 30);
+    final cuposTomados = (details['cuposTomados'] as num?)?.toInt() ?? 0;
+    final ayudantes = (details['ayudantes'] as List?)?.whereType<String>().toList() ?? const <String>[];
+    final estado = details['estado'] as String? ?? 'abierto';
+
     final location = data['location'];
     final autoLocation =
         location is Map &&
@@ -144,7 +151,12 @@ final class FirestoreComunidadFeedRepository
       authorName: _text(data['authorName']) ?? 'Vecino',
       title: _text(details['title']),
       location: autoLocation ? null : _text(details['specificLocation']),
-      peopleNeeded: people is int && people > 0 ? people : null,
+      peopleNeeded: people is int && people > 0 ? count : null,
+      fichas: fichas,
+      xp: xp,
+      cuposTomados: cuposTomados,
+      ayudantes: ayudantes,
+      estado: estado,
     );
   }
 
