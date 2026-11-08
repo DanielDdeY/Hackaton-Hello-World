@@ -218,27 +218,6 @@ class FirestoreComunidadRepository implements ComunidadRepository {
       ranking = await _rankingDesdeUsuarios(distrito);
     }
 
-    if (ranking.isEmpty && slug == 'ate') {
-      try {
-        await sembrarDatosSimulados();
-        final nuevoSnapshot = await _firestore
-            .collection('ranking')
-            .doc(slug)
-            .collection('posiciones')
-            .orderBy('xpPeriodo', descending: true)
-            .limit(50)
-            .get();
-        ranking = nuevoSnapshot.docs
-            .map((doc) => _mapearRanking(doc, distrito))
-            .toList();
-        if (ranking.isEmpty) {
-          ranking = await _rankingDesdeUsuarios(distrito);
-        }
-      } catch (e) {
-        debugPrint('No se pudo sembrar/leer datos simulados de Firestore: $e');
-      }
-    }
-
     return _incluirUsuarioActual(ranking);
   }
 

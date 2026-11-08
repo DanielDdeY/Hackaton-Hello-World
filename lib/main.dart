@@ -57,11 +57,6 @@ void main() async {
     auth: FirebaseAuth.instanceFor(app: firebaseApp),
     distritoPorDefecto: 'Ate',
   );
-  unawaited(
-    comunidadRepository.sembrarDatosSimulados().catchError((error) {
-      debugPrint('Sembrado de datos simulados diferido: $error');
-    }),
-  );
 
   runApp(
     MyApp(
