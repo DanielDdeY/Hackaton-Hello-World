@@ -32,6 +32,11 @@ import 'user_profile.dart';
 import '../features/economia/domain/entities/nivel_xp.dart';
 import '../features/mascota/data/repositories/local_mascota_repository.dart';
 import '../features/mascota/presentation/pages/mascota_page.dart';
+import '../features/emergency/presentation/sos_sms_contacts_page.dart';
+import '../features/ayuda_prevencion/ayuda_prevencion_page.dart';
+import '../features/ayuda_prevencion/services/backpack_checklist_store.dart';
+import '../features/ayuda_prevencion/services/mochila_estado.dart';
+import '../features/perfil/presentation/widgets/widgets.dart';
 
 part 'login.dart';
 part 'mi_perfil.dart';
@@ -550,6 +555,30 @@ class _InicioState extends State<Inicio> {
   }
 
   Future<void> _cerrarSesion() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Cerrar sesión?'),
+        content: const Text(
+          'Tendrás que volver a ingresar con tu cuenta para acceder a tu perfil y comunidad.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     final auth = context.read<AuthGateway?>();
     try {
       await auth?.signOut();
@@ -597,9 +626,14 @@ class _InicioState extends State<Inicio> {
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
-            accountName: Text(widget.datos.nombre),
+            accountName: Text(
+              widget.datos.nombre.isEmpty ? 'Vecino' : widget.datos.nombre,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             accountEmail: Text(
-              widget.datos.distrito.isEmpty ? "Ate" : widget.datos.distrito,
+              widget.datos.distrito.isEmpty
+                  ? 'Ate (Lima)'
+                  : '${widget.datos.distrito}${widget.datos.provincia.isNotEmpty ? ' (${widget.datos.provincia})' : ''}',
             ),
             currentAccountPicture: _avatarVecino(
               widget.datos.iniciales,
@@ -609,42 +643,46 @@ class _InicioState extends State<Inicio> {
             decoration: const BoxDecoration(color: orange),
           ),
           ListTile(
-            leading: const Icon(Icons.location_on_outlined),
-            title: const Text('Distrito'),
-            subtitle: Text(
-              widget.datos.distrito.isEmpty
-                  ? 'Ate (Lima)'
-                  : '${widget.datos.distrito} (${widget.datos.provincia})',
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.leaderboard_outlined),
-            title: const Text('Estadísticas y Nivel'),
-            subtitle: Row(
-              children: [
-                Text('Nivel ${widget.datos.nivel} · ${widget.datos.xp} XP · '),
-                SvgPicture.asset('assets/ficha.svg', width: 14, height: 14),
-                const SizedBox(width: 4),
-                Text('${widget.datos.fichas} fichas'),
-              ],
-            ),
-          ),
-          if (widget.datos.insignias.isNotEmpty)
-            ListTile(
-              leading: const Icon(Icons.workspace_premium_outlined),
-              title: const Text('Insignias comunitarias'),
-              subtitle: Text(widget.datos.insignias.join(', ')),
-            ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
+            leading: const Icon(Icons.person_outline, color: orange),
             title: const Text('Mi perfil'),
+            subtitle: const Text('Nivel, estadísticas y datos personales'),
             onTap: _abrirMiPerfil,
           ),
           ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Editar información'),
-            onTap: _editarInformacion,
+            leading: const Icon(Icons.pets_outlined, color: Color(0xFF16A34A)),
+            title: const Text('Mi mascota'),
+            subtitle: const Text('Cuida a tu compañero vecinal'),
+            onTap: () {
+              Navigator.pop(context);
+              _abrirMascota();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.contact_phone_outlined, color: Color(0xFF0284C7)),
+            title: const Text('Contactos SOS por SMS'),
+            subtitle: const Text('Alertas de emergencia sin conexión'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SosSmsContactsPage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.backpack_outlined, color: Color(0xFFD97706)),
+            title: const Text('Ayuda y prevención'),
+            subtitle: const Text('Mochila de emergencia y directorio'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: const Text('Ayuda y Prevención')),
+                    body: const AyudaPrevencionPage(),
+                  ),
+                ),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.health_and_safety_outlined),
@@ -658,8 +696,8 @@ class _InicioState extends State<Inicio> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('Cerrar sesión'),
+            leading: const Icon(Icons.logout, color: Color(0xFFDC2626)),
+            title: const Text('Cerrar sesión', style: TextStyle(color: Color(0xFFDC2626))),
             onTap: _cerrarSesion,
           ),
         ],
