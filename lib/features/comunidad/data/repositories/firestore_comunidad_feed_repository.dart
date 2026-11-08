@@ -22,6 +22,9 @@ final class FirestoreComunidadFeedRepository
   static const _feedLimit = 30;
 
   @override
+  Stream<List<HelpItem>> watchFavors() => _watchPosts('help', _readHelp);
+
+  @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) =>
       _watchPosts('service', _readService, serviceCategory: category);
 
@@ -53,6 +56,40 @@ final class FirestoreComunidadFeedRepository
           );
     }
   }
+
+  @override
+  Stream<EventAttendance> watchEventAttendance(String eventId) async* {
+    final uid = await _auth.ensureSignedIn();
+    final answers = EventAttendanceResponse.values.asNameMap();
+    yield* _eventResponses(eventId).snapshots().map((snapshot) {
+      var confirmedCount = 0;
+      EventAttendanceResponse? myResponse;
+      for (final doc in snapshot.docs) {
+        final response = answers[doc.data()['response']];
+        if (response == EventAttendanceResponse.going) confirmedCount++;
+        if (doc.id == uid) myResponse = response;
+      }
+      return EventAttendance(
+        myResponse: myResponse,
+        confirmedCount: confirmedCount,
+      );
+    });
+  }
+
+  @override
+  Future<void> respondToEvent(
+    String eventId,
+    EventAttendanceResponse response,
+  ) async {
+    final uid = await _auth.ensureSignedIn();
+    await _eventResponses(eventId).doc(uid).set({
+      'response': response.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  CollectionReference<Map<String, dynamic>> _eventResponses(String eventId) =>
+      _firestore.collection('posts').doc(eventId).collection('attendance');
 
   Stream<List<T>> _watchPosts<T>(
     String category,
@@ -86,6 +123,29 @@ final class FirestoreComunidadFeedRepository
             for (final doc in snapshot.docs) ?decode(doc.id, doc.data()),
           ],
         );
+  }
+
+  static HelpItem? _readHelp(String id, Map<String, dynamic> data) {
+    final details = data['details'];
+    if (details is! Map) return null;
+    final description = _text(details['description']);
+    if (description == null) return null;
+
+    final people = details['peopleNeeded'];
+    final location = data['location'];
+    final autoLocation =
+        location is Map &&
+        location['addressEditedByUser'] != true &&
+        (location['source'] == 'gps' || location['source'] == 'gps_last_known');
+
+    return HelpItem(
+      id: id,
+      description: description,
+      authorName: _text(data['authorName']) ?? 'Vecino',
+      title: _text(details['title']),
+      location: autoLocation ? null : _text(details['specificLocation']),
+      peopleNeeded: people is int && people > 0 ? people : null,
+    );
   }
 
   static ServiceItem? _readService(String id, Map<String, dynamic> data) {
