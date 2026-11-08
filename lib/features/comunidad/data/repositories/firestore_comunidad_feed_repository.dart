@@ -18,6 +18,12 @@ final class FirestoreComunidadFeedRepository
   final FirebaseFirestore _firestore;
   final AuthGateway _auth;
 
+  static const _eventDateField = 'details.startsAt';
+  static const _feedLimit = 30;
+
+  @override
+  Stream<List<HelpItem>> watchFavors() => _watchPosts('help', _readHelp);
+
   @override
   Stream<List<ServiceItem>> watchServices({ServiceCategory? category}) =>
       _watchPosts('service', _readService, serviceCategory: category);
@@ -26,7 +32,64 @@ final class FirestoreComunidadFeedRepository
   Stream<List<NewsItem>> watchNews() => _watchPosts('news', _readNews);
 
   @override
-  Stream<List<EventItem>> watchEvents() => _watchPosts('event', _readEvent);
+  Stream<List<EventItem>> watchEvents() async* {
+    try {
+      await for (final items in _watchPosts('event', _readEvent)) {
+        yield items;
+      }
+    } on FirebaseException catch (error) {
+      if (error.code != 'failed-precondition') rethrow;
+
+      // Si el índice compuesto aún no está disponible, consulta solo la fecha.
+      // Filtra las publicaciones activas antes de limitar el resultado.
+      yield* _firestore
+          .collection('posts')
+          .where(_eventDateField, isGreaterThan: Timestamp.now())
+          .orderBy(_eventDateField)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map((doc) => _readEvent(doc.id, doc.data()))
+                .whereType<EventItem>()
+                .take(_feedLimit)
+                .toList(growable: false),
+          );
+    }
+  }
+
+  @override
+  Stream<EventAttendance> watchEventAttendance(String eventId) async* {
+    final uid = await _auth.ensureSignedIn();
+    final answers = EventAttendanceResponse.values.asNameMap();
+    yield* _eventResponses(eventId).snapshots().map((snapshot) {
+      var confirmedCount = 0;
+      EventAttendanceResponse? myResponse;
+      for (final doc in snapshot.docs) {
+        final response = answers[doc.data()['response']];
+        if (response == EventAttendanceResponse.going) confirmedCount++;
+        if (doc.id == uid) myResponse = response;
+      }
+      return EventAttendance(
+        myResponse: myResponse,
+        confirmedCount: confirmedCount,
+      );
+    });
+  }
+
+  @override
+  Future<void> respondToEvent(
+    String eventId,
+    EventAttendanceResponse response,
+  ) async {
+    final uid = await _auth.ensureSignedIn();
+    await _eventResponses(eventId).doc(uid).set({
+      'response': response.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  CollectionReference<Map<String, dynamic>> _eventResponses(String eventId) =>
+      _firestore.collection('posts').doc(eventId).collection('attendance');
 
   Stream<List<T>> _watchPosts<T>(
     String category,
@@ -46,20 +109,43 @@ final class FirestoreComunidadFeedRepository
       );
     }
     final upcoming = category == 'event';
-    final orderField = upcoming ? 'details.startsAt' : 'createdAt';
+    final orderField = upcoming ? _eventDateField : 'createdAt';
     if (upcoming) {
       query = query.where(orderField, isGreaterThan: Timestamp.now());
     }
 
     yield* query
         .orderBy(orderField, descending: !upcoming)
-        .limit(30)
+        .limit(_feedLimit)
         .snapshots()
         .map(
           (snapshot) => [
             for (final doc in snapshot.docs) ?decode(doc.id, doc.data()),
           ],
         );
+  }
+
+  static HelpItem? _readHelp(String id, Map<String, dynamic> data) {
+    final details = data['details'];
+    if (details is! Map) return null;
+    final description = _text(details['description']);
+    if (description == null) return null;
+
+    final people = details['peopleNeeded'];
+    final location = data['location'];
+    final autoLocation =
+        location is Map &&
+        location['addressEditedByUser'] != true &&
+        (location['source'] == 'gps' || location['source'] == 'gps_last_known');
+
+    return HelpItem(
+      id: id,
+      description: description,
+      authorName: _text(data['authorName']) ?? 'Vecino',
+      title: _text(details['title']),
+      location: autoLocation ? null : _text(details['specificLocation']),
+      peopleNeeded: people is int && people > 0 ? people : null,
+    );
   }
 
   static ServiceItem? _readService(String id, Map<String, dynamic> data) {
@@ -127,6 +213,7 @@ final class FirestoreComunidadFeedRepository
   }
 
   static EventItem? _readEvent(String id, Map<String, dynamic> data) {
+    if (data['category'] != 'event' || data['status'] != 'active') return null;
     final details = data['details'];
     if (details is! Map) return null;
     final title = _text(details['title']);

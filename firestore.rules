@@ -1,12 +1,229 @@
 rules_version = '2';
 
-// MODO HACKATON: acceso totalmente abierto.
-// Cualquier cliente (con o sin sesión) puede leer y escribir cualquier
-// documento. No usar estas reglas en producción.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+    match /phoneIndex/{phoneNumber} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function validCategory(category) {
+      return category in ['emergency', 'help', 'service', 'news', 'event'];
+    }
+
+    function validServiceDetails(details) {
+      return details.serviceCategory in [
+          'food', 'home_trades', 'education', 'pets', 'health_care',
+          'technology', 'transport_moving', 'beauty_sewing', 'other'
+        ]
+        && (details.price is int || details.price is float)
+        && details.price >= 0
+        && details.contactPhone is string
+        && details.contactPhone.matches('^9[0-9]{8}$');
+    }
+
+    function nonBlank(value) {
+      return value is string && !value.matches('\\s*');
+    }
+
+    function validEventDetails(details) {
+      return details.keys().hasAll(['title', 'place', 'startsAt'])
+        && details.keys().hasOnly([
+          'title', 'place', 'startsAt', 'attendees', 'description'
+        ])
+        && nonBlank(details.title)
+        && nonBlank(details.place)
+        && details.startsAt is timestamp
+        && details.startsAt > request.time
+        && (!('attendees' in details.keys())
+          || (details.attendees is int && details.attendees >= 0))
+        && (!('description' in details.keys())
+          || details.description is string);
+    }
+
+    function validPostDetails(category, details) {
+      return details is map
+        && (category != 'service' || validServiceDetails(details))
+        && (category != 'news' || (nonBlank(details.title) && nonBlank(details.content)))
+        && (category != 'event' || validEventDetails(details));
+    }
+
+    function validPhoto(photo, postId) {
+      return photo is map
+        && photo.keys().hasOnly(['storagePath', 'downloadUrl'])
+        && photo.storagePath is string
+        && photo.downloadUrl is string
+        && photo.downloadUrl.size() > 0
+        && validPhotoPath(photo.storagePath.split('/'), postId);
+    }
+
+    function validPhotoPath(parts, postId) {
+      return parts.size() == 4
+        && parts[0] == 'posts'
+        && parts[1] == request.auth.uid
+        && parts[2] == postId
+        && parts[3].matches('[0-9]+_[0-9]+[.]jpg');
+    }
+
+    function validMedia(data, postId) {
+      let photos = data.photos;
+      return data.mediaStatus in ['none', 'uploading', 'ready', 'failed']
+        && photos is list
+        && photos.size() <= (data.category == 'service' ? 5 : 1)
+        && (data.mediaStatus == 'ready' ? photos.size() > 0 : photos.size() == 0)
+        && (photos.size() < 1 || validPhoto(photos[0], postId))
+        && (photos.size() < 2 || validPhoto(photos[1], postId))
+        && (photos.size() < 3 || validPhoto(photos[2], postId))
+        && (photos.size() < 4 || validPhoto(photos[3], postId))
+        && (photos.size() < 5 || validPhoto(photos[4], postId));
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.id == postId
+        && request.resource.data.authorId == request.auth.uid
+        && validCategory(request.resource.data.category)
+        && request.resource.data.status == 'active'
+        && request.resource.data.schemaVersion == 2
+        && validPostDetails(request.resource.data.category, request.resource.data.details)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && validMedia(request.resource.data, postId);
+
+      allow update: if signedIn()
+        && resource.data.authorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['photos', 'mediaStatus', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && validMedia(request.resource.data, postId);
+
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userCommunity(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.communityId;
+    }
+
+    match /users/{uid} {
+      allow read: if owns(uid);
+
+      allow create: if owns(uid)
+        && request.resource.data.communityId is string
+        && request.resource.data.keys().hasOnly([
+          'communityId', 'proximityEnabled', 'location', 'geohash',
+          'locationUpdatedAt', 'fcmToken', 'platform'
+        ]);
+
+      allow update: if owns(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'communityId', 'proximityEnabled', 'location', 'geohash',
+          'locationUpdatedAt', 'fcmToken', 'platform'
+        ])
+        && (
+          request.resource.data.communityId == resource.data.communityId
+          || (
+            !('communityId' in resource.data.keys())
+            || (
+              resource.data.communityId is string
+              && resource.data.communityId.matches('^\\s*$')
+            )
+          ) && (
+            request.resource.data.communityId is string
+            && request.resource.data.communityId.matches('.*\\S.*')
+          )
+        );
+
+      match /nearby_emergency_alerts/{alertId} {
+        allow read: if owns(uid);
+        allow write: if false;
+      }
+
+      match /notification_devices/{deviceId} {
+        allow read, write: if owns(uid);
+      }
+    }
+
+    match /emergency_alerts/{alertId} {
+      allow create: if signedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.communityId == userCommunity(request.auth.uid)
+        && request.resource.data.status == 'active'
+        && request.resource.data.radiusMeters == 200
+        && request.resource.data.location is latlng
+        && request.resource.data.keys().hasOnly([
+          'reporterUid', 'location', 'communityId', 'radiusMeters', 'status',
+          'createdAt', 'updatedAt'
+        ]);
+
+      allow get: if signedIn()
+        && (
+          !exists(/databases/$(database)/documents/emergency_alerts/$(alertId))
+          || resource.data.reporterUid == request.auth.uid
+        );
+      allow list: if signedIn()
+        && resource.data.reporterUid == request.auth.uid;
+
+      allow update: if signedIn()
+        && resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reporterUid == resource.data.reporterUid
+        && request.resource.data.communityId == resource.data.communityId
+        && request.resource.data.location == resource.data.location
+        && request.resource.data.status in ['active', 'cancelled', 'resolved']
+        && (
+          request.resource.data.status == resource.data.status
+          || (
+            resource.data.status == 'active'
+            && request.resource.data.status in ['cancelled', 'resolved']
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'updatedAt', 'title', 'description',
+          'emergencyType', 'photoPath'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /community_posts/{postId} {
+      allow get: if signedIn()
+        && (
+          !exists(/databases/$(database)/documents/community_posts/$(postId))
+          || resource.data.authorUid == request.auth.uid
+        );
+      allow list: if signedIn()
+        && resource.data.authorUid == request.auth.uid;
+
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.communityId == userCommunity(request.auth.uid)
+        && request.resource.data.alertId == postId
+        && get(/databases/$(database)/documents/emergency_alerts/$(postId))
+          .data.reporterUid == request.auth.uid
+        && request.resource.data.category == 'emergency'
+        && request.resource.data.priority == 1
+        && request.resource.data.keys().hasOnly([
+          'alertId', 'authorUid', 'communityId', 'category', 'emergencyType',
+          'title', 'description', 'photoPath', 'approximateLocation',
+          'priority', 'status', 'createdAt'
+        ]);
+
+      allow update, delete: if false;
     }
   }
 }

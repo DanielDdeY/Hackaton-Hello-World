@@ -106,6 +106,10 @@ final class FirebaseAuthGateway implements AuthGateway {
       if (uid == null) throw const AuthFailure(AuthFailureReason.unavailable);
       return uid;
     } on FirebaseAuthException catch (error) {
+      debugPrint(
+        'Firebase anonymous sign-in failed '
+        '(code=${error.code}): ${error.message}',
+      );
       throw AuthFailure(switch (error.code) {
         'network-request-failed' => AuthFailureReason.noConnection,
         'operation-not-allowed' ||

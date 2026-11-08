@@ -734,7 +734,7 @@ class _InicioState extends State<Inicio> {
       if (mounted) {
         _showSosError(
           error.reason == AuthFailureReason.anonymousDisabled
-              ? 'Firebase no tiene habilitado el acceso anónimo.'
+              ? 'Activa el proveedor Anónimo en Firebase Console: Authentication > Proveedores de acceso.'
               : 'No se pudo iniciar sesión para enviar el SOS.',
         );
       }
