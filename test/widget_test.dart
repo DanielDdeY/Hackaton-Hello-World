@@ -195,7 +195,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('AYNI VECI'), findsOneWidget);
     expect(find.text('Carlos Mendoza'), findsOneWidget);
-    expect(find.text('Mi Cuy'), findsOneWidget);
+    expect(find.text('Mascota bloqueada'), findsOneWidget);
 
     await tester.tap(find.text('Ayuda').last);
     await tester.pumpAndSettle();
