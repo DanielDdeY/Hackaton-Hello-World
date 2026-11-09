@@ -536,7 +536,6 @@ class _InicioState extends State<Inicio> {
   final _perfilTutorial = GlobalKey();
   final _sosTutorial = GlobalKey();
   final _campanaTutorial = GlobalKey();
-  final _wrappedTutorial = GlobalKey();
   final _mascotaTutorial = GlobalKey();
   static const _sosConsent = SosConsentStore();
   int? _pasoTutorial;
@@ -615,7 +614,6 @@ class _InicioState extends State<Inicio> {
     final destinos = [
       [_perfilTutorial],
       [_campanaTutorial, _sosTutorial],
-      [_wrappedTutorial],
       [_mascotaTutorial],
       [_mascotaTutorial],
     ][paso];
@@ -1057,7 +1055,8 @@ class _InicioState extends State<Inicio> {
     drawer: _drawer(),
     body: SafeArea(
       bottom: false,
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: SingleChildScrollView(
@@ -1070,8 +1069,6 @@ class _InicioState extends State<Inicio> {
                 _perfil(),
                 const SizedBox(height: 12),
                 SosAlertBanner(onOpenMap: widget.onOpenMap),
-                const SizedBox(height: 12),
-                _wrapped(),
                 const SizedBox(height: 12),
                 _mascota(),
               ],
@@ -1191,42 +1188,6 @@ class _InicioState extends State<Inicio> {
           ),
         ),
       ],
-    ),
-  );
-
-  Widget _wrapped() => tarjeta(
-    color: const Color(0xfff6dfec),
-    radius: 18,
-    onTap: () => detalle(
-      'Tu Wrapped del mes',
-      'Este mes completaste ${widget.datos.favores} favores y prestaste ${widget.datos.herramientas} herramientas.',
-    ),
-    child: SizedBox(
-      key: _wrappedTutorial,
-      height: 79,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            icono('Regalo', 36),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    label('Tu Wrapped del mes', 17, bold: true),
-                    const SizedBox(height: 5),
-                    label('Descubre tu impacto en el barrio', 12, color: muted),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     ),
   );
 
