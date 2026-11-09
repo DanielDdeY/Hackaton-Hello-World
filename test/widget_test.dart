@@ -186,6 +186,10 @@ void main() {
   testWidgets('muestra el inicio guardado del vecino', (
     WidgetTester tester,
   ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
     SharedPreferences.setMockInitialValues({
       'vecino_departamento': 'Lima',
       'vecino_provincia': 'Lima',
@@ -194,9 +198,33 @@ void main() {
     await tester.pumpWidget(MyApp());
     await tester.pumpAndSettle();
     expect(find.text('AYNI VECI'), findsOneWidget);
-    expect(find.text('Carlos Mendoza'), findsOneWidget);
-    expect(find.text('Tu Wrapped del mes'), findsOneWidget);
+    final profile = find.text('Carlos Mendoza');
+    final appBar = find.widgetWithText(AppBar, 'Inicio');
+    expect(profile, findsOneWidget);
+    final profileOffset =
+        tester.getTopLeft(profile).dy - tester.getBottomLeft(appBar).dy;
+    expect(profileOffset, inInclusiveRange(0, 90));
+    expect(find.text('Tu Wrapped del mes'), findsNothing);
+    expect(find.text('Mascota bloqueada'), findsOneWidget);
 
+    expect(find.text('Tu perfil'), findsOneWidget);
+    final next = find.text('Siguiente');
+    await tester.ensureVisible(next);
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    expect(find.text('SOS y notificaciones'), findsOneWidget);
+    await tester.ensureVisible(next);
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    expect(find.text('Tu Mascota: El Cuy'), findsOneWidget);
+    final skip = find.text('Omitir');
+    await tester.ensureVisible(skip);
+    await tester.tap(skip);
+    await tester.pumpAndSettle();
+
+    tester.view.resetDevicePixelRatio();
+    tester.view.resetPhysicalSize();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ayuda').last);
     await tester.pumpAndSettle();
     expect(find.text('Mochila de Emergencia'), findsOneWidget);
