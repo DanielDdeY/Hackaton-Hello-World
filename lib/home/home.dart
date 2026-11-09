@@ -536,7 +536,6 @@ class _InicioState extends State<Inicio> {
   final _perfilTutorial = GlobalKey();
   final _sosTutorial = GlobalKey();
   final _campanaTutorial = GlobalKey();
-  final _wrappedTutorial = GlobalKey();
   final _mascotaTutorial = GlobalKey();
   static const _sosConsent = SosConsentStore();
   int? _pasoTutorial;
@@ -615,7 +614,6 @@ class _InicioState extends State<Inicio> {
     final destinos = [
       [_perfilTutorial],
       [_campanaTutorial, _sosTutorial],
-      [_wrappedTutorial],
       [_mascotaTutorial],
       [_mascotaTutorial],
     ][paso];
@@ -655,28 +653,6 @@ class _InicioState extends State<Inicio> {
     } catch (error) {
       debugPrint('No se pudo guardar la preferencia del tutorial: $error');
     }
-  }
-
-  void detalle(String titulo, String mensaje) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: paper,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              label(titulo, 21, bold: true),
-              const SizedBox(height: 10),
-              label(mensaje, 15, color: muted),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _abrirMiPerfil() async {
@@ -1057,7 +1033,8 @@ class _InicioState extends State<Inicio> {
     drawer: _drawer(),
     body: SafeArea(
       bottom: false,
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: SingleChildScrollView(
@@ -1070,8 +1047,6 @@ class _InicioState extends State<Inicio> {
                 _perfil(),
                 const SizedBox(height: 12),
                 SosAlertBanner(onOpenMap: widget.onOpenMap),
-                const SizedBox(height: 12),
-                _wrapped(),
                 const SizedBox(height: 12),
                 _mascota(),
               ],
@@ -1113,8 +1088,8 @@ class _InicioState extends State<Inicio> {
     ),
   );
 
-  Widget _perfil() => SizedBox(
-    height: 91,
+  Widget _perfil() => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 91),
     child: Row(
       children: [
         _avatarVecino(widget.datos.iniciales, widget.datos.foto, 29),
@@ -1122,6 +1097,7 @@ class _InicioState extends State<Inicio> {
         Expanded(
           child: Column(
             key: _perfilTutorial,
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               label(widget.datos.nombre, 19, bold: true),
@@ -1194,42 +1170,6 @@ class _InicioState extends State<Inicio> {
     ),
   );
 
-  Widget _wrapped() => tarjeta(
-    color: const Color(0xfff6dfec),
-    radius: 18,
-    onTap: () => detalle(
-      'Tu Wrapped del mes',
-      'Este mes completaste ${widget.datos.favores} favores y prestaste ${widget.datos.herramientas} herramientas.',
-    ),
-    child: SizedBox(
-      key: _wrappedTutorial,
-      height: 79,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            icono('Regalo', 36),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    label('Tu Wrapped del mes', 17, bold: true),
-                    const SizedBox(height: 5),
-                    label('Descubre tu impacto en el barrio', 12, color: muted),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-
   void _abrirMascota() {
     final uid = context.read<AuthGateway?>()?.currentUid ?? 'usr_local';
     final repo = LocalMascotaRepository(preferences: widget.datos.preferencias);
@@ -1257,9 +1197,9 @@ class _InicioState extends State<Inicio> {
       radius: 18,
       border: true,
       onTap: desbloqueada ? _abrirMascota : null,
-      child: SizedBox(
+      child: ConstrainedBox(
         key: _mascotaTutorial,
-        height: 125,
+        constraints: const BoxConstraints(minHeight: 125),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -1286,7 +1226,7 @@ class _InicioState extends State<Inicio> {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     label(
                       desbloqueada ? 'Mi Cuy' : 'Mascota bloqueada',

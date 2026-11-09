@@ -10,10 +10,6 @@ const _pasos = [
     'Usa SOS para pedir ayuda urgente a tu grupo. En la campana encontrarás tus notificaciones.',
   ),
   (
-    'Tu Wrapped',
-    'Descubre cuántos favores completaste, qué herramientas prestaste y cuántos puntos ganaste este mes.',
-  ),
-  (
     'Tu Mascota: El Cuy',
     'Tu compañero del barrio. Al alcanzar el nivel 2 podrás visitarlo, abrir cajas de sorpresas y personalizarlo con accesorios.',
   ),
